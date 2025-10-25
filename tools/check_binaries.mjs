@@ -71,5 +71,13 @@ if (untrackedBanned.length) {
   }
 }
 
-console.error('\nUse `pnpm repo:unstage-binaries` to drop staged binaries or `pnpm repo:strip-binaries` to rewrite history.');
-process.exit(1);
+if (trackedBanned.length || stagedBanned.length) {
+  console.error('\nUse `pnpm repo:unstage-binaries` to drop staged binaries or `pnpm repo:strip-binaries` to rewrite history.');
+  process.exit(1);
+}
+
+if (untrackedBanned.length) {
+  console.error('\n[info] Clean or relocate the untracked files above before committing.');
+}
+
+console.log('\n[ok] No tracked or staged banned binaries detected.');

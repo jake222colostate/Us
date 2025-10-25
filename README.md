@@ -88,7 +88,8 @@ pnpm dev:web   # RunPod-friendly
    pnpm repo:check-binaries
    ```
 
-   The check scans tracked, staged, and untracked files so you can catch stray assets before they ever hit git history.
+   The check scans tracked, staged, and untracked files so you can catch stray assets before they ever hit git history. It fails on
+   tracked or staged offenders and prints a warning for any untracked binaries still lingering in your working tree.
 
 ### Running on Web / RunPod
 

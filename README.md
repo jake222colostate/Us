@@ -88,6 +88,8 @@ pnpm dev:web   # RunPod-friendly
    pnpm repo:check-binaries
    ```
 
+   The check scans tracked, staged, and untracked files so you can catch stray assets before they ever hit git history.
+
 ### Running on Web / RunPod
 
 ```bash

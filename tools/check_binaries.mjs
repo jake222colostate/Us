@@ -41,7 +41,10 @@ const trackedBanned = filterBanned(trackedFiles);
 const stagedFiles = runGit('git diff --cached --name-only');
 const stagedBanned = filterBanned(stagedFiles);
 
-if (!trackedBanned.length && !stagedBanned.length) {
+const untrackedFiles = runGit('git ls-files --others --exclude-standard');
+const untrackedBanned = filterBanned(untrackedFiles);
+
+if (!trackedBanned.length && !stagedBanned.length && !untrackedBanned.length) {
   console.log('[ok] No banned binary files detected.');
   process.exit(0);
 }
@@ -56,6 +59,14 @@ if (trackedBanned.length) {
 if (stagedBanned.length) {
   console.error('\n[error] The following staged files match banned binary extensions:');
   for (const file of stagedBanned) {
+    console.error(`  - ${file}`);
+  }
+}
+
+if (untrackedBanned.length) {
+  console.error('\n[warn] The following untracked files match banned binary extensions:');
+  console.error('      They are currently ignored, but staging them will fail CI.');
+  for (const file of untrackedBanned) {
     console.error(`  - ${file}`);
   }
 }

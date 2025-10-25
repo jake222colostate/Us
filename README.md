@@ -160,7 +160,7 @@ pnpm test
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/ci.yml`) installs dependencies, lints, typechecks, and runs tests. Configure EAS Build integration on `main` branch as needed.
+ GitHub Actions workflow (`.github/workflows/ci.yml`) installs dependencies, lints, typechecks, runs tests, and enforces the binary gate via `pnpm repo:check-binaries || node tools/check_binaries.mjs` so pushes stay source-only. Configure EAS Build integration on `main` branch as needed.
 
 ## Billing Notes
 
@@ -178,4 +178,5 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) installs dependencies, lint
 1. Create a feature branch.
 2. Update relevant tests.
 3. Run `pnpm lint && pnpm typecheck && pnpm test`.
-4. Submit a PR describing the change set.
+4. Ensure the tree is binary-free: `pnpm repo:check-binaries || node tools/check_binaries.mjs`.
+5. Submit a PR describing the change set.

@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile=false
       - name: Ensure no binary artefacts are tracked
-        run: pnpm repo:check-binaries
+        run: pnpm repo:check-binaries || node tools/check_binaries.mjs
       - name: Lint
         run: pnpm lint
       - name: Typecheck

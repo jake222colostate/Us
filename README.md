@@ -85,10 +85,10 @@ pnpm dev:web   # RunPod-friendly
 3. Validate the repository is binary-free before opening a PR:
 
    ```bash
-   pnpm repo:check-binaries
+   pnpm repo:check-binaries || node tools/check_binaries.mjs
    ```
 
-   The check scans tracked, staged, and untracked files so you can catch stray assets before they ever hit git history. It fails on tracked or staged offenders and prints a warning for any untracked binaries still lingering in your working tree. If your environment cannot execute `pnpm` (for example, due to registry access limits), you can run the underlying script directly via `node tools/check_binaries.mjs`.
+   The check scans tracked, staged, and untracked files so you can catch stray assets before they ever hit git history. It fails on tracked or staged offenders and prints a warning for any untracked binaries still lingering in your working tree. The fallback `node` invocation runs automatically if `pnpm` is unavailable (e.g., offline or blocked registries), and you can call it directly when scripting your own hooks.
 
 ### Running on Web / RunPod
 

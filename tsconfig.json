@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "baseUrl": ".",
+    "paths": {
+      "@us/types": ["packages/types/src"],
+      "@us/ui": ["packages/ui/src"],
+      "@us/config": ["packages/config/src"],
+      "@us/config/*": ["packages/config/src/*"]
+    },
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "exclude": ["node_modules", "dist"]
+}

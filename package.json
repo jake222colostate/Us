@@ -1,0 +1,35 @@
+{
+  "name": "us-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@8.15.4",
+  "scripts": {
+    "repo:unstage-binaries": "git rm -r --cached . && git add . && git commit -m \"chore: drop binaries from index via .gitignore\" || echo \"No changes\"",
+    "repo:strip-binaries": "bash tools/strip_binaries.sh",
+    "seed:assets": "node tools/seed_assets.mjs",
+    "dev:web": "expo start --web",
+    "dev:native": "pnpm --filter app-mobile expo start",
+    "dev:web:mobile": "pnpm --filter app-mobile expo start --web",
+    "lint": "pnpm lint:root && pnpm lint:mobile",
+    "lint:root": "eslint .",
+    "lint:mobile": "pnpm --filter app-mobile lint",
+    "typecheck": "pnpm --recursive typecheck",
+    "test": "pnpm --recursive test",
+    "migrate:dev": "pnpm --filter supabase-infra migrate:dev",
+    "seed": "pnpm --filter supabase-infra seed",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "20.10.6",
+    "eslint": "8.56.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-import": "2.29.1",
+    "eslint-plugin-react": "7.33.2",
+    "eslint-plugin-react-hooks": "4.6.0",
+    "@typescript-eslint/parser": "6.13.1",
+    "@typescript-eslint/eslint-plugin": "6.13.1",
+    "expo": "^50.0.5",
+    "prettier": "3.1.1",
+    "typescript": "5.3.3"
+  }
+}

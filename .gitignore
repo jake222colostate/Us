@@ -1,0 +1,41 @@
+# Node/Expo
+node_modules/
+.expo/
+dist/
+build/
+
+# Env
+.env
+.env.*
+
+# iOS / Android native + builds
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+ios/**/*.xcuserstate
+ios/**/*.xcuserdatad
+android/.gradle/
+android/.idea/
+android/app/build/
+
+# Signing / creds
+*.keystore
+*.jks
+*.p12
+*.p8
+*.mobileprovision
+
+# Common binaries (keep them out of Git)
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.heic
+*.mp3
+*.wav
+*.mp4
+*.mov
+*.zip
+*.ipa
+*.apk

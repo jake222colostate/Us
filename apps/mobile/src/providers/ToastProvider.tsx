@@ -1,0 +1,37 @@
+import React, { createContext, useContext, useMemo, useState } from 'react';
+import { Toast } from '@us/ui';
+
+export type ToastContextValue = {
+  show: (message: string) => void;
+};
+
+const ToastContext = createContext<ToastContextValue | undefined>(undefined);
+
+export const ToastProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const [message, setMessage] = useState<string>('');
+  const [visible, setVisible] = useState(false);
+
+  const value = useMemo<ToastContextValue>(
+    () => ({
+      show(msg: string) {
+        setMessage(msg);
+        setVisible(true);
+        setTimeout(() => setVisible(false), 2500);
+      },
+    }),
+    [],
+  );
+
+  return (
+    <ToastContext.Provider value={value}>
+      {children}
+      <Toast message={message} visible={visible} />
+    </ToastContext.Provider>
+  );
+};
+
+export const useToast = () => {
+  const ctx = useContext(ToastContext);
+  if (!ctx) throw new Error('useToast must be used inside ToastProvider');
+  return ctx;
+};

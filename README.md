@@ -82,6 +82,14 @@ pnpm dev:web   # RunPod-friendly
    git push -u origin main --force
    ```
 
+3. Validate the repository is binary-free before opening a PR:
+
+   ```bash
+   pnpm repo:check-binaries || node tools/check_binaries.mjs
+   ```
+
+   The check scans tracked, staged, and untracked files so you can catch stray assets before they ever hit git history. It fails on tracked or staged offenders and prints a warning for any untracked binaries still lingering in your working tree. The fallback `node` invocation runs automatically if `pnpm` is unavailable (e.g., offline or blocked registries), and you can call it directly when scripting your own hooks.
+
 ### Running on Web / RunPod
 
 ```bash
@@ -152,7 +160,7 @@ pnpm test
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/ci.yml`) installs dependencies, lints, typechecks, and runs tests. Configure EAS Build integration on `main` branch as needed.
+ GitHub Actions workflow (`.github/workflows/ci.yml`) installs dependencies, lints, typechecks, runs tests, and enforces the binary gate via `pnpm repo:check-binaries || node tools/check_binaries.mjs` so pushes stay source-only. Configure EAS Build integration on `main` branch as needed.
 
 ## Billing Notes
 
@@ -170,4 +178,5 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) installs dependencies, lint
 1. Create a feature branch.
 2. Update relevant tests.
 3. Run `pnpm lint && pnpm typecheck && pnpm test`.
-4. Submit a PR describing the change set.
+4. Ensure the tree is binary-free: `pnpm repo:check-binaries || node tools/check_binaries.mjs`.
+5. Submit a PR describing the change set.

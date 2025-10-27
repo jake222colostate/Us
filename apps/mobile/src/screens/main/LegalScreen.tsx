@@ -9,7 +9,7 @@ export const LegalScreen: React.FC = () => (
     </Text>
     <Text>
       Us is committed to your safety. By using the app you agree to share respectful, authentic content, follow community
-      guidelines, and respect others' privacy. We never sell your data and provide clear controls for deleting your account and
+      guidelines, and respect others’ privacy. We never sell your data and provide clear controls for deleting your account and
       requesting copies of your data. Contact support@us-app.com for any questions.
     </Text>
   </ScrollView>

@@ -3,7 +3,7 @@ import { SectionList, StyleSheet, View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { useLikesQuery } from '../../features/likes/hooks';
 import { Avatar, GlowBadge, Text, Button } from '@us/ui';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { LikeGroup } from '../../features/likes/utils';
 
@@ -17,7 +17,7 @@ const MAX_INLINE_THUMBS = 3;
 
 export const LikesScreen: React.FC = () => {
   const { data, isLoading } = useLikesQuery();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const groups = data ?? { big: [], normal: [] };

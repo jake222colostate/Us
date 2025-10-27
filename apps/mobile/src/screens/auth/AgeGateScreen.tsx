@@ -1,63 +1,161 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { AuthStackParamList } from '../../navigation/stacks/AuthStack';
-import { Button, Text } from '@us/ui';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Header } from '../../components/Header';
+import { Card } from '../../components/Card';
+import { colors } from '../../theme/colors';
+import { spacing } from '../../theme/spacing';
 
-const years18 = 18 * 365.25 * 24 * 60 * 60 * 1000;
+const today = new Date();
+const adultCutoff = new Date(
+  today.getFullYear() - 18,
+  today.getMonth(),
+  today.getDate()
+);
 
-type Props = NativeStackScreenProps<AuthStackParamList, 'AgeGate'>;
+const ageSchema = z.object({
+  birthdate: z
+    .date({ required_error: 'Please select your birth date' })
+    .max(adultCutoff, 'You must be at least 18 to continue'),
+});
 
-type FormValues = {
-  birthdate: Date;
-};
+type AgeGateFormValues = z.infer<typeof ageSchema>;
 
-export const AgeGateScreen: React.FC<Props> = ({ navigation }) => {
-  const { control, handleSubmit, watch } = useForm<FormValues>({
+const isWeb = Platform.OS === 'web';
+
+export const AgeGateScreen: React.FC = () => {
+  const { control, handleSubmit, formState } = useForm<AgeGateFormValues>({
+    resolver: zodResolver(ageSchema),
     defaultValues: {
-      birthdate: new Date(Date.now() - years18),
+      birthdate: new Date(2000, 0, 1),
     },
   });
 
-  const birthdate = watch('birthdate');
-  const isOfAge = Date.now() - birthdate.getTime() >= years18;
-
-  const onSubmit = handleSubmit(() => {
-    if (isOfAge) {
-      navigation.navigate('SignUp', {
-        birthdate: birthdate.toISOString().slice(0, 10),
-      } as never);
-    }
-  });
+  const onSubmit = (values: AgeGateFormValues) => {
+    console.log('Age gate accepted', values);
+  };
 
   return (
-    <View style={styles.container}>
-      <Text weight="bold" style={styles.title}>
-        You must be 18+ to use Us
-      </Text>
-      <Controller
-        control={control}
-        name="birthdate"
-        render={({ field: { value, onChange } }) => (
-          <DateTimePicker value={value} mode="date" display="spinner" onChange={(_, date) => date && onChange(date)} />
-        )}
-      />
-      <Button label="Continue" onPress={onSubmit} disabled={!isOfAge} />
-    </View>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Header title="Age Check" subtitle="We ask everyone to confirm they are 18 or older" />
+      <Card style={styles.formCard}>
+        <Text style={styles.label}>Date of birth</Text>
+        <Controller
+          control={control}
+          name="birthdate"
+          render={({ field: { value, onChange } }) => (
+            <View>
+              {isWeb ? (
+                <TextInput
+                  style={styles.input}
+                  value={value.toISOString().slice(0, 10)}
+                  onChangeText={(text) => {
+                    const next = new Date(text);
+                    if (!Number.isNaN(next.getTime())) {
+                      onChange(next);
+                    }
+                  }}
+                  accessibilityLabel="Birthdate"
+                />
+              ) : (
+                <DateTimePicker
+                  value={value}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  maximumDate={adultCutoff}
+                  onChange={(_, selectedDate) => {
+                    if (selectedDate) {
+                      onChange(selectedDate);
+                    }
+                  }}
+                  style={styles.datePicker}
+                />
+              )}
+              <Text style={styles.helperText}>You must be at least 18 years old.</Text>
+            </View>
+          )}
+        />
+        {formState.errors.birthdate ? (
+          <Text style={styles.errorText}>{formState.errors.birthdate.message}</Text>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.submitButton,
+            { opacity: pressed ? 0.85 : 1 },
+          ]}
+          onPress={handleSubmit(onSubmit)}
+        >
+          <Text style={styles.submitText}>Continue</Text>
+        </Pressable>
+      </Card>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-    gap: 20,
+    backgroundColor: colors.background,
   },
-  title: {
-    fontSize: 28,
-    textAlign: 'center',
+  content: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  formCard: {
+    marginTop: spacing.lg,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: 16,
+    color: colors.textPrimary,
+    backgroundColor: '#fff',
+  },
+  datePicker: {
+    width: '100%',
+  },
+  helperText: {
+    marginTop: spacing.xs,
+    color: colors.textMuted,
+    fontSize: 13,
+  },
+  errorText: {
+    marginTop: spacing.xs,
+    color: '#E63946',
+    fontSize: 13,
+  },
+  submitButton: {
+    marginTop: spacing.xl,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  submitText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
 });

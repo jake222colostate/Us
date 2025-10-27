@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "types": ["vitest/globals", "jest", "react"]
+    "types": ["vitest/globals", "jest", "react", "react-native"]
   },
   "include": ["src/**/*", "vitest.setup.ts"],
   "exclude": ["node_modules"]

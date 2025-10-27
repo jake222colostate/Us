@@ -1,37 +1,38 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider } from '@us/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootNavigator } from './navigation/RootNavigator';
-import { AuthProvider } from './providers/AuthProvider';
-import { ToastProvider } from './providers/ToastProvider';
-import { BillingProvider } from './providers/BillingProvider';
+import { colors } from './theme/colors';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 1000 * 30,
-    },
+const queryClient = new QueryClient();
+
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: colors.background,
+    card: colors.cardBackground,
+    text: colors.textPrimary,
+    border: colors.border,
   },
-});
+};
 
-export const App = () => (
-  <SafeAreaProvider>
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <ToastProvider>
-            <BillingProvider>
-              <StatusBar style="light" />
-              <RootNavigator />
-            </BillingProvider>
-          </ToastProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
-  </SafeAreaProvider>
-);
+function App(): JSX.Element {
+  return (
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <QueryClientProvider client={queryClient}>
+          <StatusBar style="dark" />
+          <NavigationContainer theme={navigationTheme}>
+            <RootNavigator />
+          </NavigationContainer>
+        </QueryClientProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
+  );
+}
 
 export default App;

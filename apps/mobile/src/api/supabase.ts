@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import { loadAppEnv } from '@us/config';
+import Constants from 'expo-constants';
 
-const env = loadAppEnv();
+const extra = (Constants.expoConfig?.extra || {}) as {
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+};
 
-export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    storageKey: 'us-auth',
-  },
-});
+export const supabase = createClient(
+  extra.supabaseUrl ?? '',
+  extra.supabaseAnonKey ?? ''
+);

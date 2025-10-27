@@ -43,7 +43,7 @@ importers:
       '@supabase/supabase-js': ^2.39.2
       '@tanstack/react-query': ^5.17.15
       '@testing-library/jest-native': ^5.4.3
-      '@testing-library/react-native': ^13.4.0
+      '@testing-library/react-native': ^13.3.3
       '@types/expo': ^50.0.0
       '@types/jest': ^29.5.7
       '@types/lodash': ^4.14.202
@@ -139,7 +139,7 @@ importers:
       zustand: ^4.4.7
     devDependencies:
       '@testing-library/jest-native': ^5.4.3
-      '@testing-library/react-native': ^13.4.0
+      '@testing-library/react-native': ^13.3.3
       '@types/expo': ^50.0.0
       '@types/jest': ^29.5.7
       '@types/lodash': ^4.14.202
@@ -171,7 +171,7 @@ importers:
     specifiers:
       '@react-native-community/slider': ^4.4.3
       '@testing-library/react': ^14.1.2
-      '@testing-library/react-native': ^13.4.0
+      '@testing-library/react-native': ^13.3.3
       '@types/react': 18.2.21
       '@types/react-native': 0.73.0
       clsx: ^2.0.0
@@ -189,7 +189,7 @@ importers:
       tailwind-merge: ^2.0.0
     devDependencies:
       '@testing-library/react': ^14.1.2
-      '@testing-library/react-native': ^13.4.0
+      '@testing-library/react-native': ^13.3.3
       '@types/react': 18.2.21
       '@types/react-native': 0.73.0
       rimraf: ^5.0.5

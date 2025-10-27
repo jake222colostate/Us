@@ -2,6 +2,12 @@ import { supabase } from '../../api/supabase';
 import type { Post, Profile } from '@us/types';
 import { loadDevManifest } from '../../lib/devAssets';
 
+export type HeartSelfieUpload = {
+  uri: string;
+  mimeType: string;
+  fileName?: string;
+};
+
 export async function fetchFeed({
   limit,
   offset,
@@ -58,8 +64,44 @@ export async function fetchFeed({
   });
 }
 
-export async function sendFreeHeart(postId: string, toUser: string) {
-  const { data, error } = await supabase.rpc('send_free_heart', { _post: postId, _to: toUser });
+const HEART_SELFIE_BUCKET = 'heart-selfies';
+
+const getExtensionFromMime = (mimeType: string) => {
+  if (mimeType === 'image/png') return 'png';
+  if (mimeType === 'image/webp') return 'webp';
+  if (mimeType === 'image/heic') return 'heic';
+  if (mimeType === 'image/heif') return 'heif';
+  return 'jpg';
+};
+
+export async function uploadHeartSelfie(userId: string, selfie: HeartSelfieUpload) {
+  const extension = getExtensionFromMime(selfie.mimeType);
+  const sanitized = selfie.fileName?.replace(/\s+/g, '_');
+  const nameWithExt = sanitized
+    ? sanitized.includes('.')
+      ? sanitized
+      : `${sanitized}.${extension}`
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+  const path = `${userId}/${nameWithExt}`;
+  const response = await fetch(selfie.uri);
+  const blob = await response.blob();
+  const { data, error } = await supabase.storage
+    .from(HEART_SELFIE_BUCKET)
+    .upload(path, blob, { contentType: selfie.mimeType, upsert: false });
+  if (error) throw error;
+  const { data: publicUrl } = supabase.storage.from(HEART_SELFIE_BUCKET).getPublicUrl(data.path);
+  return publicUrl.publicUrl;
+}
+
+export async function sendFreeHeart(postId: string, toUser: string, options?: { message?: string; selfieUrl?: string }) {
+  const payload: Record<string, unknown> = { _post: postId, _to: toUser };
+  if (options?.message !== undefined) {
+    payload._message = options.message;
+  }
+  if (options?.selfieUrl !== undefined) {
+    payload._selfie_url = options.selfieUrl;
+  }
+  const { data, error } = await supabase.rpc('send_free_heart', payload);
   if (error) {
     if (String(error.message).includes('FREE_HEART_LIMIT_REACHED')) {
       throw new Error('FREE_HEART_LIMIT_REACHED');
@@ -74,11 +116,13 @@ export async function sendBigHeart({
   toUser,
   purchaseId,
   message,
+  selfieUrl,
 }: {
   postId: string;
   toUser: string;
   purchaseId?: string;
   message?: string;
+  selfieUrl?: string;
 }) {
   const { error } = await supabase.functions.invoke('on-big-heart', {
     body: {
@@ -86,6 +130,7 @@ export async function sendBigHeart({
       to_user: toUser,
       purchase_id: purchaseId ?? null,
       message: message ?? null,
+      selfie_url: selfieUrl ?? null,
     },
   });
   if (error) throw error;

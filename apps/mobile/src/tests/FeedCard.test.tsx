@@ -6,11 +6,26 @@ import { FeedCard } from '../features/feed/components/FeedCard';
 import type { Post } from '@us/types';
 import { Alert } from 'react-native';
 
+vi.mock('react-native/Libraries/Modal/Modal', () => {
+  const React = require('react');
+  return ({ children, visible }: any) => (visible ? <>{children}</> : null);
+});
+
+vi.mock('expo-image-picker', () => ({
+  requestCameraPermissionsAsync: vi.fn().mockResolvedValue({ granted: true }),
+  requestMediaLibraryPermissionsAsync: vi.fn().mockResolvedValue({ granted: true }),
+  launchCameraAsync: vi.fn().mockResolvedValue({ canceled: true, assets: [] }),
+  launchImageLibraryAsync: vi.fn().mockResolvedValue({ canceled: true, assets: [] }),
+  MediaTypeOptions: { Images: 'Images' },
+}));
+
 const sendFreeHeart = vi.fn().mockResolvedValue('heart-id');
 const sendBigHeart = vi.fn().mockResolvedValue(undefined);
+const uploadHeartSelfie = vi.fn().mockResolvedValue('https://example.com/selfie.jpg');
 vi.mock('../features/feed/api', () => ({
   sendFreeHeart,
   sendBigHeart,
+  uploadHeartSelfie,
 }));
 
 const mockPost: Post = {
@@ -40,8 +55,9 @@ vi.mock('../providers/ToastProvider', async () => ({
   useToast: () => ({ show: vi.fn() }),
 }));
 
+const beginBigHeartPurchase = vi.fn().mockResolvedValue({ purchaseId: 'test' });
 vi.mock('../providers/BillingProvider', async () => ({
-  useBilling: () => ({ priceDisplay: '$3.99', beginBigHeartPurchase: vi.fn().mockResolvedValue({ purchaseId: 'test' }) }),
+  useBilling: () => ({ priceDisplay: '$3.99', beginBigHeartPurchase }),
 }));
 
 describe('FeedCard', () => {
@@ -51,6 +67,8 @@ describe('FeedCard', () => {
     alertSpy = vi.spyOn(Alert, 'alert').mockImplementation(() => {});
     sendFreeHeart.mockClear();
     sendBigHeart.mockClear();
+    uploadHeartSelfie.mockClear();
+    beginBigHeartPurchase.mockClear();
   });
 
   afterEach(() => {
@@ -67,8 +85,27 @@ describe('FeedCard', () => {
     );
     expect(getByText('Hello world')).toBeTruthy();
     fireEvent.press(getByLabelText('Send heart'));
+    fireEvent.press(getByText('Send Heart'));
     await waitFor(() => {
-      expect(sendFreeHeart).toHaveBeenCalledWith('1', 'user-1');
+      expect(sendFreeHeart).toHaveBeenCalledWith('1', 'user-1', undefined);
+    });
+  });
+
+  it('includes message when provided', async () => {
+    const onOpenProfile = vi.fn();
+    const client = new QueryClient();
+    const { getByLabelText, getByText, getByPlaceholderText } = render(
+      <QueryClientProvider client={client}>
+        <FeedCard post={mockPost} onOpenProfile={onOpenProfile} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.press(getByLabelText('Send heart'));
+    fireEvent.changeText(getByPlaceholderText('Say something nice...'), 'Hi there!');
+    fireEvent.press(getByText('Send Heart'));
+
+    await waitFor(() => {
+      expect(sendFreeHeart).toHaveBeenCalledWith('1', 'user-1', { message: 'Hi there!', selfieUrl: undefined });
     });
   });
 
@@ -76,13 +113,14 @@ describe('FeedCard', () => {
     sendFreeHeart.mockRejectedValueOnce(new Error('FREE_HEART_LIMIT_REACHED'));
     const onOpenProfile = vi.fn();
     const client = new QueryClient();
-    const { getByLabelText } = render(
+    const { getByLabelText, getByText } = render(
       <QueryClientProvider client={client}>
         <FeedCard post={mockPost} onOpenProfile={onOpenProfile} />
       </QueryClientProvider>,
     );
 
     fireEvent.press(getByLabelText('Send heart'));
+    fireEvent.press(getByText('Send Heart'));
 
     await waitFor(() => {
       expect(Alert.alert).toHaveBeenCalled();

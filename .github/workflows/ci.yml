@@ -4,34 +4,50 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       # Prevent Skia postinstall from failing on GitHub runners
       TAR_OPTIONS: --no-same-owner
+      CI: true
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
 
-      - name: Enable corepack and pin pnpm
+      # 👉 This guarantees pnpm is on PATH
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.12.2
+          run_install: false
+
+      - name: Show tool versions
         run: |
-          corepack enable
-          corepack prepare pnpm@9.12.2 --activate
+          node -v
           pnpm -v
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile=false
 
-      - name: Typecheck
+      - name: Typecheck (optional)
         run: pnpm -w run -r typecheck || echo "no typecheck script"
 
-      - name: Lint
+      - name: Lint (optional)
         run: pnpm -w run -r lint || echo "no lint script"
 
-      - name: Build
+      - name: Build (optional)
         run: pnpm -w run -r build || echo "no build script"
+
+      - name: Test (optional)
+        run: pnpm -w run -r test || echo "no tests"

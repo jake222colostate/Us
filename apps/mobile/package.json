@@ -69,7 +69,11 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+<<<<<<< Updated upstream
     "@babel/core": "^7.28.5",
+=======
+    "@babel/core": "^7.25.0",
+>>>>>>> Stashed changes
     "@expo/cli": "0.18.21",
     "@expo/metro-runtime": "~3.2.3",
     "@expo/server": "0.7.5",

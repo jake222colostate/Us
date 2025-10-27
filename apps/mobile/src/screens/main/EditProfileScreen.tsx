@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { Button, Text } from '@us/ui';
 import { useAuth } from '../../providers/AuthProvider';

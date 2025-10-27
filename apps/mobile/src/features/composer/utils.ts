@@ -1,6 +1,8 @@
 import { manipulateAsync, SaveFormat, FlipType } from 'expo-image-manipulator';
 import type { UsComposerAspect } from '@us/types';
 
+type ManipulatorActions = Parameters<typeof manipulateAsync>[1];
+
 type BuildOptions = {
   aspect: UsComposerAspect;
   mirrorMine: boolean;
@@ -8,14 +10,18 @@ type BuildOptions = {
 
 export async function buildSideBySide(myUri: string, theirUri: string, opts: BuildOptions) {
   const targetH = 1200;
-  const myPrep = await manipulateAsync(
-    myUri,
-    [
-      ...(opts.mirrorMine ? [{ flip: FlipType.Horizontal as any }] : []),
-      { resize: { height: targetH } },
-    ],
-    { compress: 1, format: SaveFormat.PNG },
-  );
+  const buildResizeActions = (mirror: boolean): ManipulatorActions => {
+    const actions: ManipulatorActions = [{ resize: { height: targetH } }];
+    if (mirror) {
+      actions.unshift({ flip: FlipType.Horizontal });
+    }
+    return actions;
+  };
+
+  const myPrep = await manipulateAsync(myUri, buildResizeActions(opts.mirrorMine), {
+    compress: 1,
+    format: SaveFormat.PNG,
+  });
 
   const theirPrep = await manipulateAsync(
     theirUri,

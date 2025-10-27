@@ -125,9 +125,6 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, distanceText, onOpenPr
   );
 };
 
-const CARD_WIDTH = 360;
-const CARD_HEIGHT = CARD_WIDTH / 4 * 5; // 4:5 aspect ratio
-
 const styles = StyleSheet.create({
   container: {
     width: '100%',

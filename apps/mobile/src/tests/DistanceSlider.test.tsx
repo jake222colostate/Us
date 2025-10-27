@@ -4,10 +4,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { DistanceSlider } from '@us/ui';
 
 vi.mock('@react-native-community/slider', () => {
-  const React = require('react');
-  return ({ onValueChange }: { onValueChange: (val: number) => void }) => (
+  const MockSlider: React.FC<{ onValueChange: (val: number) => void }> = ({ onValueChange }) => (
     <button data-testid="slider" onClick={() => onValueChange(20)} />
   );
+  MockSlider.displayName = 'MockSlider';
+  return { default: MockSlider };
 });
 
 describe('DistanceSlider', () => {

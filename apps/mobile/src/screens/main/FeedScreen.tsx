@@ -5,13 +5,13 @@ import { useFeedQuery } from '../../features/feed/hooks';
 import { FeedCard } from '../../features/feed/components/FeedCard';
 import { Skeleton, DistanceSlider, Text } from '@us/ui';
 import { useLocationStore } from '../../state/locationStore';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type NavigationProp, type ParamListBase } from '@react-navigation/native';
 
 export const FeedScreen: React.FC = () => {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch, isLoading } = useFeedQuery();
   const radiusKm = useLocationStore((state) => state.radiusKm);
   const setRadius = useLocationStore((state) => state.setRadius);
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
 
   const posts = useMemo(() => {
     const items = data?.pages.flatMap((page) => page.posts) ?? [];

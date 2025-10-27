@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Pressable } from 'react-native';
+import { Animated, Easing, StyleSheet, Pressable, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
@@ -14,7 +14,9 @@ export const BigHeartButton: React.FC<BigHeartButtonProps> = ({ onPress, disable
 
   const trigger = useCallback(() => {
     if (disabled) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     Animated.parallel([
       Animated.sequence([
         Animated.timing(scale, { toValue: 1.3, duration: 180, useNativeDriver: true, easing: Easing.out(Easing.ease) }),

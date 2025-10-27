@@ -42,6 +42,7 @@ export type Heart = {
   kind: HeartKind;
   paid: boolean;
   message: string | null;
+  selfie_url: string | null;
   created_at: string;
   post?: Post;
   profile?: Profile;

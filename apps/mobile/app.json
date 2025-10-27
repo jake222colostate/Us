@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "us-mobile",
+    "slug": "us-mobile",
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "EXPO_USE_STATIC": "0"
+    }
+  }
+}

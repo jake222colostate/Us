@@ -21,14 +21,17 @@
     "format": "prettier --write ."
   },
   "devDependencies": {
+    "@expo/cli": "0.18.21",
+    "@expo/metro-runtime": "~3.2.0",
+    "@expo/server": "0.7.5",
     "@types/node": "20.10.6",
+    "@typescript-eslint/eslint-plugin": "6.13.1",
+    "@typescript-eslint/parser": "6.13.1",
     "eslint": "8.56.0",
     "eslint-config-prettier": "9.1.0",
     "eslint-plugin-import": "2.29.1",
     "eslint-plugin-react": "7.33.2",
     "eslint-plugin-react-hooks": "4.6.0",
-    "@typescript-eslint/parser": "6.13.1",
-    "@typescript-eslint/eslint-plugin": "6.13.1",
     "expo": "^50.0.5",
     "prettier": "3.1.1",
     "typescript": "5.3.3"

@@ -37,15 +37,12 @@ const defineConfig = (_: ConfigContext): ExpoConfig => ({
   },
   web: {
     bundler: 'metro',
-    output: 'server',
-    favicon: './assets/dev/favicon.png'
-  },
+    },
   plugins: [
     ['expo-build-properties', { ios: { useFrameworks: 'static' } }],
     'expo-location',
     'expo-image-picker',
     'expo-media-library',
-    'expo-secure-store'
   ]
 });
 

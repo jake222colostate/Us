@@ -1,77 +1,212 @@
 import React from 'react';
-import { View, StyleSheet, TextInput } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { AuthStackParamList } from '../../navigation/stacks/AuthStack';
-import { Button, Text } from '@us/ui';
-import { useAuth } from '../../providers/AuthProvider';
-import { useToast } from '../../providers/ToastProvider';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { Header } from '../../components/Header';
+import { Card } from '../../components/Card';
+import { colors } from '../../theme/colors';
+import { spacing } from '../../theme/spacing';
 
-type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
+const passwordRules = z
+  .string()
+  .min(8, 'Must be at least 8 characters')
+  .regex(/[A-Z]/, 'Include at least one uppercase letter')
+  .regex(/[a-z]/, 'Include at least one lowercase letter')
+  .regex(/[0-9]/, 'Include at least one number');
 
-type FormValues = {
-  email: string;
-  password: string;
-};
-
-export const SignUpScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { birthdate } = route.params ?? { birthdate: new Date().toISOString().slice(0, 10) };
-  const { control, handleSubmit } = useForm<FormValues>({ defaultValues: { email: '', password: '' } });
-  const { signUp } = useAuth();
-  const { show } = useToast();
-
-  const onSubmit = handleSubmit(async ({ email, password }) => {
-    try {
-      await signUp({ email, password, birthdate });
-      show('Confirm your email to finish sign up');
-      navigation.navigate('SignIn');
-    } catch (error) {
-      show(error instanceof Error ? error.message : 'Unable to sign up');
-    }
+const signUpSchema = z
+  .object({
+    name: z.string().min(2, 'Please provide your name'),
+    email: z.string().email('Enter a valid email address'),
+    password: passwordRules,
+    confirmPassword: z.string(),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    message: 'Passwords must match',
+    path: ['confirmPassword'],
   });
 
+type SignUpFormValues = z.infer<typeof signUpSchema>;
+
+export const SignUpScreen: React.FC = () => {
+  const { control, handleSubmit, formState } = useForm<SignUpFormValues>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
+
+  const onSubmit = (values: SignUpFormValues) => {
+    console.log('Sign up', values);
+  };
+
   return (
-    <View style={styles.container}>
-      <Text weight="bold" style={styles.title}>
-        Create your account
-      </Text>
-      <Controller
-        control={control}
-        name="email"
-        rules={{ required: true }}
-        render={({ field: { value, onChange } }) => (
-          <TextInput placeholder="Email" value={value} onChangeText={onChange} style={styles.input} keyboardType="email-address" />
-        )}
-      />
-      <Controller
-        control={control}
-        name="password"
-        rules={{ required: true, minLength: 6 }}
-        render={({ field: { value, onChange } }) => (
-          <TextInput placeholder="Password" value={value} onChangeText={onChange} secureTextEntry style={styles.input} />
-        )}
-      />
-      <Button label="Sign Up" onPress={onSubmit} />
-    </View>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Header title="Create your account" subtitle="Join the community and start matching" />
+      <Card style={styles.formCard}>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Name</Text>
+          <Controller
+            control={control}
+            name="name"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                placeholder="Your name"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+              />
+            )}
+          />
+          {formState.errors.name ? (
+            <Text style={styles.errorText}>{formState.errors.name.message}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Email</Text>
+          <Controller
+            control={control}
+            name="email"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                placeholder="you@example.com"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+              />
+            )}
+          />
+          {formState.errors.email ? (
+            <Text style={styles.errorText}>{formState.errors.email.message}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Password</Text>
+          <Controller
+            control={control}
+            name="password"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                placeholder="Create a strong password"
+                secureTextEntry
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+              />
+            )}
+          />
+          {formState.errors.password ? (
+            <Text style={styles.errorText}>{formState.errors.password.message}</Text>
+          ) : (
+            <Text style={styles.helperText}>Use 8+ characters with a mix of letters and numbers.</Text>
+          )}
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Confirm Password</Text>
+          <Controller
+            control={control}
+            name="confirmPassword"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                placeholder="Repeat your password"
+                secureTextEntry
+                style={styles.input}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+              />
+            )}
+          />
+          {formState.errors.confirmPassword ? (
+            <Text style={styles.errorText}>{formState.errors.confirmPassword.message}</Text>
+          ) : null}
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.submitButton,
+            { opacity: pressed ? 0.85 : 1 },
+          ]}
+          onPress={handleSubmit(onSubmit)}
+        >
+          <Text style={styles.submitText}>Create Account</Text>
+        </Pressable>
+      </Card>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    gap: 12,
-    justifyContent: 'center',
+    backgroundColor: colors.background,
   },
-  title: {
-    fontSize: 28,
-    marginBottom: 12,
+  content: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  formCard: {
+    marginTop: spacing.lg,
+  },
+  fieldGroup: {
+    marginBottom: spacing.lg,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
   },
   input: {
-    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E4E1F0',
-    padding: 16,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: 16,
+    color: colors.textPrimary,
     backgroundColor: '#fff',
+  },
+  helperText: {
+    marginTop: spacing.xs,
+    color: colors.textMuted,
+    fontSize: 13,
+  },
+  errorText: {
+    marginTop: spacing.xs,
+    color: '#E63946',
+    fontSize: 13,
+  },
+  submitButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  submitText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
 });

@@ -37,7 +37,7 @@ const defineConfig = (_: ConfigContext): ExpoConfig => ({
   },
   web: {
     bundler: 'metro',
-    },
+  },
   plugins: [
     ['expo-build-properties', { ios: { useFrameworks: 'static' } }],
     'expo-location',

@@ -12,7 +12,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      # Prevent Skia postinstall from failing on GitHub runners
       TAR_OPTIONS: --no-same-owner
       CI: true
     steps:
@@ -23,9 +22,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
 
-      # 👉 This guarantees pnpm is on PATH
+      # 👉 Ensure pnpm is on PATH before any pnpm command
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:

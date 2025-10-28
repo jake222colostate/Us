@@ -6,10 +6,13 @@ Us is a production-ready, Expo-powered dating experience with an IG/TikTok-inspi
 
 ```
 /apps/mobile        Expo application (iOS, Android, web)
+/apps/sideui        Vite-powered side-by-side web experience
 /infra/supabase     Database schema, RLS, seeds, edge functions
 /packages/ui        Shared component system
 /packages/types     Shared TypeScript interfaces
 /packages/config    Environment loader utilities
+/packages/api-client Shared REST client for mobile + web
+/packages/auth      Cross-platform auth provider and hooks
 ```
 
 ## Requirements
@@ -22,6 +25,12 @@ Us is a production-ready, Expo-powered dating experience with an IG/TikTok-inspi
 - RevenueCat account (native Big Heart flow)
 
 ## Environment Variables
+
+Web app (`apps/sideui`) reads the following `.env` entries:
+
+```
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
 
 Mobile app (`apps/mobile/app.config.ts` expects Expo public env):
 
@@ -51,6 +60,8 @@ REVENUECAT_SECRET (optional)
 pnpm install
 pnpm migrate:dev    # applies SQL schema to local Supabase
 pnpm seed           # optional sample data
+pnpm web:dev        # run the side-by-side web UI (Vite)
+pnpm mobile:start   # launch Expo dev client
 ```
 
 ## No Binary Files in Git

@@ -4,35 +4,36 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Heart, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useNotifications } from "@/hooks/useNotifications";
 
-const mockLikes = [
-  {
-    id: "1",
-    name: "Jessica",
-    age: 25,
-    avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400",
-    time: "2h ago",
-  },
-  {
-    id: "2",
-    name: "Sophie",
-    age: 24,
-    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400",
-    time: "5h ago",
-  },
-];
+type LikeItem = {
+  id: string;
+  name: string;
+  avatar: string;
+  time?: string;
+};
 
-const myLikes = [
-  {
-    id: "3",
-    name: "Mia",
-    age: 26,
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-    time: "1d ago",
-  },
-];
+const mapNotificationToLike = (notification: ReturnType<typeof useNotifications>["notifications"][number]): LikeItem => {
+  const payload = notification.payload as
+    | {
+        profile?: { display_name?: string; photo_urls?: string[] };
+      }
+    | undefined;
+
+  return {
+    id: notification.id,
+    name: payload?.profile?.display_name ?? "Someone",
+    avatar: payload?.profile?.photo_urls?.[0] ?? "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400",
+    time: notification.created_at ?? undefined,
+  };
+};
 
 const Likes = () => {
+  const { notifications, isLoading } = useNotifications();
+  const received = notifications.filter((item) => item.kind === "like").map(mapNotificationToLike);
+  const sent = notifications.filter((item) => item.kind === "like:sent").map(mapNotificationToLike);
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-40 bg-card/80 backdrop-blur-lg border-b border-border">
@@ -49,32 +50,33 @@ const Likes = () => {
           </TabsList>
 
           <TabsContent value="received" className="space-y-3">
-            {mockLikes.length > 0 ? (
-              mockLikes.map((like) => (
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, index) => (
+                  <Skeleton key={index} className="h-24 w-full rounded-xl" />
+                ))}
+              </div>
+            ) : received.length > 0 ? (
+              received.map((like) => (
                 <Card key={like.id} className="p-4">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-16 w-16 border-2 border-primary">
                       <AvatarImage src={like.avatar} alt={like.name} loading="lazy" />
-                      <AvatarFallback>{like.name[0]}</AvatarFallback>
+                      <AvatarFallback>{like.name?.[0] ?? 'U'}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="font-semibold text-foreground">
-                        {like.name}, {like.age}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{like.time}</p>
+                      <p className="font-semibold text-foreground">{like.name}</p>
+                      {like.time && (
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(like.time).toLocaleString([], { hour: "numeric", minute: "2-digit" })}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-10 w-10 rounded-full"
-                      >
+                      <Button size="icon" variant="outline" className="h-10 w-10 rounded-full">
                         <X className="h-5 w-5" />
                       </Button>
-                      <Button
-                        size="icon"
-                        className="h-10 w-10 rounded-full"
-                      >
+                      <Button size="icon" className="h-10 w-10 rounded-full">
                         <Heart className="h-5 w-5" />
                       </Button>
                     </div>
@@ -90,22 +92,35 @@ const Likes = () => {
           </TabsContent>
 
           <TabsContent value="sent" className="space-y-3">
-            {myLikes.map((like) => (
-              <Card key={like.id} className="p-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-16 w-16 border-2 border-primary">
-                    <AvatarImage src={like.avatar} alt={like.name} loading="lazy" />
-                    <AvatarFallback>{like.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">
-                      {like.name}, {like.age}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Liked {like.time}</p>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, index) => (
+                  <Skeleton key={index} className="h-20 w-full rounded-xl" />
+                ))}
+              </div>
+            ) : sent.length > 0 ? (
+              sent.map((like) => (
+                <Card key={like.id} className="p-4">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16 border-2 border-primary">
+                      <AvatarImage src={like.avatar} alt={like.name} loading="lazy" />
+                      <AvatarFallback>{like.name?.[0] ?? 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="font-semibold text-foreground">{like.name}</p>
+                      {like.time && (
+                        <p className="text-sm text-muted-foreground">Liked {new Date(like.time).toLocaleDateString()}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-16">
+                <Heart className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">You haven't liked anyone yet</p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Heart, MapPin } from "lucide-react";
+import { Heart, MapPin, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -19,17 +19,22 @@ export interface Post {
 interface FeedCardProps {
   post: Post;
   onLike: (postId: string) => void;
+  onPass?: (postId: string) => void;
   onUserClick: (userId: string) => void;
   onCompare: (postId: string) => void;
 }
 
-export const FeedCard = ({ post, onLike, onUserClick, onCompare }: FeedCardProps) => {
+export const FeedCard = ({ post, onLike, onPass, onUserClick, onCompare }: FeedCardProps) => {
   const [isAnimating, setIsAnimating] = useState(false);
 
   const handleLike = () => {
     setIsAnimating(true);
     onLike(post.id);
     setTimeout(() => setIsAnimating(false), 600);
+  };
+
+  const handlePass = () => {
+    onPass?.(post.id);
   };
 
   return (
@@ -71,6 +76,13 @@ export const FeedCard = ({ post, onLike, onUserClick, onCompare }: FeedCardProps
 
       <div className="p-4 space-y-3">
         <div className="flex items-center gap-4">
+          <button
+            onClick={handlePass}
+            className="transition-transform hover:scale-110 active:scale-95 p-2 -ml-2 min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+            aria-label="Skip profile"
+          >
+            <X className="h-6 w-6 text-muted-foreground" />
+          </button>
           <button
             onClick={handleLike}
             className="transition-transform hover:scale-110 active:scale-95 p-2 -ml-2 min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"

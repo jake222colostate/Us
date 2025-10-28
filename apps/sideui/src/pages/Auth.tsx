@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@us/auth';
 import { Heart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -13,7 +13,7 @@ const Auth = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, signup } = useAuth();
+  const { login, register } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -28,7 +28,7 @@ const Auth = () => {
           description: "You've successfully logged in.",
         });
       } else {
-        await signup(name, email, password);
+        await register({ name, email, password });
         toast({
           title: "Welcome to Us! 💕",
           description: "Your account has been created.",

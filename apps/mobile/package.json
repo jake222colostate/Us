@@ -27,6 +27,7 @@
     "@tanstack/react-query": "^5.17.15",
     "@types/react": "18.2.21",
     "@types/react-native": "0.73.0",
+    "@us/api-client": "workspace:*",
     "@us/config": "workspace:*",
     "@us/types": "workspace:*",
     "@us/ui": "workspace:*",
@@ -69,11 +70,7 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
-<<<<<<< Updated upstream
     "@babel/core": "^7.28.5",
-=======
-    "@babel/core": "^7.25.0",
->>>>>>> Stashed changes
     "@expo/cli": "0.18.21",
     "@expo/metro-runtime": "~3.2.3",
     "@expo/server": "0.7.5",

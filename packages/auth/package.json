@@ -1,0 +1,24 @@
+{
+  "name": "@us/auth",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'No tests for auth package'"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.83.0",
+    "@us/api-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.5"
+  }
+}

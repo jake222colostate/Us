@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@us/auth";
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 
@@ -26,8 +26,8 @@ const Settings = () => {
     localStorage.setItem('genderPreferences', JSON.stringify(genderPreferences));
   }, [genderPreferences]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/auth');
   };
 

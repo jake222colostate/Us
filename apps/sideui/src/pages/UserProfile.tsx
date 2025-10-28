@@ -16,7 +16,7 @@ import { Card } from "@/components/ui/card";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@us/auth";
+import { useAuth } from '../../packages/auth/src';
 
 const fallbackImages = [
   "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800",

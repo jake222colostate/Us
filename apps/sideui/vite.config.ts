@@ -1,18 +1,21 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
-import { componentTagger } from "lovable-tagger";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: "::",
-    port: 8080,
-  },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+export default defineConfig({
+  server: { host: true, port: 5173 },
+  plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@us/auth": require("node:path").resolve(__dirname, "../../packages/auth/src"),
+      "@us/api-client": require("node:path").resolve(__dirname, "../../packages/api-client/src"),
+    },
+    alias: {
+      '@us/auth': path.resolve(__dirname, '../../packages/auth/src'),
+      '@us/api-client': path.resolve(__dirname, '../../packages/api-client/src'),
     },
   },
-}));
+})

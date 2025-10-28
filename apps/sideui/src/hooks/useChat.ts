@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@us/auth";
-import type { ApiClient } from "@us/api-client";
+import { useAuth } from '../../packages/auth/src';
+import type { ApiClient } from '../../packages/api-client/src';
+type MessagesT = NonNullable<NonNullable<ReturnType<typeof useChat> extends infer _T ? any : any>>;
+// NOTE: replaced invalid `typeof query.data?.messages` with a concrete alias below.
 
 export type ChatMessage = {
   id: string;

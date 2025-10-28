@@ -5,18 +5,28 @@ import { Button } from "@/components/ui/button";
 import { Settings, MapPin, Edit, LogOut } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@us/auth";
+import { useProfile } from "@/hooks/useProfile";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 
 const Profile = () => {
   const [maxDistance, setMaxDistance] = useState([25]);
   const { user, logout } = useAuth();
+  const { profile, isLoading } = useProfile();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/auth');
   };
+
+  const displayName = profile?.display_name ?? (user as { name?: string })?.name ?? "You";
+  const photo = profile?.photo_urls?.[0] ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800";
+  const initials = displayName?.[0]?.toUpperCase() ?? "U";
+  const age = profile?.birthdate
+    ? Math.max(18, Math.floor((Date.now() - new Date(profile.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)))
+    : undefined;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -37,23 +47,23 @@ const Profile = () => {
       <main className="max-w-md mx-auto px-4 py-4 space-y-4">
         <Card className="p-6">
           <div className="flex flex-col items-center text-center">
-            <Avatar className="h-24 w-24 border-4 border-primary mb-4">
-              <AvatarImage
-                src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800"
-                alt="Your profile"
-              />
-              <AvatarFallback>{user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <h2 className="text-2xl font-bold text-foreground">{user?.name}, 25</h2>
+            {isLoading ? (
+              <Skeleton className="h-24 w-24 rounded-full mb-4" />
+            ) : (
+              <Avatar className="h-24 w-24 border-4 border-primary mb-4">
+                <AvatarImage src={photo} alt="Your profile" />
+                <AvatarFallback>{initials}</AvatarFallback>
+              </Avatar>
+            )}
+            <h2 className="text-2xl font-bold text-foreground">
+              {displayName}
+              {age ? `, ${age}` : ""}
+            </h2>
             <div className="flex items-center gap-1 text-muted-foreground mt-1">
               <MapPin className="h-4 w-4" />
-              <span>{user?.email}</span>
+              <span>{profile?.location ? `${profile.location.latitude?.toFixed(2)}, ${profile.location.longitude?.toFixed(2)}` : user?.email}</span>
             </div>
-            <Button 
-              onClick={() => navigate('/edit-profile')}
-              className="gap-2 min-h-[48px] mt-4" 
-              variant="outline"
-            >
+            <Button onClick={() => navigate('/edit-profile')} className="gap-2 min-h-[48px] mt-4" variant="outline">
               <Edit className="h-4 w-4" />
               Edit Profile
             </Button>

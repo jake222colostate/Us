@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Camera, ArrowRight, ArrowLeft } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@us/auth";
 
 const interests = [
   "Hiking", "Coffee", "Travel", "Photography", "Music", "Art", 

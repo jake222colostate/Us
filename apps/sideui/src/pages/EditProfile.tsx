@@ -7,8 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@us/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useProfile } from "@/hooks/useProfile";
+import { useEffect } from "react";
 
 const interests = [
   "Hiking", "Coffee", "Travel", "Photography", "Music", "Art", 
@@ -20,16 +22,26 @@ const EditProfile = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { profile, update, updating } = useProfile();
   const [formData, setFormData] = useState({
-    name: user?.name || "",
+    name: (profile?.display_name as string | undefined) ?? (user as { name?: string })?.name ?? "",
     age: "25",
-    location: "New York, NY",
-    bio: "Love coffee, hiking, and good conversation.",
-    job: "Software Engineer",
-    company: "Tech Co",
-    school: "University",
-    selectedInterests: ["Hiking", "Coffee", "Travel"],
+    location: "",
+    bio: profile?.bio ?? "",
+    job: "",
+    company: "",
+    school: "",
+    selectedInterests: [] as string[],
   });
+
+  useEffect(() => {
+    if (!profile) return;
+    setFormData((prev) => ({
+      ...prev,
+      name: profile.display_name ?? prev.name,
+      bio: profile.bio ?? prev.bio,
+    }));
+  }, [profile]);
 
   const toggleInterest = (interest: string) => {
     setFormData(prev => ({
@@ -40,7 +52,13 @@ const EditProfile = () => {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!profile) return;
+    await update({
+      ...profile,
+      display_name: formData.name,
+      bio: formData.bio,
+    });
     toast({
       title: "Profile updated",
       description: "Your changes have been saved successfully.",
@@ -61,8 +79,8 @@ const EditProfile = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-bold text-foreground">Edit Profile</h1>
-          <Button onClick={handleSave} className="min-h-[44px]">
-            Save
+          <Button onClick={handleSave} className="min-h-[44px]" disabled={updating}>
+            {updating ? "Saving..." : "Save"}
           </Button>
         </div>
       </header>
@@ -76,7 +94,7 @@ const EditProfile = () => {
                   src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800"
                   alt="Profile"
                 />
-                <AvatarFallback>{formData.name[0]}</AvatarFallback>
+              <AvatarFallback>{formData.name[0] ?? 'U'}</AvatarFallback>
               </Avatar>
               <button className="absolute bottom-0 right-0 bg-primary text-primary-foreground rounded-full p-2 border-4 border-background">
                 <Camera className="h-4 w-4" />

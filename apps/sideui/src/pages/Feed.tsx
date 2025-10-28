@@ -1,68 +1,35 @@
-import { useState } from "react";
-import { FeedCard, Post } from "@/components/FeedCard";
+import { useMemo, useState } from "react";
+import { FeedCard } from "@/components/FeedCard";
 import { SideBySideModal } from "@/components/SideBySideModal";
 import { BottomNav } from "@/components/BottomNav";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-// Mock data
-const mockPosts: Post[] = [
-  {
-    id: "1",
-    userId: "user1",
-    userName: "Sarah",
-    userAge: 26,
-    userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400",
-    userDistance: 3,
-    image: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800",
-    caption: "Living my best life ✨",
-    isLiked: false,
-  },
-  {
-    id: "2",
-    userId: "user2",
-    userName: "Emma",
-    userAge: 24,
-    userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400",
-    userDistance: 5,
-    image: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800",
-    caption: "Coffee addict ☕",
-    isLiked: false,
-  },
-  {
-    id: "3",
-    userId: "user3",
-    userName: "Alex",
-    userAge: 28,
-    userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
-    userDistance: 7,
-    image: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800",
-    caption: "Adventure awaits 🌄",
-    isLiked: false,
-  },
-];
+import { useFeed } from "@/hooks/useFeed";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Feed = () => {
   const navigate = useNavigate();
-  const [posts, setPosts] = useState<Post[]>(mockPosts);
+  const { posts, isLoading, like, pass, fetchNextPage, hasNextPage, isFetchingNextPage } = useFeed();
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleLike = (postId: string) => {
-    setPosts(
-      posts.map((post) =>
-        post.id === postId ? { ...post, isLiked: !post.isLiked } : post
-      )
-    );
+  const selectedPost = useMemo(() => posts.find((post) => post.id === selectedPostId) ?? null, [posts, selectedPostId]);
 
-    const post = posts.find((p) => p.id === postId);
-    if (post && !post.isLiked) {
-      setSelectedPost(post);
-      setModalOpen(true);
-    }
+  const handleLike = async (postId: string) => {
+    await like(postId);
+    setSelectedPostId(postId);
+    setModalOpen(true);
+  };
+
+  const handlePass = async (postId: string) => {
+    await pass(postId);
+    toast({
+      title: "Skipped",
+      description: "We'll show you someone new soon.",
+    });
   };
 
   const handleUserClick = (userId: string) => {
@@ -70,17 +37,14 @@ const Feed = () => {
   };
 
   const handleCompare = (postId: string) => {
-    const post = posts.find((p) => p.id === postId);
-    if (post) {
-      setSelectedPost(post);
-      setModalOpen(true);
-    }
+    setSelectedPostId(postId);
+    setModalOpen(true);
   };
 
   const handleMatch = () => {
     toast({
       title: "It's a Match! 💕",
-      description: `You and ${selectedPost?.userName} can now chat!`,
+      description: selectedPost ? `You and ${selectedPost.userName} can now chat!` : "You can now chat!",
     });
   };
 
@@ -104,15 +68,41 @@ const Feed = () => {
       </header>
 
       <main className="max-w-md mx-auto px-4 py-4 space-y-4">
+        {isLoading && (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, index) => (
+              <Skeleton key={index} className="h-[520px] w-full rounded-2xl" />
+            ))}
+          </div>
+        )}
+
+        {!isLoading && posts.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+            <p className="text-muted-foreground">No more profiles right now. Check back soon!</p>
+          </div>
+        )}
+
         {posts.map((post) => (
           <FeedCard
             key={post.id}
             post={post}
             onLike={handleLike}
+            onPass={handlePass}
             onUserClick={handleUserClick}
             onCompare={handleCompare}
           />
         ))}
+
+        {hasNextPage && (
+          <Button
+            variant="outline"
+            className="w-full min-h-[48px]"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage ? "Loading more..." : "See more"}
+          </Button>
+        )}
       </main>
 
       <SideBySideModal

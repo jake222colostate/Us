@@ -5,8 +5,8 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
-import { useAuth } from "@us/auth";
-import type { FeedResponse, Post as ApiPost } from "@us/api-client";
+import { useAuth } from '../../packages/auth/src';
+import type { FeedResponse, Post as ApiPost } from '../../packages/api-client/src';
 import type { Post as FeedCardPost } from "@/components/FeedCard";
 
 type FeedQueryData = InfiniteData<FeedResponse>;

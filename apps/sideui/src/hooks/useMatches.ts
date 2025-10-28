@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@us/auth";
-import type { Match } from "@us/api-client";
+import { useAuth } from '../../packages/auth/src';
+import type { Match } from '../../packages/api-client/src';
 
 type MatchListItem = {
   id: string;

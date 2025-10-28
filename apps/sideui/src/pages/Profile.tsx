@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Settings, MapPin, Edit, LogOut } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useState } from "react";
-import { useAuth } from "@us/auth";
+import { useAuth } from '../../packages/auth/src';
 import { useProfile } from "@/hooks/useProfile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";

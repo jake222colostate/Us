@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@us/auth";
-import type { Profile } from "@us/api-client";
+import { useAuth } from '../../packages/auth/src';
+import type { Profile } from '../../packages/api-client/src';
 
 export const useProfile = () => {
   const { api } = useAuth();

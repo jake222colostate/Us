@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@us/auth";
-import type { Notification } from "@us/api-client";
+import { useAuth } from '../../packages/auth/src';
+import type { Notification } from '../../packages/api-client/src';
 
 export const useNotifications = () => {
   const { api } = useAuth();

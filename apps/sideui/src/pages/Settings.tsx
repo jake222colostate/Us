@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@us/auth";
+import { useAuth } from '../../packages/auth/src';
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 

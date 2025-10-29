@@ -1,21 +1,28 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export default defineConfig({
-  server: { host: true, port: 5173 },
   plugins: [react()],
   resolve: {
     alias: {
-      "@us/auth": require("node:path").resolve(__dirname, "../../packages/auth/src"),
-      "@us/api-client": require("node:path").resolve(__dirname, "../../packages/api-client/src"),
-    },
-    alias: {
-      '@us/auth': path.resolve(__dirname, '../../packages/auth/src'),
-      '@us/api-client': path.resolve(__dirname, '../../packages/api-client/src'),
+      // Map workspace packages directly to source so Vite can resolve them.
+      "@us/auth": path.resolve(__dirname, "../../packages/auth/src/index.ts"),
+      "@us/api-client": path.resolve(__dirname, "../../packages/api-client/src/index.ts"),
     },
   },
-})
+  server: {
+    host: true,
+    port: 5173,
+    strictPort: false,
+  },
+  preview: {
+    host: true,
+    port: 5173,
+    strictPort: false,
+  },
+});

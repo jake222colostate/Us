@@ -1,11 +1,23 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "composite": true,
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "declaration": true,
-    "jsx": "react-jsx"
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": false,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts"
+  ]
 }

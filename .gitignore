@@ -24,3 +24,11 @@ Thumbs.db
 
 # Logs
 *.log
+# build & tooling
+dist/
+node_modules/
+.pnpm-store/
+.vite/
+.cache/
+.DS_Store
+*.log

@@ -1,0 +1,25 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+const DEV_PORT = 8000
+const proxyHost = `${process.env.HOSTNAME || ''}-${DEV_PORT}.proxy.runpod.net`
+
+export default defineConfig({
+  plugins: [react({ fastRefresh: false })],
+  esbuild: { jsx: 'transform' }, // classic runtime (createElement)
+  
+  server: {
+    host: true,
+    port: 8000,
+    strictPort: true,
+    allowedHosts: ['73906313d70d-8000.proxy.runpod.net'],
+    origin: 'https://73906313d70d-8000.proxy.runpod.net',
+    hmr: {
+      protocol: 'wss',
+      host: '73906313d70d-8000.proxy.runpod.net',
+      clientPort: 443
+    }
+  },
+  },
+  preview: { host: true, port: DEV_PORT, strictPort: true },
+})

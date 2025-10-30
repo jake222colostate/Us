@@ -1,29 +1,29 @@
-import tsconfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const pkgRoot = __dirname;
+const nm = path.resolve(pkgRoot, "node_modules");
 
 export default defineConfig({
-  plugins: [tsconfigPaths(), react()],
+  plugins: [react()],
   resolve: {
     alias: {
-      // Map workspace packages directly to source so Vite can resolve them.
-      "@us/auth": path.resolve(__dirname, "../../packages/auth/src/index.ts"),
-      "@us/api-client": path.resolve(__dirname, "../../packages/api-client/src/index.ts"),
+      react: path.resolve(nm, "react"),
+      "react/jsx-runtime": path.resolve(nm, "react/jsx-runtime"),
+      "react-dom": path.resolve(nm, "react-dom"),
+      "react-dom/client": path.resolve(nm, "react-dom/client"),
     },
+    dedupe: ["react", "react-dom"],
   },
-  server: {
-    host: true,
-    port: 5173,
-    strictPort: false,
+  optimizeDeps: {
+    include: ["react", "react-dom", "react/jsx-runtime"],
+    force: true,
   },
-  preview: {
-    host: true,
-    port: 5173,
-    strictPort: false,
+  build: {
+    commonjsOptions: { transformMixedEsModules: true },
+    rollupOptions: { treeshake: false },
   },
+  server: { host: true, port: 8000, strictPort: true },
+  preview: { host: true, port: 8000, strictPort: true },
 });

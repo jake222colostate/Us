@@ -191,3 +191,52 @@ pnpm test
 3. Run `pnpm lint && pnpm typecheck && pnpm test`.
 4. Ensure the tree is binary-free: `pnpm repo:check-binaries || node tools/check_binaries.mjs`.
 5. Submit a PR describing the change set.
+## Fresh Pod Setup (RunPod)
+
+These are the quick commands to get the **Us** app running on a brand-new pod.
+
+### 1) Install Node.js 20.x
+```bash
+apt-get update -y
+apt-get install -y ca-certificates curl gnupg
+install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" >/etc/apt/sources.list.d/nodesource.list
+apt-get update -y && apt-get install -y nodejs
+node -v
+```
+
+### 2) Enable pnpm (matches repo)
+```bash
+corepack enable
+corepack prepare pnpm@8.15.4 --activate
+pnpm -v
+```
+
+### 3) Install dependencies (monorepo)
+```bash
+cd /workspace/us-app
+pnpm install
+```
+
+### 4) Run the Web UI (Side UI)
+```bash
+pnpm -C apps/sideui dev
+# Open the printed Vite URL (default http://localhost:5173/)
+```
+
+### 5) (Optional) Build & Preview static web
+```bash
+pnpm -C apps/sideui build
+pnpm -C apps/sideui preview --host --port 5173
+```
+
+### 6) (Optional) Start Expo for mobile (web preview)
+```bash
+pnpm dev:web  # or: pnpm dev:web:mobile
+```
+
+### Notes
+- If you see a prompt to update pnpm, you can later run: `corepack prepare pnpm@10.20.0 --activate`.
+- If a port is busy, change `--port` in the preview command.
+

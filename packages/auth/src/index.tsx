@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { createApi, type ApiClient, type ApiError, type AuthResponse } from "@us/api-client";
+import { type ApiClient, type ApiError, type AuthResponse } from "@us/api-client";
 import { createBrowserStorage, createMemoryStorage, type TokenStorage } from "./storage";
 
 type AuthUser = AuthResponse["user"];
@@ -44,7 +44,7 @@ export const AuthProvider = ({ baseUrl, children, storage, onUnauthorized }: Aut
   tokenRef.current = token;
 
   const api = useMemo(() => {
-    return createApi(baseUrl, {
+    return api(baseUrl, {
       getToken: () => tokenRef.current,
       onUnauthorized: () => {
         void resolvedStorage.setToken(null);

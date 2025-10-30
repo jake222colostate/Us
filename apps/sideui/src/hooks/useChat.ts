@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from '../../packages/auth/src';
 import type { ApiClient } from '../../packages/api-client/src';
 type MessagesT = NonNullable<NonNullable<ReturnType<typeof useChat> extends infer _T ? any : any>>;
-// NOTE: replaced invalid `typeof query.data?.messages` with a concrete alias below.
+// NOTE: replaced invalid `NonNullable<typeof query.data>['messages']` with a concrete alias below.
 
 export type ChatMessage = {
   id: string;
@@ -64,7 +64,7 @@ export const useChat = (matchId?: string) => {
       const { matchId: messageMatchId } = variables;
       queryClient.setQueryData(["match", messageMatchId], (previous: unknown) => {
         if (!previous || typeof previous !== "object") return previous;
-        const current = previous as { match: typeof match; messages: typeof query.data?.messages };
+        const current = previous as { match: typeof match; messages: NonNullable<typeof query.data>['messages'] };
         if (!current.messages) return previous;
         return {
           ...current,

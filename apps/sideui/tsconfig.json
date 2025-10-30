@@ -12,7 +12,16 @@
     "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./src/*"
+        "src/*"
+      ],
+      "@/components/ui/*": [
+        "../../packages/ui/src/*"
+      ],
+      "@/components/*": [
+        "../../packages/ui/src/components/*"
+      ],
+      "@/hooks/*": [
+        "../../packages/ui/src/*"
       ]
     },
     "noImplicitAny": false,

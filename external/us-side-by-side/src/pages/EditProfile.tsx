@@ -1,95 +1,180 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Camera, Plus, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/hooks/useAuth";
+import { Textarea } from "@/components/ui/textarea";
+import { useProfileData } from "@/hooks/useProfileData";
 import { useToast } from "@/hooks/use-toast";
 
 const interests = [
-  "Hiking", "Coffee", "Travel", "Photography", "Music", "Art", 
-  "Fitness", "Cooking", "Reading", "Gaming", "Movies", "Dancing",
-  "Yoga", "Sports", "Pets", "Fashion", "Food", "Tech"
+  "Hiking",
+  "Coffee",
+  "Travel",
+  "Photography",
+  "Music",
+  "Art",
+  "Fitness",
+  "Cooking",
+  "Reading",
+  "Gaming",
+  "Movies",
+  "Dancing",
+  "Yoga",
+  "Sports",
+  "Pets",
+  "Fashion",
+  "Food",
+  "Tech",
 ];
+
+type EditableProfile = {
+  name: string;
+  age?: number;
+  location?: string;
+  bio?: string;
+  interests: string[];
+};
 
 const EditProfile = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { toast } = useToast();
-  const [formData, setFormData] = useState({
-    name: user?.name || "",
-    age: "25",
-    location: "New York, NY",
-    bio: "Love coffee, hiking, and good conversation.",
-    job: "Software Engineer",
-    company: "Tech Co",
-    school: "University",
-    selectedInterests: ["Hiking", "Coffee", "Travel"],
+  const { profile, update, upload } = useProfileData();
+
+  const [formData, setFormData] = useState<EditableProfile>({
+    name: "",
+    age: undefined,
+    location: "",
+    bio: "",
+    interests: [],
   });
 
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        name: profile.user.name ?? "",
+        age: profile.user.age,
+        location: profile.location ?? "",
+        bio: profile.bio ?? "",
+        interests: profile.interests ?? [],
+      } as EditableProfile);
+    }
+  }, [profile]);
+
+  const initials = useMemo(() => formData.name.charAt(0).toUpperCase() || "?", [formData.name]);
+
   const toggleInterest = (interest: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      selectedInterests: prev.selectedInterests.includes(interest)
-        ? prev.selectedInterests.filter(i => i !== interest)
-        : [...prev.selectedInterests, interest]
+      interests: prev.interests.includes(interest)
+        ? prev.interests.filter((item) => item !== interest)
+        : [...prev.interests, interest],
     }));
   };
 
-  const handleSave = () => {
-    toast({
-      title: "Profile updated",
-      description: "Your changes have been saved successfully.",
-    });
-    navigate('/profile');
+  const handleSave = async () => {
+    try {
+      await update.mutateAsync({
+        user: {
+          name: formData.name,
+          age: formData.age,
+        },
+        location: formData.location,
+        bio: formData.bio,
+        interests: formData.interests,
+      });
+      toast({
+        title: "Profile updated",
+        description: "Your changes have been saved successfully.",
+      });
+      navigate("/profile");
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAvatarUpload = async (file: File | null) => {
+    if (!file) return;
+    try {
+      await upload.mutateAsync(file);
+      toast({
+        title: "Photo updated",
+        description: "Your profile photo has been updated.",
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <header className="sticky top-0 z-40 bg-card/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-md mx-auto px-4 py-4 safe-top flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => navigate('/profile')}
-            className="min-w-[44px] min-h-[44px]"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-bold text-foreground">Edit Profile</h1>
-          <Button onClick={handleSave} className="min-h-[44px]">
-            Save
-          </Button>
-        </div>
+      <header className="safe-top sticky top-0 z-40 flex items-center justify-between border-b border-border bg-card/80 px-4 py-4 backdrop-blur-lg">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/profile")}
+          className="min-h-[44px] min-w-[44px]"
+          aria-label="Back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-xl font-bold text-foreground">Edit Profile</h1>
+        <Button onClick={handleSave} className="min-h-[44px]">
+          Save
+        </Button>
       </header>
 
-      <main className="max-w-md mx-auto px-4 py-6 space-y-6">
+      <main className="mx-auto max-w-md space-y-6 px-4 py-6">
         <div className="space-y-4">
           <div className="flex flex-col items-center">
             <div className="relative">
               <Avatar className="h-24 w-24 border-4 border-primary">
-                <AvatarImage
-                  src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800"
-                  alt="Profile"
-                />
-                <AvatarFallback>{formData.name[0]}</AvatarFallback>
+                <AvatarImage src={profile?.user.avatarUrl} alt={formData.name} />
+                <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
-              <button className="absolute bottom-0 right-0 bg-primary text-primary-foreground rounded-full p-2 border-4 border-background">
+              <label
+                htmlFor="avatar-upload"
+                className="absolute bottom-0 right-0 rounded-full border-4 border-background bg-primary p-2 text-primary-foreground shadow"
+              >
                 <Camera className="h-4 w-4" />
-              </button>
+              </label>
+              <input
+                id="avatar-upload"
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(event) => handleAvatarUpload(event.target.files?.[0] ?? null)}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="relative aspect-square">
-                <button className="w-full h-full rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors flex items-center justify-center bg-muted/50">
+            {[1, 2, 3, 4, 5].map((index) => (
+              <div key={index} className="relative aspect-square">
+                <button className="flex h-full w-full items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 transition-colors hover:border-primary">
                   <Plus className="h-6 w-6 text-muted-foreground" />
                 </button>
+                {index === 1 && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-2 rounded-full bg-background/80 p-1 text-muted-foreground shadow"
+                    aria-label="Remove photo"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -102,7 +187,7 @@ const EditProfile = () => {
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
                 className="min-h-[48px]"
               />
             </div>
@@ -111,8 +196,10 @@ const EditProfile = () => {
               <Input
                 id="age"
                 type="number"
-                value={formData.age}
-                onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                value={formData.age ?? ""}
+                onChange={(event) =>
+                  setFormData((prev) => ({ ...prev, age: Number(event.target.value) || undefined }))
+                }
                 className="min-h-[48px]"
               />
             </div>
@@ -122,38 +209,8 @@ const EditProfile = () => {
             <Label htmlFor="location">Location</Label>
             <Input
               id="location"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="min-h-[48px]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="job">Job Title</Label>
-            <Input
-              id="job"
-              value={formData.job}
-              onChange={(e) => setFormData({ ...formData, job: e.target.value })}
-              className="min-h-[48px]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="company">Company</Label>
-            <Input
-              id="company"
-              value={formData.company}
-              onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-              className="min-h-[48px]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="school">School</Label>
-            <Input
-              id="school"
-              value={formData.school}
-              onChange={(e) => setFormData({ ...formData, school: e.target.value })}
+              value={formData.location ?? ""}
+              onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
               className="min-h-[48px]"
             />
           </div>
@@ -162,8 +219,8 @@ const EditProfile = () => {
             <Label htmlFor="bio">Bio</Label>
             <Textarea
               id="bio"
-              value={formData.bio}
-              onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+              value={formData.bio ?? ""}
+              onChange={(event) => setFormData((prev) => ({ ...prev, bio: event.target.value }))}
               rows={4}
             />
           </div>
@@ -174,8 +231,8 @@ const EditProfile = () => {
               {interests.map((interest) => (
                 <Badge
                   key={interest}
-                  variant={formData.selectedInterests.includes(interest) ? "default" : "outline"}
-                  className="cursor-pointer min-h-[36px] px-4"
+                  variant={formData.interests.includes(interest) ? "default" : "outline"}
+                  className="min-h-[36px] cursor-pointer px-4"
                   onClick={() => toggleInterest(interest)}
                 >
                   {interest}

@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
-import { useAuth } from '@/hooks/useAuth';
-import { Heart } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useState } from "react";
+import { Heart } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import type { Location } from "react-router-dom";
+
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,7 +17,10 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const { login, signup } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+
+  const redirectPath = (location.state as { from?: Location } | undefined)?.from?.pathname ?? "/";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,11 +39,12 @@ const Auth = () => {
           description: "Your account has been created.",
         });
       }
-      navigate('/');
+      navigate(redirectPath, { replace: true });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description:
+          error instanceof Error ? error.message : "Something went wrong. Please try again.",
         variant: "destructive",
       });
     }

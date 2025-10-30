@@ -1,127 +1,168 @@
-import { useState } from "react";
-import { FeedCard, Post } from "@/components/FeedCard";
-import { SideBySideModal } from "@/components/SideBySideModal";
-import { BottomNav } from "@/components/BottomNav";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Bell } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Bell, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-// Mock data
-const mockPosts: Post[] = [
-  {
-    id: "1",
-    userId: "user1",
-    userName: "Sarah",
-    userAge: 26,
-    userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400",
-    userDistance: 3,
-    image: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800",
-    caption: "Living my best life ✨",
-    isLiked: false,
-  },
-  {
-    id: "2",
-    userId: "user2",
-    userName: "Emma",
-    userAge: 24,
-    userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400",
-    userDistance: 5,
-    image: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800",
-    caption: "Coffee addict ☕",
-    isLiked: false,
-  },
-  {
-    id: "3",
-    userId: "user3",
-    userName: "Alex",
-    userAge: 28,
-    userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
-    userDistance: 7,
-    image: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800",
-    caption: "Adventure awaits 🌄",
-    isLiked: false,
-  },
-];
+import { BottomNav } from "@/components/BottomNav";
+import { FeedCard } from "@/components/FeedCard";
+import type { Post as FeedPost } from "@/components/FeedCard";
+import { SideBySideModal } from "@/components/SideBySideModal";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useFeed } from "@/hooks/useFeed";
+import { useToast } from "@/hooks/use-toast";
 
 const Feed = () => {
   const navigate = useNavigate();
-  const [posts, setPosts] = useState<Post[]>(mockPosts);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const { toast } = useToast();
+  const {
+    posts,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    reactionMutation,
+    matchMutation,
+  } = useFeed();
 
-  const handleLike = (postId: string) => {
-    setPosts(
-      posts.map((post) =>
-        post.id === postId ? { ...post, isLiked: !post.isLiked } : post
-      )
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
+
+  const handleReaction = (post: FeedPost, action: "like" | "dislike") => {
+    reactionMutation.mutate(
+      { postId: post.id, action },
+      {
+        onSuccess: () => {
+          if (action === "like") {
+            setSelectedPost(post);
+            setModalOpen(true);
+          }
+        },
+        onError: (error) => {
+          toast({
+            title: "Action failed",
+            description:
+              error instanceof Error ? error.message : "We couldn't update your reaction.",
+            variant: "destructive",
+          });
+        },
+      },
     );
+  };
 
-    const post = posts.find((p) => p.id === postId);
-    if (post && !post.isLiked) {
-      setSelectedPost(post);
-      setModalOpen(true);
+  const handleMatch = async () => {
+    if (!selectedPost) return;
+    try {
+      await matchMutation.mutateAsync(selectedPost.id);
+      toast({
+        title: "It's a match!",
+        description: `You and ${selectedPost.author.name} can start chatting.`,
+      });
+      setModalOpen(false);
+    } catch (error) {
+      toast({
+        title: "Match failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleUserClick = (userId: string) => {
-    navigate(`/user/${userId}`);
-  };
-
-  const handleCompare = (postId: string) => {
-    const post = posts.find((p) => p.id === postId);
-    if (post) {
-      setSelectedPost(post);
-      setModalOpen(true);
-    }
-  };
-
-  const handleMatch = () => {
-    toast({
-      title: "It's a Match! 💕",
-      description: `You and ${selectedPost?.userName} can now chat!`,
-    });
-  };
+  const renderedPosts = useMemo(() => posts ?? [], [posts]);
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <header className="sticky top-0 z-40 bg-card/80 backdrop-blur-lg border-b border-border safe-top">
-        <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="safe-top sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-lg">
+        <div className="mx-auto flex max-w-md items-center justify-between px-4 py-4">
           <div className="w-[44px]" />
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
             Us
           </h1>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
-            onClick={() => navigate('/notifications')}
-            className="min-w-[44px] min-h-[44px]"
+            onClick={() => navigate("/notifications")}
+            className="min-h-[44px] min-w-[44px]"
+            aria-label="Notifications"
           >
             <Bell className="h-5 w-5" />
           </Button>
         </div>
       </header>
 
-      <main className="max-w-md mx-auto px-4 py-4 space-y-4">
-        {posts.map((post) => (
+      <main className="mx-auto flex max-w-md flex-col gap-4 px-4 py-4">
+        {isLoading && (
+          <div className="space-y-4">
+            {[1, 2, 3].map((key) => (
+              <Card key={key} className="overflow-hidden">
+                <div className="space-y-4 p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="aspect-[4/5] w-full" />
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && renderedPosts.length === 0 && (
+          <Card className="p-8 text-center">
+            <p className="text-lg font-semibold text-foreground">No posts yet</p>
+            <p className="text-sm text-muted-foreground">
+              Check back soon—new matches are on the way!
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4 inline-flex items-center gap-2"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+            >
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Button>
+          </Card>
+        )}
+
+        {renderedPosts.map((post) => (
           <FeedCard
             key={post.id}
             post={post}
-            onLike={handleLike}
-            onUserClick={handleUserClick}
-            onCompare={handleCompare}
+            onLike={(postId) => {
+              if (post.id === postId) {
+                handleReaction(post, post.liked ? "dislike" : "like");
+              }
+            }}
+            onUserClick={(userId) => navigate(`/user/${userId}`)}
+            onCompare={() => {
+              setSelectedPost(post);
+              setModalOpen(true);
+            }}
           />
         ))}
+
+        {hasNextPage && (
+          <Button
+            variant="outline"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="w-full"
+          >
+            {isFetchingNextPage ? "Loading more…" : "Load more"}
+          </Button>
+        )}
       </main>
 
       <SideBySideModal
         open={modalOpen}
         onOpenChange={setModalOpen}
-        userImage="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800"
-        matchImage={selectedPost?.image || ""}
+        userImage={selectedPost?.author.avatarUrl ?? ""}
+        matchImage={selectedPost?.mediaUrl ?? ""}
         userName="You"
-        matchName={selectedPost?.userName || ""}
+        matchName={selectedPost?.author.name ?? ""}
         onMatch={handleMatch}
       />
 

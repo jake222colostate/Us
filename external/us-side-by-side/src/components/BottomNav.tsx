@@ -1,4 +1,5 @@
-import { Heart, Home, User, Star } from "lucide-react";
+import { clsx } from "clsx";
+import { Heart, Home, Star, User } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 export const BottomNav = () => {
@@ -12,7 +13,7 @@ export const BottomNav = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card pb-safe">
       <div className="max-w-md mx-auto px-6 py-3 pb-1">
         <div className="flex justify-around items-center">
           {navItems.map((item) => {
@@ -22,15 +23,13 @@ export const BottomNav = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center gap-1 transition-colors p-2 min-w-[60px] min-h-[60px] justify-center active:scale-95 transition-transform ${
-                  isActive ? "text-primary" : "text-muted-foreground"
-                }`}
+                className={clsx(
+                  "flex min-h-[60px] min-w-[60px] flex-col items-center justify-center gap-1 p-2 transition-colors",
+                  "active:scale-95 transition-transform",
+                  isActive ? "text-primary" : "text-muted-foreground",
+                )}
               >
-                <Icon
-                  className={`h-6 w-6 ${
-                    isActive ? "fill-primary" : ""
-                  }`}
-                />
+                <Icon className={clsx("h-6 w-6", isActive && "fill-primary")} />
                 <span className="text-xs font-medium">{item.label}</span>
               </Link>
             );

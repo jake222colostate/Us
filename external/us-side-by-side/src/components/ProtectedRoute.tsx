@@ -1,24 +1,23 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import type { ReactNode } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 
-export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuth();
-  const navigate = useNavigate();
+import { useAuth } from "@/hooks/useAuth";
 
-  useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, isLoading, navigate]);
+export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
+  const { user, isLoading, error } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-lg text-muted-foreground">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="animate-pulse text-lg text-muted-foreground">Loading…</div>
       </div>
     );
   }
 
-  return user ? <>{children}</> : null;
+  if (!user) {
+    return <Navigate to="/auth" replace state={{ from: location, error }} />;
+  }
+
+  return <>{children}</>;
 };

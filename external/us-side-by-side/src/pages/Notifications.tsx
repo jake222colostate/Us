@@ -1,75 +1,90 @@
-import { BottomNav } from "@/components/BottomNav";
-import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Heart, MessageCircle, UserPlus, Star } from "lucide-react";
+import type { ComponentType } from "react";
+import { useMemo } from "react";
+import { Heart, MessageCircle, Star, UserPlus } from "lucide-react";
 
-const notifications = [
-  {
-    id: "1",
-    type: "match",
-    user: "Sarah",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400",
-    message: "You have a new match!",
-    time: "2m ago",
-    icon: Heart,
-  },
-  {
-    id: "2",
-    type: "message",
-    user: "Emma",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400",
-    message: "Sent you a message",
-    time: "1h ago",
-    icon: MessageCircle,
-  },
-  {
-    id: "3",
-    type: "like",
-    user: "Jessica",
-    avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400",
-    message: "Liked your post",
-    time: "3h ago",
-    icon: Star,
-  },
-];
+import { BottomNav } from "@/components/BottomNav";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useNotifications } from "@/hooks/useNotifications";
+
+const iconMap: Record<string, ComponentType<{ className?: string }>> = {
+  match: Heart,
+  message: MessageCircle,
+  like: Star,
+  follow: UserPlus,
+};
 
 const Notifications = () => {
+  const { notifications, isLoading, error } = useNotifications();
+
+  const items = useMemo(() => notifications ?? [], [notifications]);
+
   return (
     <div className="min-h-screen bg-background pb-20">
-      <header className="sticky top-0 z-40 bg-card/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-md mx-auto px-4 py-4 safe-top">
+      <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-lg">
+        <div className="safe-top mx-auto max-w-md px-4 py-4">
           <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
         </div>
       </header>
 
-      <main className="max-w-md mx-auto px-4 py-4 space-y-3">
-        {notifications.map((notification) => {
-          const Icon = notification.icon;
+      <main className="mx-auto max-w-md space-y-3 px-4 py-4">
+        {isLoading && (
+          <div className="space-y-3">
+            {[1, 2, 3].map((key) => (
+              <Card key={key} className="p-4">
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-14 w-14 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && error && (
+          <Card className="p-4 text-center">
+            <p className="text-sm text-destructive">
+              {error instanceof Error ? error.message : "Unable to load notifications."}
+            </p>
+          </Card>
+        )}
+
+        {!isLoading && !error && items.length === 0 && (
+          <Card className="p-8 text-center">
+            <p className="text-muted-foreground">You're all caught up!</p>
+          </Card>
+        )}
+
+        {items.map((notification) => {
+          const Icon = iconMap[notification.type] ?? Star;
+          const initials = notification.title.charAt(0).toUpperCase();
           return (
             <Card
               key={notification.id}
-              className="p-4 hover:bg-muted/50 transition-colors cursor-pointer active:scale-[0.98]"
+              className="cursor-pointer p-4 transition-transform transition-colors hover:bg-muted/50 active:scale-[0.98]"
             >
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-14 w-14 border-2 border-primary">
-                    <AvatarImage src={notification.avatar} alt={notification.user} loading="lazy" />
-                    <AvatarFallback>{notification.user[0]}</AvatarFallback>
+                    <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-1">
+                  <div className="absolute -bottom-1 -right-1 rounded-full bg-primary p-1 text-primary-foreground">
                     <Icon className="h-3 w-3" />
                   </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-foreground truncate">
-                    {notification.user}
-                  </p>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {notification.message}
-                  </p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-foreground">{notification.title}</p>
+                  <p className="truncate text-sm text-muted-foreground">{notification.body}</p>
                 </div>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {notification.time}
+                <span className="whitespace-nowrap text-xs text-muted-foreground">
+                  {new Date(notification.createdAt).toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
                 </span>
               </div>
             </Card>

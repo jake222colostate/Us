@@ -1,28 +1,19 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import path from "node:path";
-
-const pkgRoot = __dirname;
-const nm = path.resolve(pkgRoot, "node_modules");
 
 export default defineConfig({
-  plugins: [react()],
   resolve: {
     alias: {
-      react: path.resolve(nm, "react"),
-      "react/jsx-runtime": path.resolve(nm, "react/jsx-runtime"),
-      "react-dom": path.resolve(nm, "react-dom"),
-      "react-dom/client": path.resolve(nm, "react-dom/client"),
+      react: "preact/compat",
+      "react-dom": "preact/compat",
+      "react-dom/client": "preact/compat",
     },
-    dedupe: ["react", "react-dom"],
   },
-  optimizeDeps: {
-    include: ["react", "react-dom", "react/jsx-runtime"],
-    force: true,
-  },
-  build: {
-    commonjsOptions: { transformMixedEsModules: true },
-    rollupOptions: { treeshake: false },
+  esbuild: {
+    jsx: "transform",
+    jsxFactory: "h",
+    jsxFragment: "Fragment",
+    // inject Preact's h/Fragment automatically for any JSX we keep
+    jsxInject: `import { h, Fragment } from 'preact'`,
   },
   server: { host: true, port: 8000, strictPort: true },
   preview: { host: true, port: 8000, strictPort: true },

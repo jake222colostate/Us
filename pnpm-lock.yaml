@@ -292,6 +292,9 @@ importers:
 
   apps/sideui:
     dependencies:
+      preact:
+        specifier: 10.24.3
+        version: 10.24.3
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -305,9 +308,6 @@ importers:
       '@types/react-dom':
         specifier: 18.3.1
         version: 18.3.1
-      '@vitejs/plugin-react':
-        specifier: 4.3.4
-        version: 4.3.4(vite@5.4.21)
       typescript:
         specifier: 5.6.3
         version: 5.6.3
@@ -4830,22 +4830,6 @@ packages:
       '@urql/core': 2.3.6(graphql@15.8.0)
       graphql: 15.8.0
       wonka: 4.0.15
-
-  /@vitejs/plugin-react@4.3.4(vite@5.4.21):
-    resolution: {integrity: sha512-SCCPBJtYLdE8PX/7ZQAs1QAZ8Jqwih+0VBLum1EGqmCCQal+MIUqLCzj3ZUy8ufbC0cAM4LRlSTm7IQJwWT4ug==}
-    engines: {node: ^14.18.0 || >=16.0.0}
-    peerDependencies:
-      vite: ^4.2.0 || ^5.0.0 || ^6.0.0
-    dependencies:
-      '@babel/core': 7.28.5
-      '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.28.5)
-      '@babel/plugin-transform-react-jsx-source': 7.27.1(@babel/core@7.28.5)
-      '@types/babel__core': 7.20.5
-      react-refresh: 0.14.2
-      vite: 5.4.21(@types/node@20.10.6)
-    transitivePeerDependencies:
-      - supports-color
-    dev: true
 
   /@vitest/expect@1.6.1:
     resolution: {integrity: sha512-jXL+9+ZNIJKruofqXuuTClf44eSpcHlgj3CiuNihUF3Ioujtmc0zIa3UJOW5RjDK1YLBJZnWBlPuqhYycLioog==}
@@ -10653,6 +10637,10 @@ packages:
       picocolors: 1.1.1
       source-map-js: 1.2.1
     dev: true
+
+  /preact@10.24.3:
+    resolution: {integrity: sha512-Z2dPnBnMUfyQfSQ+GBdsGa16hz35YmLmtTLhM169uW944hYL6xzTYkJjC07j+Wosz733pMWx0fgON3JNw1jJQA==}
+    dev: false
 
   /prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}

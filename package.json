@@ -22,7 +22,10 @@
     "test": "pnpm --recursive test",
     "migrate:dev": "pnpm --filter supabase-infra migrate:dev",
     "seed": "pnpm --filter supabase-infra seed",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "dev:frontend": "pnpm -C frontend dev",
+    "build:frontend": "pnpm -C frontend build",
+    "preview:frontend": "pnpm -C frontend preview"
   },
   "devDependencies": {
     "@expo/cli": "0.18.21",
@@ -44,5 +47,8 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
-  }
+  },
+  "workspaces": [
+    "frontend"
+  ]
 }

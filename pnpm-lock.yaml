@@ -289,6 +289,12 @@ importers:
 
   apps/sideui:
     dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.76.1
+        version: 2.76.1
+      '@us/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       react:
         specifier: 18.3.1
         version: 18.3.1

@@ -1,31 +1,30 @@
-import * as React from "react";
-import Slider from "@/shims/slider";
+import "./DistanceSlider.css";
 
-type Props = {
+interface DistanceSliderProps {
   value: number;
   min?: number;
   max?: number;
   step?: number;
-  onChange?: (v: number) => void;
-  onDone?: (v: number) => void;
-};
+  onChange: (value: number) => void;
+}
 
-const DistanceSlider: React.FC<Props> = ({ value, min = 1, max = 100, step = 1, onChange, onDone }) => {
+export default function DistanceSlider({ value, min = 1, max = 100, step = 1, onChange }: DistanceSliderProps) {
   return (
-    <div style={{ width: "100%", padding: "8px 0" }}>
-      <Slider
-        value={value}
-        minimumValue={min}
-        maximumValue={max}
+    <div className="distance-slider">
+      <div className="distance-slider__labels">
+        <span>{min} km</span>
+        <span>{max} km</span>
+      </div>
+      <input
+        type="range"
+        className="distance-slider__input"
+        min={min}
+        max={max}
         step={step}
-        minimumTrackTintColor="#111827"
-        maximumTrackTintColor="rgba(0,0,0,0.15)"
-        thumbTintColor="#111827"
-        onValueChange={(v) => onChange?.(v)}
-        onSlidingComplete={(v) => onDone?.(v)}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
       />
+      <div className="distance-slider__value">Preferred radius: {value.toFixed(0)} km</div>
     </div>
   );
-};
-
-export default DistanceSlider;
+}

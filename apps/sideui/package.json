@@ -9,6 +9,8 @@
     "preview": "vite preview --host --port 8000 --strictPort"
   },
   "dependencies": {
+    "@us/types": "workspace:*",
+    "@supabase/supabase-js": "^2.76.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-router-dom": "^6.28.0"

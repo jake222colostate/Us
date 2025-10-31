@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { type ApiClient, type ApiError, type AuthResponse } from "@us/api-client";
+import { createApiClient, type ApiClient, type ApiError, type AuthResponse } from "@us/api-client";
 import { createBrowserStorage, createMemoryStorage, type TokenStorage } from "./storage";
 
 type AuthUser = AuthResponse["user"];
@@ -43,8 +43,8 @@ export const AuthProvider = ({ baseUrl, children, storage, onUnauthorized }: Aut
   const tokenRef = useRef<string | null>(null);
   tokenRef.current = token;
 
-  const api = useMemo(() => {
-    return api(baseUrl, {
+  const client = useMemo(() => {
+    return createApiClient(baseUrl, {
       getToken: () => tokenRef.current,
       onUnauthorized: () => {
         void resolvedStorage.setToken(null);
@@ -94,7 +94,7 @@ export const AuthProvider = ({ baseUrl, children, storage, onUnauthorized }: Aut
       return;
     }
     try {
-      const me = await api.auth.me();
+      const me = await client.auth.me();
       setUser(me as AuthUser);
     } catch (error) {
       const apiError = error as ApiError;
@@ -103,7 +103,7 @@ export const AuthProvider = ({ baseUrl, children, storage, onUnauthorized }: Aut
       }
       throw error;
     }
-  }, [api, syncToken]);
+  }, [client, syncToken]);
 
   useEffect(() => {
     if (!token) {
@@ -123,44 +123,44 @@ export const AuthProvider = ({ baseUrl, children, storage, onUnauthorized }: Aut
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const result = await api.auth.login({ email, password });
+      const result = await client.auth.login({ email, password });
       await syncToken(result.token, result.user as AuthUser);
       await queryClient.invalidateQueries();
     },
-    [api, queryClient, syncToken],
+    [client, queryClient, syncToken],
   );
 
   const register = useCallback(
     async (payload: Record<string, unknown>) => {
-      const result = await api.auth.register(payload);
+      const result = await client.auth.register(payload);
       await syncToken(result.token, result.user as AuthUser);
       await queryClient.invalidateQueries();
     },
-    [api, queryClient, syncToken],
+    [client, queryClient, syncToken],
   );
 
   const logout = useCallback(async () => {
     try {
-      await api.auth.logout();
+      await client.auth.logout();
     } catch (error) {
       // ignore network errors during logout
     }
     await syncToken(null, null);
-  }, [api, syncToken]);
+  }, [client, syncToken]);
 
   const value: AuthContextValue = useMemo(
     () => ({
       user,
       token,
       loading,
-      api,
+      api: client,
       login,
       register,
       logout,
       refreshMe,
       setToken: (nextToken) => syncToken(nextToken, user),
     }),
-    [api, loading, login, logout, refreshMe, register, syncToken, token, user],
+    [client, loading, login, logout, refreshMe, register, syncToken, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -176,4 +176,3 @@ export const useAuth = () => {
 
 export type { TokenStorage } from "./storage";
 export { createBrowserStorage, createMemoryStorage } from "./storage";
-

@@ -15,6 +15,7 @@ export type Profile = {
     longitude: number;
   } | null;
   radius_km: number;
+  preferences?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };

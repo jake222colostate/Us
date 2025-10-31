@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "packageManager": "pnpm@8.15.4",
   "scripts": {
-    "dev": "pnpm --filter frontend/us-side-by-side dev",
-    "build": "pnpm --filter frontend/us-side-by-side build",
+    "dev": "pnpm --filter sideui dev",
+    "build": "pnpm --filter sideui build",
     "repo:unstage-binaries": "git rm -r --cached . && git add . && git commit -m \"chore: drop binaries from index via .gitignore\" || echo \"No changes\"",
     "repo:strip-binaries": "bash tools/strip_binaries.sh",
     "repo:check-binaries": "node tools/check_binaries.mjs",
@@ -25,9 +25,9 @@
     "migrate:dev": "pnpm --filter supabase-infra migrate:dev",
     "seed": "pnpm --filter supabase-infra seed",
     "format": "prettier --write .",
-    "dev:frontend": "pnpm -C frontend dev",
-    "build:frontend": "pnpm -C frontend build",
-    "preview:frontend": "pnpm -C frontend preview"
+    "dev:frontend": "pnpm -C apps/sideui dev",
+    "build:frontend": "pnpm -C apps/sideui build",
+    "preview:frontend": "pnpm -C apps/sideui preview"
   },
   "devDependencies": {
     "@expo/cli": "0.18.21",
@@ -51,6 +51,8 @@
     "react-dom": "^18.3.1"
   },
   "workspaces": [
-    "frontend/us-side-by-side"
+    "apps/*",
+    "packages/*",
+    "infra/*"
   ]
 }

@@ -1,4 +1,3 @@
-import '@testing-library/jest-native/extend-expect';
 import { vi } from 'vitest';
 
 vi.mock('expo-linear-gradient', () => ({

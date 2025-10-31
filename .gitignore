@@ -20,3 +20,4 @@ coverage/
 # python venvs
 .venv/
 **/.venv/
+frontend/dist/

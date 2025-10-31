@@ -1,23 +1,29 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'node:path'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "node:path";
+
+const pkgRoot = __dirname;
+const nm = path.resolve(pkgRoot, "node_modules");
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@us/ui': path.resolve(__dirname, '../../packages/ui/src'),
-      '@': path.resolve(__dirname, 'src'),
-      // Force web shims:
-      '@react-native-community/slider': path.resolve(__dirname, 'src/shims/slider.tsx'),
-      'expo-linear-gradient': path.resolve(__dirname, 'src/shims/linear-gradient-web.tsx'),
-      'react-native': path.resolve(__dirname, 'src/_shims/react-native-empty.tsx'),
+      react: path.resolve(nm, "react"),
+      "react/jsx-runtime": path.resolve(nm, "react/jsx-runtime"),
+      "react-dom": path.resolve(nm, "react-dom"),
+      "react-dom/client": path.resolve(nm, "react-dom/client"),
     },
+    dedupe: ["react", "react-dom"],
   },
-  server: {
-    host: true,
-    port: 8000,
-    strictPort: true,
-    hmr: { overlay: true },
+  optimizeDeps: {
+    include: ["react", "react-dom", "react/jsx-runtime"],
+    force: true,
   },
-})
+  build: {
+    commonjsOptions: { transformMixedEsModules: true },
+    rollupOptions: { treeshake: false },
+  },
+  server: { host: true, port: 8000, strictPort: true },
+  preview: { host: true, port: 8000, strictPort: true },
+});

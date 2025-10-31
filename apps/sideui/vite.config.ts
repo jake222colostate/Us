@@ -1,29 +1,12 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import path from "node:path";
-
-const pkgRoot = __dirname;
-const nm = path.resolve(pkgRoot, "node_modules");
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      react: path.resolve(nm, "react"),
-      "react/jsx-runtime": path.resolve(nm, "react/jsx-runtime"),
-      "react-dom": path.resolve(nm, "react-dom"),
-      "react-dom/client": path.resolve(nm, "react-dom/client"),
-    },
-    dedupe: ["react", "react-dom"],
-  },
-  optimizeDeps: {
-    include: ["react", "react-dom", "react/jsx-runtime"],
-    force: true,
-  },
+  server: { host: true, port: 8000, strictPort: true },
+  preview: { host: true, port: 8000, strictPort: true },
   build: {
     commonjsOptions: { transformMixedEsModules: true },
     rollupOptions: { treeshake: false },
   },
-  server: { host: true, port: 8000, strictPort: true },
-  preview: { host: true, port: 8000, strictPort: true },
 });

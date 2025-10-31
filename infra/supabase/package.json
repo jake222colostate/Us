@@ -6,7 +6,5 @@
     "migrate:dev": "supabase db push --env-file .env.dev",
     "seed": "supabase db seed --env-file .env.dev"
   },
-  "devDependencies": {
-    "supabase": "^1.115.4"
-  }
+  "devDependencies": {}
 }

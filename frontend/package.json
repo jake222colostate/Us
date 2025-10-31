@@ -1,0 +1,42 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev:web": "vite --host --port 8000 --strictPort",
+    "build:web": "vite build",
+    "preview:web": "vite preview --host --port 8000 --strictPort",
+    "clean:vite": "rimraf node_modules/.vite ../../node_modules/.vite || true",
+    "dev:expo": "expo start",
+    "dev:expo:web": "expo start --web --clear",
+    "dev:ios": "expo run:ios",
+    "dev:android": "expo run:android",
+    "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\""
+  },
+  "dependencies": {
+    "expo": "^50.0.5",
+    "expo-router": "^3.4.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-native": "0.73.6",
+    "react-native-svg": "^14.1.0",
+    "react-native-web": "^0.19.12",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "@vitejs/plugin-react": "^4.3.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3",
+    "vite": "^5.4.0"
+  }
+}

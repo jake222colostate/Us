@@ -55,6 +55,7 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "infra/*"
+    "infra/*",
+    "frontend"
   ]
 }

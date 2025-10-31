@@ -1,10 +1,11 @@
 import { ArrowLeft, Shield, AlertTriangle, Phone, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import * as RRD from "react-router-dom";
 import * as React from "react";
 
 const Safety = () => {
-  const navigate = useNavigate();
+  const navigate = RRD.useNavigate();
 
   return (
     <div className="min-h-screen bg-background pb-20">

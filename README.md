@@ -1,49 +1,94 @@
-# Us — Cross-Platform Dating App
+# Us — Full-Stack Relationship Platform
 
-Us is a production-ready, Expo-powered dating experience with an IG/TikTok-inspired vertical feed, Big Heart monetisation, and a collaborative "Us Photo" composer with mirror support.
+Us is a cross-platform relationship app that combines a TikTok-style discovery feed, matchmaking flows, secure messaging, and monetisation hooks. The repository is a PNPM workspace that ships both the frontend experiences (mobile + responsive web) and the Supabase-backed API/infra that power them.
 
-## Monorepo Layout
+This README is meant to give an AI assistant or human contributor everything required to understand the moving pieces, wire up the environment, and ship changes confidently.
 
-```
-/apps/mobile        Expo application (iOS, Android, web)
-/apps/sideui        Vite-powered side-by-side web experience
-/infra/supabase     Database schema, RLS, seeds, edge functions
-/packages/ui        Shared component system
-/packages/types     Shared TypeScript interfaces
-/packages/config    Environment loader utilities
-/packages/api-client Shared REST client for mobile + web
-/packages/auth      Cross-platform auth provider and hooks
-```
+---
 
-## Requirements
+## Architecture at a Glance
 
-- Node 18+
-- pnpm 8+
-- Supabase CLI (`pnpm dlx supabase`)
-- Expo CLI (`npx expo`) for local testing
-- Stripe test account (web Big Heart flow)
-- RevenueCat account (native Big Heart flow)
+| Layer | Location | Tech | Notes |
+| --- | --- | --- | --- |
+| Web app | `frontend/us-side-by-side` | Vite 5 + React 18 + TypeScript + Tailwind CSS | Public-facing web UI with protected routes, matchmaking feed, chat, notifications, onboarding, and settings screens. Uses TanStack Query for data fetching and React Router for navigation. |
+| Mobile app | `apps/mobile` | Expo / React Native | Cross-platform client that reuses shared packages. Not the focus of this task but included for completeness. |
+| Legacy web | `apps/sideui` | Vite + React | Previous side-by-side build. Kept for reference; new web work happens in `frontend/us-side-by-side`. |
+| API client | `packages/api-client` | TypeScript | REST client abstractions consumed by both mobile and web. |
+| Shared UI | `packages/ui` | TypeScript / React | Reusable components (buttons, cards, etc.). |
+| Shared types | `packages/types` | TypeScript | Common domain types. |
+| Config helpers | `packages/config` | TypeScript | Environment loader utilities. |
+| Auth utilities | `packages/auth` | TypeScript | Authentication context for native clients. |
+| Infrastructure | `infra/supabase` | Supabase SQL, Edge Functions | Database schema, policies, seed scripts, and serverless functions. |
+
+Supporting tooling lives under `tools/` (binary checks, asset seeding) and `tsup/` (build configurations).
+
+---
+
+## Technology Stack
+
+- **Frontend (web)**: React 18, React Router 6, TanStack Query 5, Tailwind CSS, ShadCN component primitives, Vite 5, TypeScript 5.8.
+- **Mobile**: Expo SDK 50, React Native.
+- **Backend**: Supabase (PostgreSQL, Row-Level Security, Edge Functions), custom REST endpoints exposed via `packages/api-client`.
+- **State/Data**: TanStack Query for async state, React Context for auth, local storage for lightweight client preferences.
+- **Tooling**: PNPM workspace, ESLint 9, Prettier 3, TypeScript project references, Tailwind Merge + clsx utilities, Vitest/Jest (where available), Expo CLI for native clients.
+
+---
+
+## Prerequisites
+
+- Node.js 18+
+- PNPM 8+
+- Optional: Supabase CLI (`pnpm dlx supabase`) for database and edge function workflows.
+- Optional: Expo CLI (`npx expo`) if you plan to work on the mobile app.
+- Accounts/keys for Stripe and RevenueCat if you intend to test monetisation flows end-to-end.
+
+---
+
+## Workspace Layout & Commands
+
+The repository is a PNPM workspace (`package.json` + `pnpm-workspace.yaml`). Key root scripts:
+
+- `pnpm install` – installs dependencies for every workspace.
+- `pnpm dev` – starts the Vite dev server for `frontend/us-side-by-side`.
+- `pnpm build` – runs the production web build for `frontend/us-side-by-side`.
+- `pnpm dev:frontend` / `pnpm build:frontend` – legacy helpers that point at `frontend/` aggregate scripts.
+- `pnpm web:dev` / `pnpm web:build` – start/build the historical `apps/sideui` project (rarely used now).
+- `pnpm mobile:start` – launches the Expo dev client for the native app.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test` – standard quality gates executed recursively across the workspace.
+- `pnpm migrate:dev` & `pnpm seed` – apply Supabase database migrations and seed data.
+- `pnpm seed:assets` – fetches development-only imagery required by the apps.
+
+Root tooling scripts under `tools/` help enforce the “no binary blobs in git” policy (`repo:check-binaries`, `repo:strip-binaries`, etc.).
+
+---
 
 ## Environment Variables
 
-Web app (`apps/sideui`) reads the following `.env` entries:
+### Web (Vite) – `frontend/us-side-by-side`
+
+Create `frontend/us-side-by-side/.env` (or use `.env.local`) and populate:
 
 ```
-VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_API_BASE=<REST API base URL>
+VITE_API_PROXY_TARGET=<optional proxy target for local dev>
 ```
 
-Mobile app (`apps/mobile/app.config.ts` expects Expo public env):
+During development the Vite server proxies `/api` to `VITE_API_PROXY_TARGET` when provided. Authentication flows rely on Supabase endpoints exposed through that API.
+
+### Mobile (Expo) – `apps/mobile`
+
+Set Expo public env vars via `.env` or `app.config.ts`:
 
 ```
 EXPO_PUBLIC_SUPABASE_URL
 EXPO_PUBLIC_SUPABASE_ANON_KEY
-EXPO_PUBLIC_BILLING_MODE=auto | stripe_only
+EXPO_PUBLIC_BILLING_MODE=stripe_only | auto
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY
 EXPO_PUBLIC_REVENUECAT_SDK_KEY
 EXPO_PUBLIC_BIGHEART_PRICE_USD=3.99
 ```
 
-Edge functions (`infra/supabase/functions`):
+### Supabase / Edge Functions – `infra/supabase`
 
 ```
 SUPABASE_URL
@@ -51,192 +96,101 @@ SUPABASE_SERVICE_ROLE_KEY
 EXPO_ACCESS_TOKEN
 STRIPE_SECRET_KEY
 STRIPE_WEBHOOK_SECRET
-REVENUECAT_SECRET (optional)
+REVENUECAT_SECRET # optional
 ```
 
-## Getting Started
+Copy `.env.example` in that folder to `.env.dev` and fill in the values. CLI commands (`supabase start`, `supabase functions serve`, etc.) respect this file.
+
+---
+
+## Backend Setup (Supabase)
+
+1. **Install Supabase CLI**: `pnpm dlx supabase init` (run once).
+2. **Provision local stack**: `supabase start` spins up Postgres + edge function emulators.
+3. **Apply schema**: `pnpm migrate:dev` executes SQL migrations located in `infra/supabase/migrations`.
+4. **Seed data**: `pnpm seed` loads baseline data so feeds, matches, and profiles have content.
+5. **Run edge functions**: `supabase functions serve --env-file infra/supabase/.env.dev` to test serverless logic locally.
+
+The API client (`packages/api-client`) communicates with Supabase via REST endpoints and expects bearer tokens returned from Supabase auth.
+
+---
+
+## Frontend Setup (Vite + React)
+
+1. Install dependencies: `pnpm install` at the repository root.
+2. Provide env vars (`frontend/us-side-by-side/.env`).
+3. Start the dev server: `pnpm dev` (aliases to `pnpm --filter frontend/us-side-by-side dev`). The app runs on <http://localhost:5173> by default and proxies API requests if `VITE_API_PROXY_TARGET` is set.
+4. For local Supabase integration, ensure the backend is running (see previous section) so `/api` responses succeed.
+5. Storybook is not configured; UI components live under `src/components` and use ShadCN primitives with Tailwind classes.
+
+Key frontend directories:
+
+- `src/App.tsx` – route tree and providers (React Router, TanStack Query, theming, auth context).
+- `src/main.tsx` – React entry point using `createRoot` and optional client error reporter in dev.
+- `src/components/` – UI modules (navigation, cards, modal, protected route, etc.).
+- `src/hooks/` – Custom hooks for auth, feed, onboarding, chat, etc.
+- `src/lib/` – API clients, data utilities, and the `cn` helper that wraps `clsx` + `tailwind-merge` safely.
+- `src/pages/` – Route components covering feed, likes, matches, chat, onboarding, settings, help, etc.
+
+The routing layer is namespace-imported (`import * as RRD from "react-router-dom"`) to avoid brittle ESM export differences across tooling.
+
+### Production Build
+
+Run `pnpm build` from the repo root. This executes `vite build` in `frontend/us-side-by-side` and outputs `frontend/us-side-by-side/dist`. Deploy the contents of that directory to a static host or serve locally with `pnpm --filter frontend/us-side-by-side preview`.
+
+---
+
+## Mobile App Workflow (Optional)
+
+The Expo app reuses shared packages and mirrors core functionality:
 
 ```bash
 pnpm install
-pnpm migrate:dev    # applies SQL schema to local Supabase
-pnpm seed           # optional sample data
-pnpm web:dev        # run the side-by-side web UI (Vite)
-pnpm mobile:start   # launch Expo dev client
+pnpm seed:assets  # fetch dev imagery/icons
+pnpm mobile:start # launches Expo start (Metro bundler)
 ```
 
-## No Binary Files in Git
+Use the Expo Go app or device simulators to preview. Avoid committing generated native projects; run `pnpm --filter app-mobile expo prebuild` if you need a native workspace locally.
 
-This repo intentionally excludes binaries (images, audio, video, Pods, build artefacts, and signing files). Use the development seeding workflow instead of committing binary blobs.
+---
 
-### First run
+## Quality Gates
 
-```bash
-pnpm install
-pnpm seed:assets
-pnpm dev:web   # RunPod-friendly
-```
+- **Linting**: `pnpm lint` (ESLint 9 with React, hooks, import rules, Prettier integration).
+- **Type Checking**: `pnpm typecheck` runs `tsc --noEmit` across all packages via workspace recursion.
+- **Tests**: `pnpm test` executes package-level test suites (Vitest/Jest depending on the workspace).
 
-`pnpm seed:assets` downloads development-only photos **and** the Expo icon/adaptive icon/favicon into `apps/mobile/assets/dev/`. Run it before starting the app so the build pipeline can pick up the required artwork without committing binaries to git.
+Run these before opening a PR to maintain repository health.
 
-### If your push is blocked: "Binary files are not supported"
+---
 
-1. Drop currently staged binaries:
+## Asset & Binary Policy
 
-   ```bash
-   pnpm repo:unstage-binaries
-   ```
+Binary artefacts (images, audio, compiled outputs, signing keys) must not be committed. Instead:
 
-2. If the remote still rejects past commits, rewrite history (coordinate with your team before running):
+1. Remove staged binaries: `pnpm repo:unstage-binaries`.
+2. Strip binaries from history (if needed): `pnpm repo:strip-binaries`.
+3. Validate the tree: `pnpm repo:check-binaries`.
+4. Use `pnpm seed:assets` to populate development-only imagery locally.
 
-   ```bash
-   pnpm repo:strip-binaries
-   git push -u origin main --force
-   ```
+---
 
-3. Validate the repository is binary-free before opening a PR:
+## Troubleshooting & Tips
 
-   ```bash
-   pnpm repo:check-binaries || node tools/check_binaries.mjs
-   ```
+- **React/Router import errors**: All components use namespace imports (`import * as React` / `import * as RRD`) to avoid named export mismatches when bundling with Vite or TS config variations.
+- **Tailwind merge issues**: `src/lib/utils.ts` exposes a resilient `cn` helper that resolves both default and named exports from `clsx` and `tailwind-merge`.
+- **Auth redirects**: `src/hooks/useAuth.tsx` centralises auth state, handles token refresh, and manually syncs navigation history to keep React Router aware of redirects.
+- **API calls**: Check `src/lib/api/client.ts` and `src/lib/api/endpoints.ts` for request wrappers, interceptors, and error handling (including 401 hooks).
+- **Protected routes**: `src/components/ProtectedRoute.tsx` gates authenticated pages and shows loading/errors gracefully.
 
-   The check scans tracked, staged, and untracked files so you can catch stray assets before they ever hit git history. It fails on tracked or staged offenders and prints a warning for any untracked binaries still lingering in your working tree. The fallback `node` invocation runs automatically if `pnpm` is unavailable (e.g., offline or blocked registries), and you can call it directly when scripting your own hooks.
+---
 
-### Running on Web / RunPod
+## Release Checklist
 
-```bash
-export EXPO_PUBLIC_BILLING_MODE=stripe_only
-export EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
-export EXPO_PUBLIC_SUPABASE_URL=...
-export EXPO_PUBLIC_SUPABASE_ANON_KEY=...
-pnpm dev:web -- --port 8080
-```
+1. `pnpm install`
+2. `pnpm lint && pnpm typecheck && pnpm test`
+3. `pnpm build`
+4. Deploy `frontend/us-side-by-side/dist` to your hosting provider.
+5. For backend changes, apply migrations (`pnpm migrate:dev`) and redeploy Supabase functions.
 
-### Running on Native
-
-```bash
-export EXPO_PUBLIC_SUPABASE_URL=...
-export EXPO_PUBLIC_SUPABASE_ANON_KEY=...
-export EXPO_PUBLIC_REVENUECAT_SDK_KEY=public_sdk_key
-pnpm --filter app-mobile dev:native
-```
-
-Build with EAS (after configuring `eas.json` and credentials):
-
-```bash
-eas build -p ios
-# or
-eas build -p android
-```
-
-#### Generate native projects locally (no binaries in git)
-
-The repo intentionally tracks source only—do **not** commit build artefacts, Pods, keystores, or signing files. Generate platform
-projects on-demand:
-
-```bash
-pnpm --filter app-mobile expo prebuild -p ios -p android
-# then, on macOS
-cd ios && pod install && open Us.xcworkspace
-```
-
-Signing assets (`.p12`, `.mobileprovision`, `.keystore`, etc.) should live outside git and be managed via EAS credentials. Assets
-are loaded from URLs in the seed script; if you need local placeholders, add them under `apps/mobile/assets/`.
-
-## Supabase
-
-1. Install the CLI: `pnpm dlx supabase init`
-2. Copy `.env.example` to `infra/supabase/.env.dev` and fill in Supabase keys.
-3. Run `pnpm migrate:dev` then `pnpm seed`.
-4. Deploy edge functions: `supabase functions deploy on-heart --project-ref <ref>` etc.
-
-## Tests & Linting
-
-```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-```
-
-- Unit/UI tests (Vitest + React Native Testing Library) cover `FeedCard`, `BigHeartButton`, `ComposeScreen` mirror toggle, and `DistanceSlider`.
-- Detox E2E scaffolding lives in `apps/mobile/detox.config.js` and `apps/mobile/e2e`. Configure builds and run `detox test`.
-
-## Features
-
-- Infinite-scrolling, full-bleed feed interleaved via PostGIS RPC to avoid consecutive posts by the same user.
-- Normal Hearts flow through `send_free_heart` RPC, enforce a 125-per-day limit, and coalesced pushes via `on-heart` edge function.
-- Big Hearts verify purchases (Stripe on web, RevenueCat-native) via `on-big-heart` and webhook consumption.
-- Likes view aggregates multiple hearts per admirer with counts, pinned Big Hearts, and expandable post detail rows.
-- Side-by-side "Us Photo" composer supports mirror toggle, aspect ratios (1:1, 4:5, 3:4), swap, export to camera roll, and optional private upload.
-- Safety toolset: block/report, 18+ gate, content guidelines copy, account deletion self-service, legal copy, data export guidance.
-
-## CI/CD
-
- GitHub Actions workflow (`.github/workflows/ci.yml`) installs dependencies, lints, typechecks, runs tests, and enforces the binary gate via `pnpm repo:check-binaries || node tools/check_binaries.mjs` so pushes stay source-only. Configure EAS Build integration on `main` branch as needed.
-
-## Billing Notes
-
-- Native: configure RevenueCat offering `big_heart_oneoff` and set `EXPO_PUBLIC_REVENUECAT_SDK_KEY`.
-- Web: Stripe Checkout session created via Supabase edge function `create-checkout-session`; webhook updates `purchases` table.
-
-## Data Safety & Privacy
-
-- RLS ensures profile/heart ownership.
-- Account deletion removes user-generated data and signs out.
-- Legal view summarises terms, privacy, and data export contact.
-
-## Contributing
-
-1. Create a feature branch.
-2. Update relevant tests.
-3. Run `pnpm lint && pnpm typecheck && pnpm test`.
-4. Ensure the tree is binary-free: `pnpm repo:check-binaries || node tools/check_binaries.mjs`.
-5. Submit a PR describing the change set.
-## Fresh Pod Setup (RunPod)
-
-These are the quick commands to get the **Us** app running on a brand-new pod.
-
-### 1) Install Node.js 20.x
-```bash
-apt-get update -y
-apt-get install -y ca-certificates curl gnupg
-install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" >/etc/apt/sources.list.d/nodesource.list
-apt-get update -y && apt-get install -y nodejs
-node -v
-```
-
-### 2) Enable pnpm (matches repo)
-```bash
-corepack enable
-corepack prepare pnpm@8.15.4 --activate
-pnpm -v
-```
-
-### 3) Install dependencies (monorepo)
-```bash
-cd /workspace/us-app
-pnpm install
-```
-
-### 4) Run the Web UI (Side UI)
-```bash
-pnpm -C apps/sideui dev
-# Open the printed Vite URL (default http://localhost:5173/)
-```
-
-### 5) (Optional) Build & Preview static web
-```bash
-pnpm -C apps/sideui build
-pnpm -C apps/sideui preview --host --port 5173
-```
-
-### 6) (Optional) Start Expo for mobile (web preview)
-```bash
-pnpm dev:web  # or: pnpm dev:web:mobile
-```
-
-### Notes
-- If you see a prompt to update pnpm, you can later run: `corepack prepare pnpm@10.20.0 --activate`.
-- If a port is busy, change `--port` in the preview command.
-
+With these steps documented, an AI assistant or new contributor should be able to understand the entire stack, bootstrap the environment, and push changes without guesswork.

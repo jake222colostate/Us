@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMatches } from "@/hooks/useMatches";
+import * as RRD from "react-router-dom";
 import * as React from "react";
 
 const Matches = () => {
-  const navigate = useNavigate();
+  const navigate = RRD.useNavigate();
   const { matches, isLoading, error } = useMatches();
 
   return (

@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchUserProfile } from "@/lib/api/endpoints";
+import * as RRD from "react-router-dom";
 import * as React from "react";
 
 const UserProfile = () => {
-  const { userId } = useParams();
-  const navigate = useNavigate();
+  const { userId } = RRD.useParams();
+  const navigate = RRD.useNavigate();
 
   const profileQuery = useQuery({
     queryKey: ["user-profile", userId],

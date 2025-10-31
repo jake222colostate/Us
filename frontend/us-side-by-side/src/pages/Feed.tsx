@@ -8,10 +8,11 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFeed } from "@/hooks/useFeed";
 import { useToast } from "@/hooks/use-toast";
+import * as RRD from "react-router-dom";
 import * as React from "react";
 
 const Feed = () => {
-  const navigate = useNavigate();
+  const navigate = RRD.useNavigate();
   const { toast } = useToast();
   const {
     posts,

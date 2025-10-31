@@ -5,10 +5,11 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
+import * as RRD from "react-router-dom";
 import * as React from "react";
 
 const Settings = () => {
-  const navigate = useNavigate();
+  const navigate = RRD.useNavigate();
   const { logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = React.useState({

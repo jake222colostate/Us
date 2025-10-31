@@ -7,10 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfileData } from "@/hooks/useProfileData";
+import * as RRD from "react-router-dom";
 import * as React from "react";
 
 const Profile = () => {
-  const navigate = useNavigate();
+  const navigate = RRD.useNavigate();
   const { logout } = useAuth();
   const { profile, isLoading } = useProfileData();
 

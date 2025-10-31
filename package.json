@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "packageManager": "pnpm@8.15.4",
   "scripts": {
+    "dev": "pnpm --filter frontend/us-side-by-side dev",
+    "build": "pnpm --filter frontend/us-side-by-side build",
     "repo:unstage-binaries": "git rm -r --cached . && git add . && git commit -m \"chore: drop binaries from index via .gitignore\" || echo \"No changes\"",
     "repo:strip-binaries": "bash tools/strip_binaries.sh",
     "repo:check-binaries": "node tools/check_binaries.mjs",
@@ -49,6 +51,6 @@
     "react-dom": "^18.3.1"
   },
   "workspaces": [
-    "frontend"
+    "frontend/us-side-by-side"
   ]
 }

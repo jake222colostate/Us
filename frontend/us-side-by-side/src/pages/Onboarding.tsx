@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useToast } from "@/hooks/use-toast";
+import * as RRD from "react-router-dom";
 import * as React from "react";
 
 const interests = [
@@ -46,7 +47,7 @@ type FormState = {
 };
 
 const Onboarding = () => {
-  const navigate = useNavigate();
+  const navigate = RRD.useNavigate();
   const { toast } = useToast();
   const { progress, isLoading, error, submit } = useOnboarding();
 

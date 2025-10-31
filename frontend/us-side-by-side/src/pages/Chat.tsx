@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversation, useMessages, useSendMessage } from "@/hooks/useChat";
 import { useToast } from "@/hooks/use-toast";
+import * as RRD from "react-router-dom";
 import * as React from "react";
 
 const Chat = () => {
-  const navigate = useNavigate();
-  const { matchId } = useParams();
+  const navigate = RRD.useNavigate();
+  const { matchId } = RRD.useParams();
   const { toast } = useToast();
   const [message, setMessage] = React.useState("");
 

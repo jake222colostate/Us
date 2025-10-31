@@ -2,3 +2,4 @@ packages:
   - "apps/*"
   - "packages/*"
   - "infra/*"
+  - "frontend/us-side-by-side"

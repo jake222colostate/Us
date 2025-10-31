@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as RRD from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ServerHealthBanner } from "@/components/ServerHealthBanner";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -40,12 +41,12 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <RRD.BrowserRouter>
           <AuthProvider>
             <ServerHealthBanner />
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route
+            <RRD.Routes>
+              <RRD.Route path="/auth" element={<Auth />} />
+              <RRD.Route
                 path="/onboarding"
                 element={
                   <ProtectedRoute>
@@ -53,7 +54,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/"
                 element={
                   <ProtectedRoute>
@@ -61,7 +62,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/likes"
                 element={
                   <ProtectedRoute>
@@ -69,7 +70,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/matches"
                 element={
                   <ProtectedRoute>
@@ -77,7 +78,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/chat/:matchId"
                 element={
                   <ProtectedRoute>
@@ -85,7 +86,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/notifications"
                 element={
                   <ProtectedRoute>
@@ -93,7 +94,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/profile"
                 element={
                   <ProtectedRoute>
@@ -101,7 +102,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/edit-profile"
                 element={
                   <ProtectedRoute>
@@ -109,7 +110,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/user/:userId"
                 element={
                   <ProtectedRoute>
@@ -117,7 +118,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/settings"
                 element={
                   <ProtectedRoute>
@@ -125,7 +126,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/help"
                 element={
                   <ProtectedRoute>
@@ -133,7 +134,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
+              <RRD.Route
                 path="/safety"
                 element={
                   <ProtectedRoute>
@@ -141,10 +142,10 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+              <RRD.Route path="*" element={<NotFound />} />
+            </RRD.Routes>
           </AuthProvider>
-        </BrowserRouter>
+        </RRD.BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>

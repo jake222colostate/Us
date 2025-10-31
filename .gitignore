@@ -1,34 +1,22 @@
-# Node/Expo
+# node / build
 node_modules/
-.expo/
-.expo-shared/
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-.vscode/
-.DS_Store
+**/node_modules/
 dist/
 build/
-.expo-packager-cache/
-.expo/web/cache/
-web-build/
-package-lock.json
-
-# Env / secrets
-.env
-.env.*
-!.env.example
-
-# OS junk
-Thumbs.db
-
-# Logs
-*.log
-# build & tooling
-dist/
-node_modules/
-.pnpm-store/
+.out/
+.expo/
+.next/
 .vite/
+.pnpm-store/
+.turbo/
 .cache/
+.parcel-cache/
+coverage/
+
+# env & OS
+.env*
 .DS_Store
-*.log
+
+# python venvs
+.venv/
+**/.venv/

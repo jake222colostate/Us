@@ -2,7 +2,7 @@ import type { Heart, Match, Profile } from "@us/types";
 
 import { ApiError, normalizeError } from "./client";
 import { requireSupabaseClient } from "./supabase";
-import { mapHeartRow, mapMatchRow, mapProfileRow } from "./transformers";
+import { mapMatchRow, mapProfileRow } from "./transformers";
 import type { LikeSummary, MatchSummary } from "../types";
 
 interface MatchesResult {
@@ -27,6 +27,20 @@ function buildMatchSummary({
     lastInteractionAt: match.created_at,
     lastMessagePreview: null,
     threadId: null,
+  };
+}
+
+function mapLikeRow(row: any): Heart {
+  return {
+    id: row.id,
+    post_id: row.post_id ?? row.id,
+    from_user: row.from_user,
+    to_user: row.to_user,
+    kind: row.is_superlike ? "big" : "normal",
+    paid: false,
+    message: null,
+    selfie_url: null,
+    created_at: typeof row.created_at === "string" ? row.created_at : new Date(row.created_at).toISOString(),
   };
 }
 
@@ -62,13 +76,13 @@ export async function fetchMatchesAndLikes(userId: string): Promise<MatchesResul
         .order("created_at", { ascending: false })
         .limit(50),
       client
-        .from("hearts")
+        .from("likes")
         .select("*")
         .eq("to_user", userId)
         .order("created_at", { ascending: false })
         .limit(50),
       client
-        .from("hearts")
+        .from("likes")
         .select("*")
         .eq("from_user", userId)
         .order("created_at", { ascending: false })
@@ -101,7 +115,10 @@ export async function fetchMatchesAndLikes(userId: string): Promise<MatchesResul
     const ids = Array.from(profileIds);
     let profileMap = new Map<string, Profile>();
     if (ids.length > 0) {
-      const { data: profileRows, error: profileError } = await client.from("profiles").select("*").in("user_id", ids);
+      const { data: profileRows, error: profileError } = await client
+        .from("profiles")
+        .select("*, user_photos(*)")
+        .in("user_id", ids);
       if (profileError) {
         throw normalizeError(profileError, 400);
       }
@@ -122,11 +139,11 @@ export async function fetchMatchesAndLikes(userId: string): Promise<MatchesResul
       .filter((item): item is MatchSummary => Boolean(item));
 
     const incomingLikes = incomingList
-      .map((row: any) => buildLikeSummary({ heart: mapHeartRow(row), profile: profileMap.get(row.from_user), status: "incoming" }))
+      .map((row: any) => buildLikeSummary({ heart: mapLikeRow(row), profile: profileMap.get(row.from_user), status: "incoming" }))
       .filter((item): item is LikeSummary => Boolean(item));
 
     const outgoingLikes = outgoingList
-      .map((row: any) => buildLikeSummary({ heart: mapHeartRow(row), profile: profileMap.get(row.to_user), status: "outgoing" }))
+      .map((row: any) => buildLikeSummary({ heart: mapLikeRow(row), profile: profileMap.get(row.to_user), status: "outgoing" }))
       .filter((item): item is LikeSummary => Boolean(item));
 
     return { matches, incomingLikes, outgoingLikes };
@@ -146,29 +163,29 @@ export async function respondToLike({
 }): Promise<void> {
   const client = requireSupabaseClient();
   try {
-    const { data: heartRow, error } = await client.from("hearts").select("*").eq("id", likeId).maybeSingle();
+    const { data: likeRow, error } = await client.from("likes").select("*").eq("id", likeId).maybeSingle();
     if (error) {
       throw normalizeError(error, 400);
     }
-    if (!heartRow) {
+    if (!likeRow) {
       throw new ApiError("Like not found", 404, { likeId });
     }
 
     if (action === "decline") {
-      const { error: deleteError } = await client.from("hearts").delete().eq("id", likeId);
+      const { error: deleteError } = await client.from("likes").delete().eq("id", likeId);
       if (deleteError) {
         throw normalizeError(deleteError, 400);
       }
       return;
     }
 
-    const heart = mapHeartRow(heartRow);
+    const heart = mapLikeRow(likeRow);
     const partnerId = heart.from_user === currentUserId ? heart.to_user : heart.from_user;
     const [userA, userB] = [currentUserId, partnerId].sort();
 
     const { error: insertError } = await client
       .from("matches")
-      .insert({ user_a: userA, user_b: userB })
+      .upsert({ user_a: userA, user_b: userB, matched_at: new Date().toISOString() }, { onConflict: "user_a,user_b" })
       .select("id")
       .maybeSingle();
 

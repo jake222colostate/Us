@@ -55,7 +55,9 @@ export default function FeedCard({ post, currentUser, onReact }: FeedCardProps) 
   }, [profile?.looking_for, currentUser?.looking_for, currentUser?.gender]);
 
   const createdAtText = formatRelativeTime(post.created_at);
-  const currentPhoto = currentUser?.photo_urls?.[0] ?? "https://api.dicebear.com/7.x/thumbs/svg?seed=You";
+  const currentPhoto = currentUser?.photos?.find((photo) => photo.is_primary)?.url
+    ?? currentUser?.photos?.[0]?.url
+    ?? "https://api.dicebear.com/7.x/thumbs/svg?seed=You";
   const matchPhoto = post.photo_url;
 
   useEffect(() => {

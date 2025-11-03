@@ -1,26 +1,46 @@
 export type Gender = 'woman' | 'man' | 'nonbinary' | 'other';
 export type LookingFor = 'women' | 'men' | 'everyone';
+export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
+
+export type ProfilePhoto = {
+  id: string;
+  user_id: string;
+  url: string;
+  storage_path: string;
+  is_primary: boolean;
+  is_verification_photo: boolean;
+  created_at: string;
+};
 
 export type Profile = {
+  id: string;
   user_id: string;
+  email: string | null;
   username: string;
   display_name: string;
   bio: string | null;
-  birthdate: string;
+  birthdate?: string | null;
+  age: number | null;
   gender: Gender | null;
   looking_for: LookingFor | null;
-  photo_urls: string[];
   location: {
     latitude: number;
     longitude: number;
   } | null;
+  location_text: string | null;
   radius_km: number;
+  interests: string[];
+  verification_status: VerificationStatus;
+  is_active: boolean;
   preferences?: Record<string, unknown> | null;
   verification_status?: 'none' | 'pending' | 'approved' | 'rejected';
   visibility_score?: number;
+  photos: ProfilePhoto[];
   created_at: string;
   updated_at: string;
 };
+
+export type ProfileSummary = Pick<Profile, 'user_id' | 'display_name' | 'age' | 'location_text' | 'verification_status' | 'photos'>;
 
 export type Post = {
   id: string;
@@ -32,6 +52,7 @@ export type Post = {
     longitude: number;
   } | null;
   created_at: string;
+  profile?: Profile;
   profile?: Profile;
 };
 
@@ -56,6 +77,31 @@ export type Match = {
   user_a: string;
   user_b: string;
   created_at: string;
+  matched_at: string;
+  last_message_at: string | null;
+};
+
+export type Like = {
+  id: string;
+  from_user: string;
+  to_user: string;
+  created_at: string;
+  is_superlike: boolean;
+};
+
+export type VerificationType = 'photo' | 'id';
+
+export type VerificationRecord = {
+  id: string;
+  user_id: string;
+  type: VerificationType;
+  status: 'pending' | 'approved' | 'rejected';
+  asset_paths: string[];
+  asset_urls: string[];
+  submitted_at: string;
+  reviewed_at: string | null;
+  reviewer_id: string | null;
+  reviewer_note: string | null;
 };
 
 export type ProfileUnlockReason = 'self' | 'match' | 'purchase' | 'none';

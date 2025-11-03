@@ -45,7 +45,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         id: nextProfile.user_id,
         email: user?.email ?? "user@us.app",
         displayName: nextProfile.display_name,
-        avatarUrl: nextProfile.photo_urls?.[0] ?? null,
+        avatarUrl: nextProfile.photos?.find((photo) => photo.is_primary)?.url ?? nextProfile.photos?.[0]?.url ?? null,
       });
     },
     [setAuthUser, user?.email]
@@ -122,7 +122,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           const merged: Profile = {
             ...profile,
             ...payload,
-            photo_urls: payload.photo_urls ?? profile.photo_urls,
+            photos: profile.photos,
           } as Profile;
           setProfile(merged);
           syncAuthProfile(merged);
@@ -144,7 +144,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           const merged: Profile = {
             ...profile,
             ...payload,
-            photo_urls: payload.photo_urls ?? profile.photo_urls,
+            photos: profile.photos,
           } as Profile;
           setProfile(merged);
           syncAuthProfile(merged);

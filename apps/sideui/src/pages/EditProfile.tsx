@@ -12,7 +12,6 @@ export default function EditProfile() {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [lookingFor, setLookingFor] = useState(profile?.looking_for ?? "everyone");
   const [radius, setRadius] = useState(profile?.radius_km ?? 25);
-  const [photos, setPhotos] = useState((profile?.photo_urls ?? []).join("\n"));
   const [saving, setSaving] = useState(false);
 
   if (!profile) {
@@ -34,10 +33,6 @@ export default function EditProfile() {
         bio,
         looking_for: lookingFor,
         radius_km: radius,
-        photo_urls: photos
-          .split("\n")
-          .map((url) => url.trim())
-          .filter(Boolean),
       });
       push({ title: "Profile updated", variant: "success" });
     } catch (err) {
@@ -87,17 +82,6 @@ export default function EditProfile() {
             onChange={(event) => setBio(event.target.value)}
             placeholder="Share what you love shooting and how you collaborate."
           />
-        </div>
-
-        <div className="form-field">
-          <label htmlFor="photos">Photo URLs (one per line)</label>
-          <textarea
-            id="photos"
-            value={photos}
-            onChange={(event) => setPhotos(event.target.value)}
-            placeholder="https://…"
-          />
-          <span className="form-hint">First photo becomes your cover in the feed.</span>
         </div>
 
         <div className="form-field">

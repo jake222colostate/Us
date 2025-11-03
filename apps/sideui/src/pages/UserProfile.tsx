@@ -73,6 +73,13 @@ export default function UserProfile() {
           location: displayedProfile.location,
           created_at: displayedProfile.updated_at,
           profile: displayedProfile,
+          id: `profile-${profile.user_id}`,
+          user_id: profile.user_id,
+          photo_url: profile.photos[0]?.url ?? "",
+          caption: profile.bio,
+          location: profile.location,
+          created_at: profile.updated_at,
+          profile,
         }}
         currentUser={currentUser}
         onReact={reactToPost}

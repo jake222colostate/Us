@@ -18,4 +18,11 @@ const RAW_SUPABASE_ANON_KEY =
 export const SUPABASE_URL = RAW_SUPABASE_URL.trim();
 export const SUPABASE_ANON_KEY = RAW_SUPABASE_ANON_KEY.trim();
 
+const RAW_STORAGE_BUCKET =
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_SUPABASE_STORAGE_BUCKET) ||
+  (typeof process !== "undefined" && (process as any).env?.VITE_SUPABASE_STORAGE_BUCKET) ||
+  "profile-photos";
+
+export const PROFILE_STORAGE_BUCKET = String(RAW_STORAGE_BUCKET).trim() || "profile-photos";
+
 export const DATE_LOCALE = "en-US";

@@ -1,4 +1,4 @@
-import type { FeedResponse, Heart, Match, Profile } from "@us/types";
+import type { FeedResponse, Heart, Match, Profile, ProfilePhoto } from "@us/types";
 import type { ChatMessage, ChatThread, LikeSummary, MatchSummary, NotificationItem } from "../types";
 
 const now = new Date();
@@ -18,16 +18,74 @@ const profileBase = {
   verification_status: "approved" as const,
   visibility_score: 1.2,
 } as const;
+function createPhoto(userId: string, url: string, index: number): ProfilePhoto {
+  return {
+    id: `${userId}-photo-${index + 1}`,
+    user_id: userId,
+    url,
+    storage_path: url,
+    is_primary: index === 0,
+    is_verification_photo: false,
+    created_at: daysAgo(30 - index),
+  };
+}
 
-export const demoProfile: Profile = {
-  user_id: "demo-user-001",
+type DemoProfileInput = {
+  id: string;
+  username: string;
+  displayName: string;
+  bio: string;
+  birthdate: string;
+  age: number;
+  gender: Profile["gender"];
+  lookingFor: Profile["looking_for"];
+  photoUrls: string[];
+  location: Profile["location"];
+  locationText: string;
+  radiusKm?: number;
+  interests?: string[];
+  verification?: Profile["verification_status"];
+  updatedHoursAgo?: number;
+};
+
+function createProfile(input: DemoProfileInput): Profile {
+  const createdAt = daysAgo(180);
+  const updatedAt = hoursAgo(input.updatedHoursAgo ?? 4);
+  const photos = input.photoUrls.map((url, index) => createPhoto(input.id, url, index));
+  return {
+    id: input.id,
+    user_id: input.id,
+    email: `${input.username}@demo.us`,
+    username: input.username,
+    display_name: input.displayName,
+    bio: input.bio,
+    birthdate: input.birthdate,
+    age: input.age,
+    gender: input.gender,
+    looking_for: input.lookingFor,
+    location: input.location,
+    location_text: input.locationText,
+    radius_km: input.radiusKm ?? 25,
+    interests: input.interests ?? ["Photography", "Travel", "Design"],
+    verification_status: input.verification ?? "verified",
+    is_active: true,
+    preferences: null,
+    photos,
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+}
+
+export const demoProfile: Profile = createProfile({
+  id: "demo-user-001",
   username: "jules",
-  display_name: "Jules Hart",
+  displayName: "Jules Hart",
   bio: "Product photographer who loves spontaneous road trips and rooftop sunsets.",
   birthdate: "1994-02-18",
+  age: 31,
   gender: "woman",
-  looking_for: "everyone",
-  photo_urls: [
+  lookingFor: "everyone",
+  photoUrls: [
     "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80",
     "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=800&q=80",
   ],
@@ -38,91 +96,116 @@ export const demoProfile: Profile = {
   verification_status: "approved",
   visibility_score: 1.6,
 };
+  locationText: "Los Angeles, CA",
+  radiusKm: 35,
+  interests: ["Photography", "Road trips", "Sunsets"],
+  verification: "verified",
+  updatedHoursAgo: 2,
+});
 
 export const demoProfiles: Profile[] = [
   demoProfile,
-  {
-    ...profileBase,
-    user_id: "demo-user-002",
+  createProfile({
+    id: "demo-user-002",
     username: "miles",
-    display_name: "Miles Chen",
+    displayName: "Miles Chen",
     bio: "Product designer, vinyl collector, and weekend climber.",
     birthdate: "1991-11-05",
+    age: 34,
     gender: "man",
-    looking_for: "everyone",
-    photo_urls: [
+    lookingFor: "everyone",
+    photoUrls: [
       "https://images.unsplash.com/photo-1487412720507-7b1dbb0e0d5a?auto=format&fit=crop&w=800&q=80",
       "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=800&q=80",
     ],
     location: { latitude: 34.11, longitude: -118.15 },
-    updated_at: hoursAgo(8),
-  },
-  {
-    ...profileBase,
-    user_id: "demo-user-003",
+    locationText: "Pasadena, CA",
+    interests: ["Climbing", "Vinyl", "Typography"],
+    verification: "verified",
+    updatedHoursAgo: 8,
+  }),
+  createProfile({
+    id: "demo-user-003",
     username: "noor",
-    display_name: "Noor Patel",
+    displayName: "Noor Patel",
     bio: "Immersive theatre producer. Will absolutely make you laugh at bad puns.",
     birthdate: "1993-08-21",
+    age: 31,
     gender: "woman",
-    looking_for: "men",
-    photo_urls: [
+    lookingFor: "men",
+    photoUrls: [
       "https://images.unsplash.com/photo-1544723795-432537e322cb?auto=format&fit=crop&w=800&q=80",
       "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=800&q=80",
     ],
     location: { latitude: 34.06, longitude: -118.3 },
-  },
-  {
-    ...profileBase,
-    user_id: "demo-user-004",
+    locationText: "West Hollywood, CA",
+    interests: ["Theatre", "Coffee", "Puns"],
+    verification: "pending",
+    updatedHoursAgo: 6,
+  }),
+  createProfile({
+    id: "demo-user-004",
     username: "leo",
-    display_name: "Leo Andrade",
+    displayName: "Leo Andrade",
     bio: "Creative coder, street photographer, and coffee afficionado.",
     birthdate: "1990-04-30",
+    age: 35,
     gender: "man",
-    looking_for: "women",
-    photo_urls: [
+    lookingFor: "women",
+    photoUrls: [
       "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80",
       "https://images.unsplash.com/photo-1479936343636-73cdc5aae0c3?auto=format&fit=crop&w=800&q=80",
     ],
     location: { latitude: 34.04, longitude: -118.23 },
-  },
-  {
-    ...profileBase,
-    user_id: "demo-user-005",
+    locationText: "Downtown LA",
+    interests: ["Coding", "Street photography", "Espresso"],
+    verification: "verified",
+    updatedHoursAgo: 10,
+  }),
+  createProfile({
+    id: "demo-user-005",
     username: "sasha",
-    display_name: "Sasha Rivera",
+    displayName: "Sasha Rivera",
     bio: "Wellness writer, part-time DJ, full-time optimist.",
     birthdate: "1996-01-17",
+    age: 29,
     gender: "nonbinary",
-    looking_for: "everyone",
-    photo_urls: [
+    lookingFor: "everyone",
+    photoUrls: [
       "https://images.unsplash.com/photo-1524504388940-1c5027c7f1c9?auto=format&fit=crop&w=800&q=80",
       "https://images.unsplash.com/photo-1463453091185-61582044d556?auto=format&fit=crop&w=800&q=80",
     ],
     location: { latitude: 34.08, longitude: -118.37 },
-  },
-  {
-    ...profileBase,
-    user_id: "demo-user-006",
+    locationText: "Hollywood Hills",
+    interests: ["Wellness", "Music", "Writing"],
+    verification: "unverified",
+    updatedHoursAgo: 14,
+  }),
+  createProfile({
+    id: "demo-user-006",
     username: "ari",
-    display_name: "Ari Watanabe",
+    displayName: "Ari Watanabe",
     bio: "Food stylist crafting the perfect bite and the perfect playlist.",
     birthdate: "1992-07-02",
+    age: 33,
     gender: "woman",
-    looking_for: "everyone",
-    photo_urls: [
+    lookingFor: "everyone",
+    photoUrls: [
       "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80",
       "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80",
     ],
     location: { latitude: 34.18, longitude: -118.4 },
-  },
+    locationText: "Studio City",
+    interests: ["Food", "Playlists", "Travel"],
+    verification: "verified",
+    updatedHoursAgo: 3,
+  }),
 ];
 
 const feedPosts = demoProfiles.slice(1).map<FeedResponse["posts"][number]>((profile, index) => ({
   id: `demo-post-${index + 1}`,
   user_id: profile.user_id,
-  photo_url: profile.photo_urls[0],
+  photo_url: profile.photos[0]?.url ?? "",
   caption: profile.bio,
   location: profile.location,
   created_at: hoursAgo((index + 1) * 5),
@@ -140,6 +223,8 @@ function makeMatchSummary(profile: Profile, offsetHours: number, threadId: strin
     user_a: demoProfile.user_id,
     user_b: profile.user_id,
     created_at: hoursAgo(offsetHours),
+    matched_at: hoursAgo(offsetHours),
+    last_message_at: hoursAgo(offsetHours - 1),
   };
   return {
     id: match.id,
@@ -162,13 +247,13 @@ function makeHeart(profile: Profile, status: "incoming" | "outgoing", hours: num
     paid: status === "outgoing",
     message: status === "incoming" ? "You seem like sunshine!" : "Thought of you when I saw this mural",
     selfie_url: status === "incoming"
-      ? profile.photo_urls[0]
-      : demoProfile.photo_urls[0],
+      ? profile.photos[0]?.url ?? null
+      : demoProfile.photos[0]?.url ?? null,
     created_at: hoursAgo(hours),
     post: {
       id: `demo-post-${profile.user_id}`,
       user_id: profile.user_id,
-      photo_url: profile.photo_urls[0],
+      photo_url: profile.photos[0]?.url ?? "",
       caption: profile.bio,
       location: profile.location,
       created_at: hoursAgo(hours + 2),

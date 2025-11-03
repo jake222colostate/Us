@@ -1,3 +1,4 @@
+import "./src/shim-window.js";
 import "react-native-gesture-handler";
 import "react-native-gesture-handler";
 import "react-native-gesture-handler";

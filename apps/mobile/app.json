@@ -1,12 +1,30 @@
 {
   "expo": {
-    "name": "us-mobile",
+    "name": "Us",
     "slug": "us-mobile",
-    "web": {
-      "bundler": "metro"
+    "version": "1.0.0",
+    "sdkVersion": "54.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/dev/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/dev/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/dev/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "ios": {
+      "supportsTablet": true
     },
     "extra": {
-      "EXPO_USE_STATIC": "0"
+      "eas": {
+        "projectId": "local-dev"
+      }
     }
   }
 }

@@ -1,4 +1,4 @@
-export default {
+module.exports = {
   expo: {
     name: "Us",
     slug: "us-mobile",

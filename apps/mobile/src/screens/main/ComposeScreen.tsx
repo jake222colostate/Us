@@ -21,14 +21,18 @@ export const ComposeScreen: React.FC = () => {
   const pickMyPhoto = useCallback(async () => {
     const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!granted) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: [ImagePicker.MediaType.Images],
+    });
     if (!result.canceled) {
       setMyPhoto(result.assets[0].uri);
     }
   }, [setMyPhoto]);
 
   const pickTheirPhoto = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: [ImagePicker.MediaType.Images],
+    });
     if (!result.canceled) {
       setTheirPhoto(result.assets[0].uri);
     }

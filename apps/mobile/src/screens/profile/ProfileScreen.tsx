@@ -10,8 +10,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useNavigation, type BottomTabNavigationProp } from '@react-navigation/native';
+import {
+  useNavigation,
+  type BottomTabNavigationProp,
+  type CompositeNavigationProp,
+} from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
 import {
@@ -19,7 +25,7 @@ import {
   selectVerificationStatus,
   useAuthStore,
 } from '../../state/authStore';
-import type { MainTabParamList } from '../../navigation/RootNavigator';
+import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
 
 const toInterestList = (value: string) =>
   value
@@ -35,7 +41,12 @@ const statusCopy: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList, 'Profile'>>();
+  const navigation = useNavigation<
+    CompositeNavigationProp<
+      BottomTabNavigationProp<MainTabParamList, 'Profile'>,
+      NativeStackNavigationProp<RootStackParamList>
+    >
+  >();
   const user = useAuthStore(selectCurrentUser);
   const verificationStatus = useAuthStore(selectVerificationStatus);
   const signOut = useAuthStore((state) => state.signOut);
@@ -108,9 +119,9 @@ export default function ProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: [ImagePicker.MediaType.Images],
       quality: 0.8,
-      allowsMultipleSelection: false,
+      selectionLimit: 1,
     });
 
     if (result.canceled || !result.assets?.length) {
@@ -140,36 +151,49 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <ScrollView contentContainerStyle={styles.emptyContainer} style={styles.screen}>
-        <Text style={styles.emptyTitle}>You’re not signed in</Text>
-        <Text style={styles.emptyCopy}>Head to the sign in screen to pick up where you left off.</Text>
-        <Pressable
-          accessibilityRole="button"
-          style={styles.primaryButton}
-          onPress={() => navigation.navigate('Feed')}
-        >
-          <Text style={styles.primaryButtonLabel}>Go to sign in</Text>
-        </Pressable>
-      </ScrollView>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView contentContainerStyle={styles.emptyContainer} style={styles.screen}>
+          <Text style={styles.emptyTitle}>You’re not signed in</Text>
+          <Text style={styles.emptyCopy}>Head to the sign in screen to pick up where you left off.</Text>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.primaryButton}
+            onPress={() => navigation.navigate('Feed')}
+          >
+            <Text style={styles.primaryButtonLabel}>Go to sign in</Text>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
+  const metaParts = [
+    typeof user.age === 'number' ? `${user.age}` : undefined,
+    user.location || undefined,
+  ].filter(Boolean) as string[];
+  const profileMeta = metaParts.length ? metaParts.join(' • ') : 'Add more profile info';
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Image source={{ uri: user.avatar }} style={styles.avatar} />
+        {user.avatar ? (
+          <Image source={{ uri: user.avatar }} style={styles.avatar} />
+        ) : (
+          <View style={[styles.avatar, styles.avatarPlaceholder]}>
+            <Text style={styles.avatarPlaceholderText}>No photo</Text>
+          </View>
+        )}
         <View style={styles.headerCopy}>
           <View style={styles.nameRow}>
-            <Text style={styles.name}>{user.name}</Text>
+            <Text style={styles.name}>{user.name ?? 'Your profile'}</Text>
             {verificationStatus === 'verified' ? (
               <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedBadgeText}>Verified</Text>
               </View>
             ) : null}
           </View>
-          <Text style={styles.meta}>
-            {user.age} • {user.location}
-          </Text>
+          <Text style={styles.meta}>{profileMeta}</Text>
         </View>
         <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Settings')}>
           <Text style={styles.settingsLink}>⚙️ Settings</Text>
@@ -229,7 +253,13 @@ export default function ProfileScreen() {
           </Pressable>
           {photoList.map((photo) => (
             <View key={photo.id} style={styles.photoCard}>
-              <Image source={{ uri: photo.url }} style={styles.photoPreview} />
+              {photo.url ? (
+                <Image source={{ uri: photo.url }} style={styles.photoPreview} />
+              ) : (
+                <View style={[styles.photoPreview, styles.photoPreviewPlaceholder]}>
+                  <Text style={styles.photoPreviewPlaceholderText}>No photo</Text>
+                </View>
+              )}
               <View style={styles.photoMetaRow}>
                 <View style={[styles.statusBadge, statusStyles[photo.status]]}>
                   <Text style={styles.statusBadgeText}>{statusLabels[photo.status]}</Text>
@@ -304,7 +334,8 @@ export default function ProfileScreen() {
           <Text style={styles.dangerLabel}>Delete account (stub)</Text>
         </Pressable>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -330,6 +361,10 @@ const statusStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#0b1220',
+  },
   screen: {
     flex: 1,
     backgroundColor: '#0b1220',
@@ -355,6 +390,18 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
+  },
+  avatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111b2e',
+    borderWidth: 1,
+    borderColor: '#1f2937',
+  },
+  avatarPlaceholderText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
   },
   nameRow: {
     flexDirection: 'row',
@@ -462,6 +509,14 @@ const styles = StyleSheet.create({
   photoPreview: {
     width: '100%',
     aspectRatio: 3 / 4,
+  },
+  photoPreviewPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoPreviewPlaceholderText: {
+    color: '#94a3b8',
+    fontWeight: '600',
   },
   photoMetaRow: {
     flexDirection: 'row',

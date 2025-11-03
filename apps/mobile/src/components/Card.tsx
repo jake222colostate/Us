@@ -51,7 +51,7 @@ export default function Card({ name, age, distanceMi, bio, avatar, photo, onComp
           onPress={onCompare}
           style={styles.compareButton}
         >
-          <Text style={styles.compareLabel}>💗 Compare Photos</Text>
+          <Text style={styles.compareLabel}>💗 Compare Photos Side by Side</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -4,14 +4,14 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Platform, Text } from 'react-native';
 import FeedScreen from '../screens/feed/FeedScreen';
-import CompareScreen from '../screens/compare/CompareScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
-import SettingsScreen from '../screens/settings/SettingsScreen';
 import SignInScreen from '../screens/auth/SignInScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import MatchesScreen from '../screens/matches/MatchesScreen';
 import VerifyIdentityScreen from '../screens/verification/VerifyIdentityScreen';
+import CompareScreen from '../screens/compare/CompareScreen';
+import SettingsScreen from '../screens/settings/SettingsScreen';
 import {
   selectIsAuthenticated,
   selectVerificationStatus,
@@ -20,9 +20,8 @@ import {
 
 export type MainTabParamList = {
   Feed: undefined;
-  Compare: { left?: string; right?: string } | undefined;
+  Matches: undefined;
   Profile: undefined;
-  Settings: undefined;
 };
 
 export type AuthStackParamList = {
@@ -34,7 +33,21 @@ export type AuthStackParamList = {
 export type RootStackParamList = {
   VerifyIdentity: undefined;
   MainTabs: { screen?: keyof MainTabParamList; params?: Record<string, unknown> } | undefined;
-  Matches: undefined;
+  Compare:
+    | {
+        leftPhoto?: string | null;
+        rightPhoto?: string | null;
+        profile?: {
+          id?: string;
+          name?: string;
+          age?: number;
+          bio?: string;
+          verification?: { status?: string | null } | null;
+          photos?: { url?: string | null; status?: string }[] | null;
+        } | null;
+      }
+    | undefined;
+  Settings: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -69,10 +82,10 @@ function Tabs() {
         }}
       />
       <Tab.Screen
-        name="Compare"
-        component={CompareScreen}
+        name="Matches"
+        component={MatchesScreen}
         options={{
-          tabBarLabel: ({ color }) => <Text style={{ color, fontSize: 12 }}>Compare</Text>,
+          tabBarLabel: ({ color }) => <Text style={{ color, fontSize: 12 }}>Matches</Text>,
         }}
       />
       <Tab.Screen
@@ -80,13 +93,6 @@ function Tabs() {
         component={ProfileScreen}
         options={{
           tabBarLabel: ({ color }) => <Text style={{ color, fontSize: 12 }}>Profile</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          tabBarLabel: ({ color }) => <Text style={{ color, fontSize: 12 }}>Settings</Text>,
         }}
       />
     </Tab.Navigator>
@@ -127,10 +133,17 @@ export default function RootNavigator() {
           )}
           <RootStack.Screen name="MainTabs" component={Tabs} options={{ headerShown: false }} />
           <RootStack.Screen
-            name="Matches"
-            component={MatchesScreen}
+            name="Compare"
+            component={CompareScreen}
+            options={({ route }) => ({
+              title: route.params?.profile?.name ? `Compare ${route.params.profile.name}` : 'Compare photos',
+            })}
+          />
+          <RootStack.Screen
+            name="Settings"
+            component={SettingsScreen}
             options={{
-              title: 'Matches',
+              title: 'Settings',
             }}
           />
         </RootStack.Navigator>

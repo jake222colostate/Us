@@ -1,18 +1,28 @@
 import React from 'react';
-import { FlatList, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSampleMatches } from '../../hooks/useSampleData';
-import type { RootStackParamList } from '../../navigation/RootNavigator';
+import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
 
 export default function MatchesScreen() {
   const matches = useSampleMatches();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<
+    CompositeNavigationProp<
+      BottomTabNavigationProp<MainTabParamList, 'Matches'>,
+      NativeStackNavigationProp<RootStackParamList>
+    >
+  >();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
-        data={matches.filter((item) => item.photos.some((photo) => photo.status === 'approved'))}
+        data={matches.filter((item) =>
+          (item.photos ?? []).some((photo) => photo?.status === 'approved' && photo?.url),
+        )}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -32,20 +42,27 @@ export default function MatchesScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              const approvedPhotos = item.photos.filter((photo) => photo.status === 'approved');
-              const left = approvedPhotos[0]?.url;
-              if (!left) {
-                return;
-              }
-              const right = approvedPhotos[1]?.url ?? left;
-              navigation.navigate('MainTabs', {
-                screen: 'Compare',
-                params: { left, right },
+              const approvedPhotos = (item.photos ?? []).filter(
+                (photo) => photo?.status === 'approved' && photo?.url,
+              );
+              const leftPhoto = approvedPhotos[0]?.url ?? null;
+              const rightPhoto = approvedPhotos[1]?.url ?? approvedPhotos[0]?.url ?? null;
+
+              navigation.navigate('Compare', {
+                leftPhoto,
+                rightPhoto,
+                profile: item,
               });
             }}
             style={({ pressed }) => [styles.matchCard, pressed && styles.matchCardPressed]}
           >
-            <Image source={{ uri: item.avatar }} style={styles.avatar} />
+            {item.avatar ? (
+              <Image source={{ uri: item.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <Text style={styles.avatarPlaceholderText}>No photo</Text>
+              </View>
+            )}
             <View style={styles.matchInfo}>
               <Text style={styles.matchName}>
                 {item.name}
@@ -103,6 +120,18 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     marginRight: 16,
+  },
+  avatarPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111b2e',
+    borderWidth: 1,
+    borderColor: '#1f2937',
+  },
+  avatarPlaceholderText: {
+    color: '#94a3b8',
+    fontSize: 10,
+    fontWeight: '600',
   },
   matchInfo: {
     flex: 1,

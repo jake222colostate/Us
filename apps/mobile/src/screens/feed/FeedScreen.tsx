@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
-import { FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,29 +19,32 @@ export default function FeedScreen() {
   >();
 
   const approvedProfiles = useMemo(
-    () => profiles.filter((profile) => profile.photos.some((photo) => photo.status === 'approved')),
+    () =>
+      profiles.filter((profile) =>
+        (profile?.photos ?? []).some((photo) => photo?.status === 'approved' && photo?.url),
+      ),
     [profiles],
   );
 
   const handleCompare = useCallback(
     (profile: SampleProfile) => {
-      const approvedPhotos = profile.photos.filter((photo) => photo.status === 'approved');
-      const left = approvedPhotos[0]?.url;
-      if (!left) {
-        return;
-      }
-      const right = approvedPhotos[1]?.url ?? left;
+      const approvedPhotos = (profile.photos ?? []).filter(
+        (photo) => photo?.status === 'approved' && photo?.url,
+      );
+      const leftPhoto = approvedPhotos[0]?.url ?? null;
+      const rightPhoto = approvedPhotos[1]?.url ?? approvedPhotos[0]?.url ?? null;
 
       navigation.navigate('Compare', {
-        left,
-        right,
+        leftPhoto,
+        rightPhoto,
+        profile,
       });
     },
     [navigation],
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
         data={approvedProfiles}
         keyExtractor={(item) => item.id}
@@ -62,7 +66,7 @@ export default function FeedScreen() {
             <Text style={styles.title}>Explore nearby</Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => navigation.navigate('Matches')}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Matches' })}
               style={styles.matchesButton}
             >
               <Text style={styles.matchesLabel}>View matches →</Text>

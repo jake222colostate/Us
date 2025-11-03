@@ -83,7 +83,13 @@ export function mapProfileRow(row: any): Profile {
     verification_status: row.verification_status ?? "unverified",
     is_active: row.is_active !== false,
     preferences: row.preferences ?? null,
-    photos,
+    verification_status: (row.verification_status as Profile["verification_status"]) ?? "none",
+    visibility_score:
+      typeof row.visibility_score === "number"
+        ? row.visibility_score
+        : Number.isFinite(Number(row.visibility_score))
+          ? Number(row.visibility_score)
+          : 1,
     created_at: typeof row.created_at === "string" ? row.created_at : new Date(row.created_at).toISOString(),
     updated_at: typeof row.updated_at === "string" ? row.updated_at : new Date(row.updated_at).toISOString(),
   };

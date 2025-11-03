@@ -11,6 +11,13 @@ function hoursAgo(hours: number): string {
   return new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString();
 }
 
+const profileBase = {
+  created_at: daysAgo(120),
+  updated_at: hoursAgo(5),
+  radius_km: 25,
+  verification_status: "approved" as const,
+  visibility_score: 1.2,
+} as const;
 function createPhoto(userId: string, url: string, index: number): ProfilePhoto {
   return {
     id: `${userId}-photo-${index + 1}`,
@@ -83,6 +90,12 @@ export const demoProfile: Profile = createProfile({
     "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=800&q=80",
   ],
   location: { latitude: 34.0522, longitude: -118.2437 },
+  radius_km: 35,
+  created_at: daysAgo(240),
+  updated_at: hoursAgo(2),
+  verification_status: "approved",
+  visibility_score: 1.6,
+};
   locationText: "Los Angeles, CA",
   radiusKm: 35,
   interests: ["Photography", "Road trips", "Sunsets"],

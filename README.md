@@ -216,6 +216,29 @@ Follow these steps sequentially. Commands prefixed with `$` should be run in a t
    - **Verification screen**: launch identity verification via the hosted flow; status automatically refreshes afterward.
 3. Sessions persist between runs thanks to AsyncStorage. Use the Profile settings to sign out or trigger the delete-account preview.
 
+### Monetisation & Rewards APIs
+
+The Supabase Edge Functions under `infra/supabase/functions` implement the business rules for paid unlocks and the daily spin wheel:
+
+| Function | Purpose | Method |
+| --- | --- | --- |
+| `profile-access` | Returns profile data along with `can_view_full_profile` and unlock reason. | `POST` |
+| `profile-unlock` | Charges (Stripe if configured, otherwise stub) and grants profile access. | `POST` |
+| `rewards-status` | Reports free-spin availability, last rewards, and active bonuses. | `GET` |
+| `rewards-spin` | Performs the free daily spin, enforcing the 24h cooldown. | `POST` |
+| `rewards-spin-paid` | Processes a paid spin and records the reward. | `POST` |
+
+Each function expects a valid Supabase session bearer token in the `Authorization` header. When Stripe keys are present the billing functions create PaymentIntents; in local/demo mode the flows fall back to stubbed unlocks so the UI remains testable offline.
+
+The migration `0005_engagement_features.sql` adds the supporting tables:
+
+- `profile_unlocks` for paid/unlocked profile relationships.
+- `reward_spins` to audit spin history.
+- `user_bonuses` to track active boosts/highlights/extra likes.
+- `profiles.visibility_score` and `profiles.verification_status` to improve feed ordering and verification UI.
+
+Run `pnpm migrate:dev` after pulling to ensure the new tables exist.
+
 ---
 
 ## Developer tools & quality gates
@@ -238,6 +261,13 @@ Common commands are centralised in the root `package.json`:
 | `pnpm format` | Runs Prettier across the repo. |
 
 You can safely run `pnpm install --offline` after the first checkout; all tarballs are cached.
+
+### Testing unlocks and the daily spin
+
+- Visit the **Profile** page to try the daily spin widget. The UI calls the rewards edge functions, shows cooldowns, and lists active bonuses (boosts/highlights) returned by Supabase.
+- Browse to another user’s profile from the feed to exercise the profile access flow. When the profile is locked the page shows an unlock call-to-action that invokes `profile-unlock`.
+- The feed’s “Compare photos” button now checks access before opening the side-by-side modal. If the profile is locked you can unlock from the toast inline.
+- In demo/offline mode (`VITE_ENABLE_DEMO=true`) the UI falls back to deterministic rewards/unlock responses so the flows remain usable without Supabase.
 
 ---
 

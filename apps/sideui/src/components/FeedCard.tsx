@@ -1,8 +1,13 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Post, Profile } from "@us/types";
 
 import { formatRelativeTime, formatDistanceKm } from "../lib/format";
 import SideBySideModal from "./SideBySideModal";
+import { fetchProfileAccess, unlockProfile } from "../api/access";
+import { getSupabaseClient } from "../api/supabase";
+import { ENABLE_DEMO_DATA } from "../config";
+import { ApiError, normalizeError } from "../api/client";
+import { useToast } from "../hooks/use-toast";
 
 import "./FeedCard.css";
 
@@ -24,6 +29,12 @@ function computeAge(birthdate?: string | null) {
 export default function FeedCard({ post, currentUser, onReact }: FeedCardProps) {
   const [isComparing, setIsComparing] = useState(false);
   const [pendingAction, setPendingAction] = useState<"like" | "superlike" | "pass" | null>(null);
+  const [accessChecking, setAccessChecking] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [accessError, setAccessError] = useState<ApiError | null>(null);
+  const [hasFullAccess, setHasFullAccess] = useState(false);
+  const supabase = getSupabaseClient();
+  const { push } = useToast();
 
   const profile = post.profile;
   const age = computeAge(profile?.birthdate);
@@ -49,6 +60,13 @@ export default function FeedCard({ post, currentUser, onReact }: FeedCardProps) 
     ?? "https://api.dicebear.com/7.x/thumbs/svg?seed=You";
   const matchPhoto = post.photo_url;
 
+  useEffect(() => {
+    setHasFullAccess(false);
+    setAccessError(null);
+    setAccessChecking(false);
+    setUnlocking(false);
+  }, [profile?.user_id]);
+
   const handleReact = useCallback(
     async (action: "like" | "superlike" | "pass") => {
       if (!onReact) return;
@@ -61,6 +79,75 @@ export default function FeedCard({ post, currentUser, onReact }: FeedCardProps) 
     },
     [onReact, post.id]
   );
+
+  const ensureAccess = useCallback(async () => {
+    if (!profile?.user_id) return false;
+    if (!supabase) {
+      if (ENABLE_DEMO_DATA) {
+        setHasFullAccess(true);
+        return true;
+      }
+      setAccessError(new ApiError("Supabase client is not configured", 503, null));
+      return false;
+    }
+    setAccessChecking(true);
+    setAccessError(null);
+    try {
+      const access = await fetchProfileAccess(profile.user_id);
+      setHasFullAccess(access.can_view_full_profile);
+      if (access.can_view_full_profile) {
+        return true;
+      }
+      setAccessError(new ApiError("Unlock required", 403, access));
+      return false;
+    } catch (err) {
+      const apiErr = normalizeError(err);
+      setAccessError(apiErr);
+      return false;
+    } finally {
+      setAccessChecking(false);
+    }
+  }, [profile?.user_id, supabase]);
+
+  const handleCompare = useCallback(async () => {
+    if (!profile?.user_id) return;
+    const allowed = await ensureAccess();
+    if (allowed) {
+      setIsComparing(true);
+    }
+  }, [ensureAccess, profile?.user_id]);
+
+  const handleUnlockProfile = useCallback(async () => {
+    if (!profile?.user_id) return;
+    if (!supabase) {
+      if (ENABLE_DEMO_DATA) {
+        setHasFullAccess(true);
+        setAccessError(null);
+        setIsComparing(true);
+        return;
+      }
+      setAccessError(new ApiError("Supabase client is not configured", 503, null));
+      return;
+    }
+    setUnlocking(true);
+    setAccessError(null);
+    try {
+      const access = await unlockProfile(profile.user_id);
+      if (access.can_view_full_profile) {
+        setHasFullAccess(true);
+        push({ title: "Profile unlocked", description: "Full gallery available", variant: "success" });
+        setIsComparing(true);
+      } else {
+        setAccessError(new ApiError("Unlock incomplete", 400, access));
+      }
+    } catch (err) {
+      const apiErr = normalizeError(err);
+      setAccessError(apiErr);
+      push({ title: "Unlock failed", description: apiErr.message, variant: "error" });
+    } finally {
+      setUnlocking(false);
+    }
+  }, [profile?.user_id, supabase, push]);
 
   return (
     <article className="feed-card">
@@ -106,10 +193,32 @@ export default function FeedCard({ post, currentUser, onReact }: FeedCardProps) 
           >
             Big like
           </button>
-          <button type="button" className="btn btn--ghost" onClick={() => setIsComparing(true)}>
-            Compare photos
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={handleCompare}
+            disabled={accessChecking || unlocking}
+          >
+            {accessChecking ? "Checking access…" : "Compare photos"}
           </button>
         </div>
+        {accessError ? (
+          <div className="alert alert--muted">
+            <div>{accessError.message}</div>
+            {!hasFullAccess && profile?.user_id ? (
+              <div className="feed-card__unlock">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={handleUnlockProfile}
+                  disabled={unlocking}
+                >
+                  {unlocking ? "Unlocking…" : "Unlock profile"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <SideBySideModal
         open={isComparing}

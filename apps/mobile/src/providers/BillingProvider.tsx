@@ -27,18 +27,32 @@ export const BillingProvider: React.FC<React.PropsWithChildren> = ({ children })
       priceDisplay: `$${env.bigHeartPriceUsd.toFixed(2)}`,
       async beginBigHeartPurchase() {
         if (mode === 'stripe_only' || Platform.OS === 'web') {
+          const origin =
+            Platform.OS === 'web' && typeof window !== 'undefined' && window.location
+              ? window.location.origin
+              : undefined;
+
           try {
             const { data, error } = await supabase.functions.invoke('create-checkout-session', {
               body: {
                 price: env.bigHeartPriceUsd,
                 user_id: session?.user.id,
-                success_url: `${window.location.origin}/?big-heart=success`,
-                cancel_url: `${window.location.origin}/?big-heart=cancel`,
+                ...(origin
+                  ? {
+                      success_url: `${origin}/?big-heart=success`,
+                      cancel_url: `${origin}/?big-heart=cancel`,
+                    }
+                  : {}),
               },
             });
             if (error) throw error;
             const url = data?.url;
-            if (url && typeof window !== 'undefined') {
+            if (
+              url &&
+              Platform.OS === 'web' &&
+              typeof window !== 'undefined' &&
+              typeof window.open === 'function'
+            ) {
               window.open(url, '_blank');
             }
             return { purchaseId: undefined };

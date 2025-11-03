@@ -45,6 +45,32 @@ export type AuthResponse = {
   user: AuthUser;
 };
 
+export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
+
+export type VerificationSession = {
+  url: string;
+  sessionId: string;
+  status: VerificationStatus;
+};
+
+export type VerificationStatusResponse = {
+  status: VerificationStatus;
+  lastCheckedAt?: string | null;
+};
+
+export type ModerationStatus = 'pending' | 'approved' | 'rejected';
+
+export type PhotoResource = {
+  id: string;
+  url: string;
+  status: ModerationStatus;
+  rejectionReason?: string | null;
+  uploadedAt?: string | null;
+  [key: string]: unknown;
+};
+
+type FormDataLike = FormData | { append: (name: string, value: unknown, fileName?: string) => void };
+
 export type ApiClient = {
   baseUrl: string;
   request: <T>(path: string, config?: RequestConfig) => Promise<T>;
@@ -53,6 +79,17 @@ export type ApiClient = {
     register: (payload: Record<string, unknown>) => Promise<AuthResponse>;
     logout: () => Promise<void>;
     me: () => Promise<AuthUser>;
+  };
+  verification: {
+    createSession: () => Promise<VerificationSession>;
+    getStatus: () => Promise<VerificationStatusResponse>;
+  };
+  photos: {
+    list: () => Promise<PhotoResource[]>;
+    upload: (formData: FormDataLike) => Promise<PhotoResource>;
+    triggerModeration: (photoId: string) => Promise<PhotoResource>;
+    getModerationStatus: (photoId: string) => Promise<PhotoResource>;
+    remove: (photoId: string) => Promise<void>;
   };
 };
 
@@ -168,6 +205,20 @@ export function createApiClient(baseUrl = DEFAULT_BASE_URL, options: ApiClientOp
       register: (payload: Record<string, unknown>) => request<AuthResponse>("/auth/register", { method: "POST", body: payload }),
       logout: () => request<void>("/auth/logout", { method: "POST" }),
       me: () => request<AuthUser>("/auth/me"),
+    },
+    verification: {
+      createSession: () => request<VerificationSession>("/verification/session", { method: "POST" }),
+      getStatus: () => request<VerificationStatusResponse>("/verification/status"),
+    },
+    photos: {
+      list: () => request<PhotoResource[]>("/photos"),
+      upload: (formData: FormDataLike) =>
+        request<PhotoResource>("/photos", { method: "POST", body: formData as BodyInit }),
+      triggerModeration: (photoId: string) =>
+        request<PhotoResource>(`/photos/${photoId}/moderate`, { method: "POST" }),
+      getModerationStatus: (photoId: string) =>
+        request<PhotoResource>(`/photos/${photoId}`),
+      remove: (photoId: string) => request<void>(`/photos/${photoId}`, { method: "DELETE" }),
     },
   };
 }

@@ -2,15 +2,25 @@ import React from 'react';
 import { SafeAreaView, View, Text } from 'react-native';
 
 // Global crash logger (web)
-if (typeof window !== 'undefined') {
-  window.addEventListener('error', (e) => {
-    // eslint-disable-next-line no-console
-    console.error('🟥 window.error:', e.error || e.message || e);
-  });
-  window.addEventListener('unhandledrejection', (e) => {
-    // eslint-disable-next-line no-console
-    console.error('🟧 unhandledrejection:', e.reason || e);
-  });
+if (
+  typeof window !== 'undefined' &&
+  typeof window.addEventListener === 'function' &&
+  typeof window.removeEventListener === 'function'
+) {
+  const handleError = (e: { error?: unknown; message?: unknown }) => {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.error('🟥 window.error:', e.error || e.message || e);
+    }
+  };
+  const handleRejection = (e: { reason?: unknown }) => {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.error('🟧 unhandledrejection:', e.reason || e);
+    }
+  };
+  window.addEventListener('error', handleError);
+  window.addEventListener('unhandledrejection', handleRejection);
 }
 
 const Fallback = () => (
@@ -28,16 +38,22 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const mod = require('./RealApp');
   RealApp = (mod && (mod.default || mod)) || null;
-  // eslint-disable-next-line no-console
-  console.log('🟩 RealApp resolved:', !!RealApp);
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.debug('🟩 RealApp resolved:', !!RealApp);
+  }
 } catch (e) {
-  // eslint-disable-next-line no-console
-  console.warn('🟨 RealApp not found, using Fallback:', e);
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.debug('🟨 RealApp not found, using Fallback:', e);
+  }
 }
 
 export default function AppRoot() {
-  // eslint-disable-next-line no-console
-  console.log('🟦 AppRoot render');
+  if (__DEV__) {
+    // eslint-disable-next-line no-console
+    console.debug('🟦 AppRoot render');
+  }
   const Comp = RealApp ?? Fallback;
   return <Comp />;
 }

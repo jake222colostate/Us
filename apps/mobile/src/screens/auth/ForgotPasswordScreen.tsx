@@ -10,34 +10,19 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuthStore } from '../../state/authStore';
 import type { AuthStackParamList } from '../../navigation/RootNavigator';
 
-type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
+type Props = NativeStackScreenProps<AuthStackParamList, 'ForgotPassword'>;
 
-export default function SignInScreen({ navigation }: Props) {
-  const signIn = useAuthStore((state) => state.signIn);
+export default function ForgotPasswordScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError('Enter your email and password to continue.');
+  const handleSubmit = () => {
+    if (!email.trim()) {
       return;
     }
-
-    setError(null);
-    setSubmitting(true);
-    try {
-      await signIn({ email: email.trim().toLowerCase(), password });
-    } catch (err) {
-      console.error(err);
-      setError('Something went wrong signing you in.');
-    } finally {
-      setSubmitting(false);
-    }
+    setSubmitted(true);
   };
 
   return (
@@ -50,8 +35,10 @@ export default function SignInScreen({ navigation }: Props) {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>Sign in to keep exploring the feed.</Text>
+        <Text style={styles.title}>Reset your password</Text>
+        <Text style={styles.subtitle}>
+          Enter the email associated with your account and we&apos;ll send reset instructions.
+        </Text>
 
         <View style={styles.card}>
           <View style={styles.fieldGroup}>
@@ -64,50 +51,28 @@ export default function SignInScreen({ navigation }: Props) {
               keyboardType="email-address"
               placeholder="you@example.com"
               placeholderTextColor="#64748b"
+              editable={!submitted}
             />
           </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder="••••••••"
-              placeholderTextColor="#64748b"
-            />
-          </View>
-
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => navigation.navigate('ForgotPassword')}
-            style={styles.inlineLink}
-          >
-            <Text style={styles.inlineLinkText}>Forgot password?</Text>
-          </Pressable>
 
           <Pressable
             accessibilityRole="button"
             onPress={handleSubmit}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              (pressed || submitting) && styles.primaryButtonPressed,
-            ]}
-            disabled={submitting}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
+            disabled={submitted}
           >
-            <Text style={styles.primaryButtonLabel}>{submitting ? 'Signing in…' : 'Sign In'}</Text>
+            <Text style={styles.primaryButtonLabel}>
+              {submitted ? 'Check your inbox' : 'Send reset link'}
+            </Text>
           </Pressable>
         </View>
 
         <Pressable
           accessibilityRole="button"
-          onPress={() => navigation.navigate('SignUp')}
+          onPress={() => navigation.goBack()}
           style={styles.linkButton}
         >
-          <Text style={styles.linkText}>Need an account? Create one</Text>
+          <Text style={styles.linkText}>Back to sign in</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -160,33 +125,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     color: '#f8fafc',
   },
-  errorText: {
-    color: '#f87171',
-    marginBottom: 12,
-    fontWeight: '500',
-  },
   primaryButton: {
-    marginTop: 8,
     backgroundColor: '#a855f7',
-    borderRadius: 18,
     paddingVertical: 14,
+    borderRadius: 18,
     alignItems: 'center',
   },
   primaryButtonPressed: {
-    opacity: 0.85,
+    opacity: 0.9,
   },
   primaryButtonLabel: {
-    color: '#fff',
+    color: '#ffffff',
     fontWeight: '700',
     fontSize: 16,
-  },
-  inlineLink: {
-    alignSelf: 'flex-end',
-    marginBottom: 12,
-  },
-  inlineLinkText: {
-    color: '#a855f7',
-    fontWeight: '600',
   },
   linkButton: {
     marginTop: 24,

@@ -1,8 +1,7 @@
-import React from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
+import React, { useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,203 +9,260 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Header } from '../../components/Header';
-import { Card } from '../../components/Card';
-import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useAuthStore } from '../../state/authStore';
+import type { AuthStackParamList } from '../../navigation/RootNavigator';
 
-const passwordRules = z
-  .string()
-  .min(8, 'Must be at least 8 characters')
-  .regex(/[A-Z]/, 'Include at least one uppercase letter')
-  .regex(/[a-z]/, 'Include at least one lowercase letter')
-  .regex(/[0-9]/, 'Include at least one number');
+type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
-const signUpSchema = z
-  .object({
-    name: z.string().min(2, 'Please provide your name'),
-    email: z.string().email('Enter a valid email address'),
-    password: passwordRules,
-    confirmPassword: z.string(),
-  })
-  .refine((values) => values.password === values.confirmPassword, {
-    message: 'Passwords must match',
-    path: ['confirmPassword'],
-  });
+export default function SignUpScreen({ navigation }: Props) {
+  const signUp = useAuthStore((state) => state.signUp);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [age, setAge] = useState('');
+  const [location, setLocation] = useState('');
+  const [bio, setBio] = useState('');
+  const [interests, setInterests] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-type SignUpFormValues = z.infer<typeof signUpSchema>;
+  const handleSubmit = async () => {
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setError('Name, email, and password are required.');
+      return;
+    }
 
-export const SignUpScreen: React.FC = () => {
-  const { control, handleSubmit, formState } = useForm<SignUpFormValues>({
-    resolver: zodResolver(signUpSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-    },
-  });
-
-  const onSubmit = (values: SignUpFormValues) => {
-    console.log('Sign up', values);
+    setError(null);
+    setSubmitting(true);
+    try {
+      await signUp({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        age,
+        location,
+        bio,
+        interests,
+      });
+    } catch (err) {
+      console.error(err);
+      setError('Unable to create your account right now.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Header title="Create your account" subtitle="Join the community and start matching" />
-      <Card style={styles.formCard}>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Name</Text>
-          <Controller
-            control={control}
-            name="name"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                placeholder="Your name"
-                style={styles.input}
-                onBlur={onBlur}
-                onChangeText={onChange}
-                value={value}
-              />
-            )}
-          />
-          {formState.errors.name ? (
-            <Text style={styles.errorText}>{formState.errors.name.message}</Text>
-          ) : null}
-        </View>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.title}>Create your account</Text>
+        <Text style={styles.subtitle}>Join the community and start matching.</Text>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Email</Text>
-          <Controller
-            control={control}
-            name="email"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                placeholder="you@example.com"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                style={styles.input}
-                onBlur={onBlur}
-                onChangeText={onChange}
-                value={value}
-              />
-            )}
-          />
-          {formState.errors.email ? (
-            <Text style={styles.errorText}>{formState.errors.email.message}</Text>
-          ) : null}
-        </View>
+        <View style={styles.card}>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Your name"
+              placeholderTextColor="#64748b"
+            />
+          </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Password</Text>
-          <Controller
-            control={control}
-            name="password"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                placeholder="Create a strong password"
-                secureTextEntry
-                style={styles.input}
-                onBlur={onBlur}
-                onChangeText={onChange}
-                value={value}
-              />
-            )}
-          />
-          {formState.errors.password ? (
-            <Text style={styles.errorText}>{formState.errors.password.message}</Text>
-          ) : (
-            <Text style={styles.helperText}>Use 8+ characters with a mix of letters and numbers.</Text>
-          )}
-        </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholder="you@example.com"
+              placeholderTextColor="#64748b"
+            />
+          </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Confirm Password</Text>
-          <Controller
-            control={control}
-            name="confirmPassword"
-            render={({ field: { onChange, onBlur, value } }) => (
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="Create a strong password"
+              placeholderTextColor="#64748b"
+            />
+          </View>
+
+          <View style={styles.inlineRow}>
+            <View style={[styles.inlineField, styles.inlineFieldLeft]}>
+              <Text style={styles.label}>Age</Text>
               <TextInput
-                placeholder="Repeat your password"
-                secureTextEntry
                 style={styles.input}
-                onBlur={onBlur}
-                onChangeText={onChange}
-                value={value}
+                value={age}
+                onChangeText={setAge}
+                keyboardType="number-pad"
+                placeholder="27"
+                placeholderTextColor="#64748b"
               />
-            )}
-          />
-          {formState.errors.confirmPassword ? (
-            <Text style={styles.errorText}>{formState.errors.confirmPassword.message}</Text>
-          ) : null}
+            </View>
+            <View style={styles.inlineField}>
+              <Text style={styles.label}>Location</Text>
+              <TextInput
+                style={styles.input}
+                value={location}
+                onChangeText={setLocation}
+                placeholder="City, State"
+                placeholderTextColor="#64748b"
+              />
+            </View>
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Bio</Text>
+            <TextInput
+              style={[styles.input, styles.multiline]}
+              value={bio}
+              onChangeText={setBio}
+              multiline
+              placeholder="Tell people a little about you"
+              placeholderTextColor="#64748b"
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Interests</Text>
+            <TextInput
+              style={styles.input}
+              value={interests}
+              onChangeText={setInterests}
+              placeholder="Comma separated interests"
+              placeholderTextColor="#64748b"
+            />
+          </View>
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleSubmit}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              (pressed || submitting) && styles.primaryButtonPressed,
+            ]}
+            disabled={submitting}
+          >
+            <Text style={styles.primaryButtonLabel}>{submitting ? 'Creating…' : 'Create account'}</Text>
+          </Pressable>
         </View>
 
         <Pressable
           accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.submitButton,
-            { opacity: pressed ? 0.85 : 1 },
-          ]}
-          onPress={handleSubmit(onSubmit)}
+          onPress={() => navigation.navigate('SignIn')}
+          style={styles.linkButton}
         >
-          <Text style={styles.submitText}>Create Account</Text>
+          <Text style={styles.linkText}>Already have an account? Sign in</Text>
         </Pressable>
-      </Card>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
+  flex: { flex: 1 },
+  screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#0b1220',
   },
   content: {
-    padding: spacing.lg,
-    paddingBottom: spacing.xxl,
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    paddingBottom: 40,
   },
-  formCard: {
-    marginTop: spacing.lg,
+  title: {
+    color: '#f8fafc',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  subtitle: {
+    color: '#94a3b8',
+    fontSize: 15,
+    marginTop: 8,
+  },
+  card: {
+    backgroundColor: '#111b2e',
+    marginTop: 24,
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#1f2937',
   },
   fieldGroup: {
-    marginBottom: spacing.lg,
+    marginBottom: 18,
+  },
+  inlineRow: {
+    flexDirection: 'row',
+    marginBottom: 18,
+  },
+  inlineField: {
+    flex: 1,
+  },
+  inlineFieldLeft: {
+    marginRight: 16,
   },
   label: {
-    fontSize: 14,
+    color: '#e2e8f0',
+    marginBottom: 6,
     fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
   },
   input: {
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: 16,
-    color: colors.textPrimary,
-    backgroundColor: '#fff',
+    borderColor: '#1f2937',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#0f172a',
+    color: '#f8fafc',
   },
-  helperText: {
-    marginTop: spacing.xs,
-    color: colors.textMuted,
-    fontSize: 13,
+  multiline: {
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
   errorText: {
-    marginTop: spacing.xs,
-    color: '#E63946',
-    fontSize: 13,
+    color: '#f87171',
+    marginBottom: 12,
+    fontWeight: '500',
   },
-  submitButton: {
-    marginTop: spacing.md,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: 999,
+  primaryButton: {
+    marginTop: 8,
+    backgroundColor: '#a855f7',
+    borderRadius: 18,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  submitText: {
+  primaryButtonPressed: {
+    opacity: 0.85,
+  },
+  primaryButtonLabel: {
     color: '#fff',
     fontWeight: '700',
     fontSize: 16,
+  },
+  linkButton: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  linkText: {
+    color: '#a855f7',
+    fontWeight: '600',
   },
 });

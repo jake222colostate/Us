@@ -26,7 +26,14 @@ export default function Matches() {
           {matches.map((match) => (
             <article key={match.id} className="list-item">
               <div className="avatar">
-                <img src={match.profile.photo_urls?.[0] ?? "https://api.dicebear.com/7.x/thumbs/svg?seed=match"} alt={match.profile.display_name} />
+                <img
+                  src={
+                    match.profile.photos?.find((photo) => photo.is_primary)?.url ??
+                    match.profile.photos?.[0]?.url ??
+                    "https://api.dicebear.com/7.x/thumbs/svg?seed=match"
+                  }
+                  alt={match.profile.display_name}
+                />
               </div>
               <div className="list-item__meta">
                 <span className="list-item__title">{match.profile.display_name}</span>

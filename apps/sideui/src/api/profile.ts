@@ -1,8 +1,8 @@
-import type { Profile } from "@us/types";
+import type { Profile, ProfilePhoto, VerificationStatus } from "@us/types";
 
 import { ApiError, normalizeError } from "./client";
 import { requireSupabaseClient } from "./supabase";
-import { mapProfileRow } from "./transformers";
+import { mapPhotoRow, mapProfileRow } from "./transformers";
 import type { UpdateProfilePayload } from "../types";
 
 function slugify(input: string): string {
@@ -38,21 +38,29 @@ export async function ensureProfile({
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const candidate = attempt === 0 ? base : `${base}${attempt + 1}`;
     try {
+      const payload = {
+        user_id: userId,
+        username: candidate || `user-${userId.slice(0, 6)}`,
+        handle: candidate || `user-${userId.slice(0, 6)}`,
+        display_name: displayName || candidate || "New Member",
+        email: email ?? null,
+        bio: null,
+        birthdate: profileBirthdate,
+        age: profileBirthdate ? resolveAgeFromBirthdate(profileBirthdate) : null,
+        gender: null,
+        looking_for: null,
+        photo_urls: [],
+        radius_km: 25,
+        location_text: null,
+        interests: [],
+        verification_status: "unverified",
+        updated_at: new Date().toISOString(),
+      } satisfies Record<string, unknown>;
+
       const { data, error } = await client
         .from("profiles")
-        .insert({
-          user_id: userId,
-          username: candidate || `user-${userId.slice(0, 6)}`,
-          display_name: displayName || candidate || "New Member",
-          bio: null,
-          birthdate: profileBirthdate,
-          gender: null,
-          looking_for: null,
-          photo_urls: [],
-          radius_km: 25,
-          updated_at: new Date().toISOString(),
-        })
-        .select("*")
+        .insert(payload)
+        .select("*, user_photos(*)")
         .single();
 
       if (error) {
@@ -77,10 +85,23 @@ export async function ensureProfile({
   throw new ApiError("Unable to create profile", 409, { userId });
 }
 
+function resolveAgeFromBirthdate(birthdate: string | Date | null): number | null {
+  if (!birthdate) return null;
+  const date = typeof birthdate === "string" ? new Date(birthdate) : birthdate;
+  if (Number.isNaN(date.getTime())) return null;
+  const diff = Date.now() - date.getTime();
+  if (diff <= 0) return null;
+  return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+}
+
 export async function fetchProfile(userId: string): Promise<Profile | null> {
   const client = requireSupabaseClient();
   try {
-    const { data, error } = await client.from("profiles").select("*").eq("user_id", userId).maybeSingle();
+    const { data, error } = await client
+      .from("profiles")
+      .select("*, user_photos(*)")
+      .eq("user_id", userId)
+      .maybeSingle();
     if (error) {
       throw normalizeError(error, 400);
     }
@@ -117,13 +138,28 @@ export async function updateProfile(userId: string, payload: UpdateProfilePayloa
   if (Object.prototype.hasOwnProperty.call(payload, "preferences")) {
     updates.preferences = payload.preferences ?? null;
   }
+  if (Object.prototype.hasOwnProperty.call(payload, "interests")) {
+    updates.interests = Array.isArray(payload.interests) ? payload.interests : [];
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "age")) {
+    updates.age = payload.age ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "gender")) {
+    updates.gender = payload.gender ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "location_text")) {
+    updates.location_text = payload.location_text ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "verification_status")) {
+    updates.verification_status = payload.verification_status ?? "pending";
+  }
 
   try {
     const { data, error } = await client
       .from("profiles")
       .update(updates)
       .eq("user_id", userId)
-      .select("*")
+      .select("*, user_photos(*)")
       .maybeSingle();
 
     if (error) {
@@ -139,5 +175,25 @@ export async function updateProfile(userId: string, payload: UpdateProfilePayloa
     return base;
   } catch (error) {
     throw error instanceof ApiError ? error : normalizeError(error);
+  }
+}
+
+export async function listProfilePhotos(userId: string): Promise<ProfilePhoto[]> {
+  const client = requireSupabaseClient();
+  const { data, error } = await client.from("user_photos").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+  if (error) {
+    throw normalizeError(error, 400);
+  }
+  return (data ?? []).map(mapPhotoRow);
+}
+
+export async function updateVerificationStatus(userId: string, status: VerificationStatus): Promise<void> {
+  const client = requireSupabaseClient();
+  const { error } = await client
+    .from("profiles")
+    .update({ verification_status: status, updated_at: new Date().toISOString() })
+    .eq("user_id", userId);
+  if (error) {
+    throw normalizeError(error, 400);
   }
 }

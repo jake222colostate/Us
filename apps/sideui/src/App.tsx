@@ -44,7 +44,11 @@ function AppHeader({ onLogout }: AppHeaderProps) {
     return "Profile";
   }, [profile?.display_name, user?.displayName, user?.email]);
 
-  const avatarUrl = profile?.photo_urls?.[0] ?? user?.avatarUrl ?? DEFAULT_AVATAR;
+  const avatarUrl =
+    profile?.photos?.find((photo) => photo.is_primary)?.url ??
+    profile?.photos?.[0]?.url ??
+    user?.avatarUrl ??
+    DEFAULT_AVATAR;
 
   return (
     <header className="app-header">

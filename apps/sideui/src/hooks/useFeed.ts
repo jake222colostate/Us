@@ -103,7 +103,10 @@ export function useFeed(options: UseFeedOptions = {}) {
       }
 
       try {
-        await reactToPostApi({ post: target, action });
+        if (!user?.id) {
+          throw new ApiError("You need to be signed in to like profiles", 401, null);
+        }
+        await reactToPostApi({ viewerId: user.id, post: target, action });
         setPosts((prev) => prev.filter((post) => post.id !== postId));
       } catch (err) {
         const apiErr = normalizeError(err);

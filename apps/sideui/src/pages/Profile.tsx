@@ -60,13 +60,13 @@ export default function Profile() {
       <section className="page-card">
         <h2>Gallery</h2>
         <div className="photo-grid">
-          {profile.photo_urls.map((url, index) => (
-            <figure key={url}>
-              <img src={url} alt={`Gallery item ${index + 1}`} loading="lazy" />
-              <figcaption>Shot #{index + 1}</figcaption>
+          {profile.photos.map((photo, index) => (
+            <figure key={photo.id ?? `${photo.url}-${index}`}>
+              <img src={photo.url} alt={`Gallery item ${index + 1}`} loading="lazy" />
+              <figcaption>{photo.is_primary ? "Primary photo" : `Shot #${index + 1}`}</figcaption>
             </figure>
           ))}
-          {profile.photo_urls.length === 0 ? (
+          {profile.photos.length === 0 ? (
             <div className="feed-empty">No photos yet. Add at least one to shine in the feed.</div>
           ) : null}
         </div>

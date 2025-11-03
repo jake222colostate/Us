@@ -1,3 +1,5 @@
+import type { VerificationStatus } from '@us/types';
+
 const DEFAULT_BASE_URL =
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE_URL) ||
   (typeof process !== "undefined" && (process as any).env?.VITE_API_BASE_URL) ||
@@ -44,8 +46,6 @@ export type AuthResponse = {
   token: string;
   user: AuthUser;
 };
-
-export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 export type VerificationSession = {
   url: string;

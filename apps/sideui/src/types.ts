@@ -62,8 +62,12 @@ export interface UpdateProfilePayload {
   bio?: string | null;
   looking_for?: string | null;
   radius_km?: number | null;
-  photo_urls?: string[];
   preferences?: Record<string, unknown>;
+  interests?: string[];
+  age?: number | null;
+  gender?: string | null;
+  location_text?: string | null;
+  verification_status?: string;
 }
 
 export interface UserSettings {

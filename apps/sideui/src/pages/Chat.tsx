@@ -69,7 +69,14 @@ export default function Chat() {
                 onClick={() => handleSelectThread(thread.id)}
               >
                 <div className="avatar">
-                  <img src={thread.partner.photo_urls?.[0] ?? "https://api.dicebear.com/7.x/thumbs/svg?seed=chat"} alt={thread.partner.display_name} />
+                  <img
+                    src={
+                      thread.partner.photos?.find((photo) => photo.is_primary)?.url ??
+                      thread.partner.photos?.[0]?.url ??
+                      "https://api.dicebear.com/7.x/thumbs/svg?seed=chat"
+                    }
+                    alt={thread.partner.display_name}
+                  />
                 </div>
                 <div className="chat-thread__meta">
                   <span className="chat-thread__title">{thread.partner.display_name}</span>

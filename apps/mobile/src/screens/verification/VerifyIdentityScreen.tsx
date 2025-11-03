@@ -1,5 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { selectVerificationStatus, useAuthStore } from '../../state/authStore';
@@ -26,7 +27,7 @@ export default function VerifyIdentityScreen({ navigation }: Props) {
   const { beginVerification, isLoading, error } = useIdentityVerification();
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.inner}>
         <Text style={styles.title}>{statusHeadline[status] ?? statusHeadline.unverified}</Text>
         <Text style={styles.copy}>{statusDetail[status] ?? statusDetail.unverified}</Text>

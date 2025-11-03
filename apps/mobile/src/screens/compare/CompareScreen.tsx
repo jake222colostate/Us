@@ -1,16 +1,12 @@
 import React, { useMemo } from 'react';
-import { Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useComparePreferences, type CompareLayout } from '../../state/comparePreferences';
-import type { MainTabParamList } from '../../navigation/RootNavigator';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useSampleProfiles } from '../../hooks/useSampleData';
 
-type Props = BottomTabScreenProps<MainTabParamList, 'Compare'>;
-
-type ImageParams = {
-  left?: string;
-  right?: string;
-};
+type Props = NativeStackScreenProps<RootStackParamList, 'Compare'>;
 
 const layoutOptions: { key: CompareLayout; label: string }[] = [
   { key: 'vertical', label: 'Vertical' },
@@ -19,37 +15,55 @@ const layoutOptions: { key: CompareLayout; label: string }[] = [
 
 export default function CompareScreen({ route }: Props) {
   const { layout, setLayout } = useComparePreferences();
-  const params = (route.params ?? {}) as ImageParams;
+  const params = route.params ?? {};
   const profiles = useSampleProfiles();
 
-  const [defaultLeft, defaultRight, approvedSet] = useMemo(() => {
-    const approved = profiles.flatMap((profile) =>
-      profile.photos.filter((photo) => photo.status === 'approved').map((photo) => photo.url),
+  const fallbackPhotos = useMemo(() => {
+    const firstWithPhotos = profiles.find((profile) =>
+      (profile.photos ?? []).some((photo) => photo?.status === 'approved' && photo?.url),
     );
-    if (approved.length === 0) {
-      return [undefined, undefined, new Set<string>()] as const;
+    if (!firstWithPhotos) {
+      return [] as string[];
     }
-    if (approved.length === 1) {
-      return [approved[0], approved[0], new Set(approved)] as const;
-    }
-    return [approved[0], approved[1], new Set(approved)] as const;
+
+    return (firstWithPhotos.photos ?? [])
+      .filter((photo) => photo?.status === 'approved' && photo?.url)
+      .map((photo) => photo.url);
   }, [profiles]);
 
-  const normalizedLeft = params.left && approvedSet.has(params.left) ? params.left : defaultLeft;
-  const normalizedRightCandidate = params.right && approvedSet.has(params.right) ? params.right : defaultRight;
-  const left = normalizedLeft;
-  const right = normalizedRightCandidate ?? normalizedLeft ?? defaultLeft;
+  const profilePhotos = useMemo(() => {
+    const providedPhotos = params.profile?.photos ?? [];
+    return providedPhotos
+      .filter((photo) => photo?.status === 'approved' && photo?.url)
+      .map((photo) => photo.url as string);
+  }, [params.profile?.photos]);
+
+  const firstFallback = profilePhotos[0] ?? params.leftPhoto ?? fallbackPhotos[0] ?? null;
+  const secondFallback =
+    profilePhotos[1] ?? params.rightPhoto ?? profilePhotos[0] ?? fallbackPhotos[1] ?? firstFallback;
+
+  const left = params.leftPhoto ?? firstFallback;
+  const right = params.rightPhoto ?? secondFallback;
+
+  const profileName = params.profile?.name ?? 'This profile';
+  const verificationStatus = params.profile?.verification?.status;
+  const profileBio = params.profile?.bio;
 
   const isVertical = layout === 'vertical';
   const containerStyle = isVertical ? styles.verticalLayout : styles.horizontalLayout;
-  const firstImageStyle = isVertical ? styles.verticalImage : styles.firstHorizontalImage;
-  const secondImageStyle = isVertical
-    ? [styles.verticalImage, styles.lastVerticalImage]
-    : styles.secondHorizontalImage;
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.inner}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Compare photos</Text>
+          <Text style={styles.subtitle}>{profileName}</Text>
+          <Text style={styles.verificationLabel}>
+            {verificationStatus ? `Verification: ${verificationStatus}` : 'Not verified yet'}
+          </Text>
+          {profileBio ? <Text style={styles.bio}>{profileBio}</Text> : null}
+        </View>
+
         <View style={styles.toggleRow}>
           {layoutOptions.map((option) => {
             const isActive = layout === option.key;
@@ -68,34 +82,84 @@ export default function CompareScreen({ route }: Props) {
         </View>
 
         <View style={[styles.compareArea, containerStyle]}>
-          {left ? (
-            <Image source={{ uri: left }} style={[styles.image, firstImageStyle]} resizeMode="cover" />
-          ) : (
-            <View style={[styles.placeholder, firstImageStyle]}>
-              <Text style={styles.placeholderLabel}>No photo</Text>
-            </View>
-          )}
-          {right ? (
-            <Image source={{ uri: right }} style={[styles.image, secondImageStyle]} resizeMode="cover" />
-          ) : (
-            <View style={[styles.placeholder, secondImageStyle]}>
-              <Text style={styles.placeholderLabel}>No photo</Text>
-            </View>
-          )}
+          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.firstHorizontalPhoto]}> 
+            {left ? (
+              <Image source={{ uri: left }} style={styles.photo} resizeMode="cover" />
+            ) : (
+              <View style={[styles.photo, styles.placeholder]}>
+                <Text style={styles.placeholderLabel}>No photo</Text>
+              </View>
+            )}
+          </View>
+          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.secondHorizontalPhoto]}>
+            {right ? (
+              <Image source={{ uri: right }} style={styles.photo} resizeMode="cover" />
+            ) : (
+              <View style={[styles.photo, styles.placeholder]}>
+                <Text style={styles.placeholderLabel}>No photo</Text>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
+
+        <View style={styles.ctaRow}>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
+          >
+            <Text style={styles.primaryButtonLabel}>Send Like</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+            onPress={() => {
+              // TODO: Hook into feed data source to advance to the next profile.
+            }}
+          >
+            <Text style={styles.secondaryButtonLabel}>Next profile</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#0b1220',
+  },
   screen: {
     flex: 1,
     backgroundColor: '#0b1220',
   },
-  inner: {
-    flex: 1,
-    padding: 16,
+  scrollContent: {
+    paddingBottom: 32,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  title: {
+    color: '#f8fafc',
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  subtitle: {
+    color: '#cbd5f5',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  verificationLabel: {
+    color: '#94a3b8',
+    marginTop: 4,
+  },
+  bio: {
+    color: '#cbd5f5',
+    marginTop: 12,
+    lineHeight: 20,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -105,6 +169,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1f2937',
     marginBottom: 20,
+    marginHorizontal: 16,
   },
   toggleButton: {
     flex: 1,
@@ -123,52 +188,88 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   compareArea: {
-    flex: 1,
     backgroundColor: '#111b2e',
     borderRadius: 24,
     borderWidth: 1,
     borderColor: '#1f2937',
     padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
   },
   verticalLayout: {
     flexDirection: 'column',
-    justifyContent: 'center',
   },
   horizontalLayout: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  image: {
-    borderRadius: 18,
+  photoCard: {
     backgroundColor: '#0f172a',
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1f2937',
   },
-  verticalImage: {
+  verticalPhotoCard: {
     width: '100%',
-    aspectRatio: 3 / 4,
     marginBottom: 16,
   },
-  lastVerticalImage: {
-    marginBottom: 0,
+  firstHorizontalPhoto: {
+    width: '48%',
   },
-  firstHorizontalImage: {
-    flex: 1,
-    aspectRatio: 3 / 4,
-    marginRight: 12,
+  secondHorizontalPhoto: {
+    width: '48%',
   },
-  secondHorizontalImage: {
-    flex: 1,
+  photo: {
+    width: '100%',
     aspectRatio: 3 / 4,
-    marginLeft: 12,
   },
   placeholder: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1f2937',
   },
   placeholderLabel: {
     color: '#64748b',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  ctaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 24,
+    marginHorizontal: 16,
+    gap: 12,
+  },
+  primaryButton: {
+    flex: 1,
+    backgroundColor: '#a855f7',
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  primaryButtonPressed: {
+    opacity: 0.9,
+  },
+  primaryButtonLabel: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  secondaryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+  },
+  secondaryButtonPressed: {
+    opacity: 0.9,
+  },
+  secondaryButtonLabel: {
+    color: '#cbd5f5',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

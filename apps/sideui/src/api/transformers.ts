@@ -32,6 +32,13 @@ export function mapProfileRow(row: any): Profile {
     location: parseCoordinates(row.location),
     radius_km: typeof row.radius_km === "number" ? row.radius_km : Number(row.radius_km ?? 0),
     preferences: row.preferences ?? null,
+    verification_status: (row.verification_status as Profile["verification_status"]) ?? "none",
+    visibility_score:
+      typeof row.visibility_score === "number"
+        ? row.visibility_score
+        : Number.isFinite(Number(row.visibility_score))
+          ? Number(row.visibility_score)
+          : 1,
     created_at: typeof row.created_at === "string" ? row.created_at : new Date(row.created_at).toISOString(),
     updated_at: typeof row.updated_at === "string" ? row.updated_at : new Date(row.updated_at).toISOString(),
   };

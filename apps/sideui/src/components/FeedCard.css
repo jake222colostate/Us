@@ -92,3 +92,9 @@
 .feed-card__actions .btn {
   width: 100%;
 }
+
+.feed-card__unlock {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}

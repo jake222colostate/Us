@@ -15,6 +15,8 @@ const profileBase = {
   created_at: daysAgo(120),
   updated_at: hoursAgo(5),
   radius_km: 25,
+  verification_status: "approved" as const,
+  visibility_score: 1.2,
 } as const;
 
 export const demoProfile: Profile = {
@@ -33,6 +35,8 @@ export const demoProfile: Profile = {
   radius_km: 35,
   created_at: daysAgo(240),
   updated_at: hoursAgo(2),
+  verification_status: "approved",
+  visibility_score: 1.6,
 };
 
 export const demoProfiles: Profile[] = [

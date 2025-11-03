@@ -16,6 +16,8 @@ export type Profile = {
   } | null;
   radius_km: number;
   preferences?: Record<string, unknown> | null;
+  verification_status?: 'none' | 'pending' | 'approved' | 'rejected';
+  visibility_score?: number;
   created_at: string;
   updated_at: string;
 };
@@ -54,6 +56,49 @@ export type Match = {
   user_a: string;
   user_b: string;
   created_at: string;
+};
+
+export type ProfileUnlockReason = 'self' | 'match' | 'purchase' | 'none';
+
+export type ProfileAccess = {
+  profile: Profile | null;
+  limited_profile: Profile | null;
+  can_view_full_profile: boolean;
+  unlock_reason: ProfileUnlockReason;
+  access_expires_at: string | null;
+};
+
+export type RewardSpinRecord = {
+  id?: string;
+  user_id?: string;
+  spin_type: 'free' | 'paid';
+  reward_type: string;
+  reward_value: Record<string, unknown>;
+  spin_at?: string;
+  created_at?: string;
+};
+
+export type RewardStatus = {
+  free_available: boolean;
+  next_free_spin_at: string;
+  last_spin: RewardSpinRecord | null;
+  active_bonuses: Array<{
+    id?: string;
+    bonus_type: string;
+    quantity?: number;
+    expires_at?: string | null;
+    metadata?: Record<string, unknown>;
+  }>;
+};
+
+export type RewardSpinResult = {
+  spin_type: 'free' | 'paid';
+  reward: {
+    reward_type: string;
+    reward_label: string;
+    reward_value: Record<string, unknown>;
+  };
+  status: RewardStatus;
 };
 
 export type PurchaseProvider = 'apple' | 'google' | 'stripe' | 'dev';

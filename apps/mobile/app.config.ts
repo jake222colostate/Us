@@ -3,6 +3,8 @@ const SLUG = "us-mobile";
 const IOS_BUNDLE_IDENTIFIER = "com.us.mobile";
 const ANDROID_PACKAGE = "com.us.mobile";
 
+const env = process.env;
+
 export default {
   expo: {
     name: APP_NAME,
@@ -52,6 +54,9 @@ export default {
       favicon: "./assets/dev/icon.png",
     },
     extra: {
+      supabaseUrl: env.EXPO_PUBLIC_SUPABASE_URL,
+      supabaseAnonKey: env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      apiBaseUrl: env.EXPO_PUBLIC_API_BASE_URL,
       eas: {
         projectId: "local-dev",
       },

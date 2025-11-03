@@ -43,7 +43,7 @@ export default function UserProfile() {
         post={{
           id: `profile-${profile.user_id}`,
           user_id: profile.user_id,
-          photo_url: profile.photo_urls[0],
+          photo_url: profile.photos[0]?.url ?? "",
           caption: profile.bio,
           location: profile.location,
           created_at: profile.updated_at,

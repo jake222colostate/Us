@@ -27,7 +27,14 @@ export default function Likes() {
             {incomingLikes.map((like) => (
               <article key={like.id} className="list-item">
                 <div className="avatar">
-                  <img src={like.profile.photo_urls?.[0] ?? "https://api.dicebear.com/7.x/thumbs/svg?seed=match"} alt={like.profile.display_name} />
+                  <img
+                    src={
+                      like.profile.photos?.find((photo) => photo.is_primary)?.url ??
+                      like.profile.photos?.[0]?.url ??
+                      "https://api.dicebear.com/7.x/thumbs/svg?seed=match"
+                    }
+                    alt={like.profile.display_name}
+                  />
                 </div>
                 <div className="list-item__meta">
                   <span className="list-item__title">{like.profile.display_name}</span>
@@ -72,7 +79,14 @@ export default function Likes() {
             {outgoingLikes.map((like) => (
               <article key={like.id} className="list-item">
                 <div className="avatar">
-                  <img src={like.profile.photo_urls?.[0] ?? "https://api.dicebear.com/7.x/thumbs/svg?seed=outgoing"} alt={like.profile.display_name} />
+                  <img
+                    src={
+                      like.profile.photos?.find((photo) => photo.is_primary)?.url ??
+                      like.profile.photos?.[0]?.url ??
+                      "https://api.dicebear.com/7.x/thumbs/svg?seed=outgoing"
+                    }
+                    alt={like.profile.display_name}
+                  />
                 </div>
                 <div className="list-item__meta">
                   <span className="list-item__title">{like.profile.display_name}</span>

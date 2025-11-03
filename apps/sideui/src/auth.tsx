@@ -34,7 +34,7 @@ const demoUser: AuthUser = {
   id: demoProfile.user_id,
   email: "demo@us.app",
   displayName: demoProfile.display_name,
-  avatarUrl: demoProfile.photo_urls[0],
+  avatarUrl: demoProfile.photos[0]?.url ?? null,
 };
 
 function mapSupabaseUser(user: User | null): AuthUser | null {
@@ -106,7 +106,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               ? {
                   ...prev,
                   displayName: profile.display_name ?? prev.displayName,
-                  avatarUrl: profile.photo_urls?.[0] ?? prev.avatarUrl ?? null,
+                  avatarUrl:
+                    profile.photos?.find((photo) => photo.is_primary)?.url ??
+                    profile.photos?.[0]?.url ??
+                    prev.avatarUrl ??
+                    null,
                 }
               : prev
           );

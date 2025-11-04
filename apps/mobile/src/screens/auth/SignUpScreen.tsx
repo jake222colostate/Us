@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,10 +13,8 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../navigation/RootNavigator';
 import { getSupabaseClient } from '../../api/supabase';
-
-type RootNavigation = import('@react-navigation/native-stack').NativeStackNavigationProp<
-  import('../../navigation/RootNavigator').RootStackParamList
->;
+import { navigate, navigationRef } from '../../navigation/navigationService';
+import { selectIsAuthenticated, useAuthStore } from '../../state/authStore';
 
 function computeBirthdayFromAge(ageInput?: string): string | null {
   if (!ageInput) return null;
@@ -43,6 +41,21 @@ export default function SignUpScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!navigationRef.isReady()) {
+      setTimeout(() => navigate('MainTabs'), 0);
+      return;
+    }
+    const routeNames = navigationRef.getRootState()?.routeNames;
+    if (routeNames && !routeNames.includes('MainTabs')) {
+      setTimeout(() => navigate('MainTabs'), 0);
+      return;
+    }
+    navigate('MainTabs');
+  }, [isAuthenticated]);
 
   const handleSubmit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -92,9 +105,8 @@ export default function SignUpScreen({ navigation }: Props) {
           }, { onConflict: 'id' });
       }
 
-      const parentNav = navigation.getParent<RootNavigation>();
       if (data.session) {
-        parentNav?.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+        navigate('MainTabs');
       } else {
         setInfoMessage('Account created! Check your email to confirm before signing in.');
       }

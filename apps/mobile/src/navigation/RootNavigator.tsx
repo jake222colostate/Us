@@ -17,6 +17,7 @@ import SettingsScreen from '../screens/settings/SettingsScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
 import { selectIsAuthenticated, selectVerificationStatus, selectIsInitialized, useAuthStore } from '../state/authStore';
 import { useThemeStore } from '../state/themeStore';
+import { navigationRef, logNavigationReady } from './navigationService';
 
 console.log('🔎 RootNavigator imports:', {
   FeedScreen: typeof FeedScreen,
@@ -169,7 +170,13 @@ export default function RootNavigator() {
   return (
     <>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <NavigationContainer theme={navigationTheme}>
+      <NavigationContainer
+        theme={navigationTheme}
+        ref={navigationRef}
+        onReady={() => {
+          logNavigationReady();
+        }}
+      >
       {isAuthenticated ? (
         <RootStack.Navigator
           key={navKey}

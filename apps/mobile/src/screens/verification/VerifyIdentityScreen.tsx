@@ -5,6 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { selectVerificationStatus, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
+import { navigate } from '../../navigation/navigationService';
 
 const statusHeadline: Record<string, string> = {
   unverified: 'Help us keep everyone safe',
@@ -22,7 +23,7 @@ const statusDetail: Record<string, string> = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VerifyIdentity'>;
 
-export default function VerifyIdentityScreen({ navigation }: Props) {
+export default function VerifyIdentityScreen(_props: Props) {
   const status = useAuthStore(selectVerificationStatus);
   const { beginVerification, isLoading, error } = useIdentityVerification();
 
@@ -49,7 +50,7 @@ export default function VerifyIdentityScreen({ navigation }: Props) {
 
         <Pressable
           accessibilityRole="button"
-          onPress={() => navigation.navigate('MainTabs')}
+          onPress={() => navigate('MainTabs')}
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
         >
           <Text style={styles.secondaryButtonLabel}>Continue to the app</Text>

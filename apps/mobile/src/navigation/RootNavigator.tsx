@@ -18,6 +18,18 @@ import {
   useAuthStore,
 } from '../state/authStore';
 
+console.log('🔎 RootNavigator imports:', {
+  FeedScreen: typeof FeedScreen,
+  ProfileScreen: typeof ProfileScreen,
+  SignInScreen: typeof SignInScreen,
+  SignUpScreen: typeof SignUpScreen,
+  ForgotPasswordScreen: typeof ForgotPasswordScreen,
+  MatchesScreen: typeof MatchesScreen,
+  VerifyIdentityScreen: typeof VerifyIdentityScreen,
+  CompareScreen: typeof CompareScreen,
+  SettingsScreen: typeof SettingsScreen,
+});
+
 export type MainTabParamList = {
   Feed: undefined;
   Matches: undefined;
@@ -108,6 +120,8 @@ export default function RootNavigator() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const verificationStatus = useAuthStore(selectVerificationStatus);
   const navKey = `${isAuthenticated ? 'auth' : 'guest'}-${verificationStatus}`;
+
+  console.log('🔐 auth state:', { isAuthenticated, verificationStatus, navKey });
 
   return (
     <NavigationContainer theme={theme}>

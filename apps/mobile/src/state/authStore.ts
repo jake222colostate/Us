@@ -22,21 +22,6 @@ export type AuthenticatedUser = {
   photos: UserPhoto[];
 };
 
-type SignInPayload = {
-  email: string;
-  password: string;
-};
-
-type SignUpPayload = {
-  name: string;
-  email: string;
-  password: string;
-  age?: string;
-  location?: string;
-  bio?: string;
-  interests?: string;
-};
-
 type AuthState = {
   session: Session | null;
   user: AuthenticatedUser | null;
@@ -44,10 +29,7 @@ type AuthState = {
   isInitialized: boolean;
   verificationStatus: VerificationStatus;
   isPremium: boolean;
-  initialize: () => Promise<void>;
-  signIn: (payload: SignInPayload) => Promise<void>;
-  signUp: (payload: SignUpPayload) => Promise<void>;
-  signOut: () => Promise<void>;
+  setSession: (session: Session | null) => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateUser: (updates: { bio?: string; interests?: string[]; name?: string; location?: string | null }) => Promise<void>;
   setVerificationStatus: (status: VerificationStatus) => void;
@@ -56,8 +38,6 @@ type AuthState = {
   removeUserPhoto: (photoId: string) => void;
   setPremium: (value: boolean) => void;
 };
-
-let authSubscription: { unsubscribe: () => void } | null = null;
 
 function calculateAge(birthday: string | null | undefined): number | null {
   if (!birthday) return null;
@@ -142,6 +122,7 @@ async function hydrateSession(
   set: (updater: (prev: AuthState) => AuthState | Partial<AuthState> | AuthState) => void,
   get: () => AuthState,
 ) {
+  console.log('🧩 hydrateSession', { hasSession: Boolean(session) });
   if (!session) {
     set((state) => ({
       ...state,
@@ -149,6 +130,7 @@ async function hydrateSession(
       user: null,
       isAuthenticated: false,
       verificationStatus: 'unverified',
+      isInitialized: true,
     }));
     return;
   }
@@ -157,6 +139,7 @@ async function hydrateSession(
     ...state,
     session,
     isAuthenticated: true,
+    isInitialized: true,
   }));
 
   try {
@@ -165,6 +148,7 @@ async function hydrateSession(
       ...state,
       user: profile,
       verificationStatus: profile.verificationStatus,
+      isInitialized: true,
     }));
   } catch (error) {
     console.error('Failed to load profile', error);
@@ -172,20 +156,9 @@ async function hydrateSession(
       ...state,
       user: null,
       verificationStatus: 'unverified',
+      isInitialized: true,
     }));
   }
-}
-
-function computeBirthdayFromAge(ageInput?: string): string | null {
-  if (!ageInput) return null;
-  const numericAge = Number(ageInput);
-  if (!Number.isFinite(numericAge) || numericAge <= 0) {
-    return null;
-  }
-  const now = new Date();
-  const birthYear = now.getUTCFullYear() - Math.floor(numericAge);
-  const birthDate = new Date(Date.UTC(birthYear, now.getUTCMonth(), now.getUTCDate()));
-  return birthDate.toISOString().slice(0, 10);
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -195,78 +168,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isInitialized: false,
   verificationStatus: 'unverified',
   isPremium: false,
-  async initialize() {
-    if (get().isInitialized) {
-      return;
-    }
-    const client = getSupabaseClient();
-    const { data } = await client.auth.getSession();
-    await hydrateSession(data.session, set, get);
-    authSubscription?.unsubscribe?.();
-    const { data: listener } = client.auth.onAuthStateChange(async (_event, newSession) => {
-      await hydrateSession(newSession, set, get);
-    });
-    authSubscription = listener?.subscription ?? null;
-    set((state) => ({ ...state, isInitialized: true }));
-  },
-  async signIn({ email, password }) {
-    const client = getSupabaseClient();
-    const { data, error } = await client.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    await hydrateSession(data.session ?? null, set, get);
-    if (!data.session) {
-      const { data: refreshed } = await client.auth.getSession();
-      await hydrateSession(refreshed.session, set, get);
-    }
-  },
-  async signUp({ name, email, password, age, location, bio, interests }) {
-    const client = getSupabaseClient();
-    const parsedInterests =
-      interests
-        ?.split(',')
-        .map((entry) => entry.trim())
-        .filter(Boolean) ?? [];
-    const birthday = computeBirthdayFromAge(age);
-    const { data, error } = await client.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: name,
-        },
-      },
-    });
-    if (error) throw error;
-    const userId = data.user?.id ?? data.session?.user.id;
-    if (userId) {
-      const displayName = name || email.split('@')[0] || 'New member';
-      await ensureProfile(userId, displayName, {
-        bio: bio?.trim() ?? undefined,
-        birthday,
-        interests: parsedInterests,
-        location: location?.trim() || null,
-      });
-    }
-    await hydrateSession(data.session ?? null, set, get);
-    if (!data.session) {
-      const { data: refreshed } = await client.auth.getSession();
-      await hydrateSession(refreshed.session, set, get);
-    }
-  },
-  async signOut() {
-    const client = getSupabaseClient();
-    await client.auth.signOut();
-    set((state) => ({
-      ...state,
-      session: null,
-      user: null,
-      isAuthenticated: false,
-      verificationStatus: 'unverified',
-    }));
+  async setSession(session) {
+    console.log('📦 authStore.setSession', { hasSession: Boolean(session) });
+    await hydrateSession(session, set, get);
   },
   async refreshProfile() {
     const session = get().session;
-    if (!session) return;
+    if (!session) {
+      return;
+    }
     await hydrateSession(session, set, get);
   },
   async updateUser({ bio, interests, name, location }) {

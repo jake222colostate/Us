@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,13 +11,16 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuthStore } from '../../state/authStore';
 import type { AuthStackParamList } from '../../navigation/RootNavigator';
+import { getSupabaseClient } from '../../api/supabase';
+
+type RootNavigation = import('@react-navigation/native-stack').NativeStackNavigationProp<
+  import('../../navigation/RootNavigator').RootStackParamList
+>;
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
 
 export default function SignInScreen({ navigation }: Props) {
-  const signIn = useAuthStore((state) => state.signIn);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -31,10 +35,22 @@ export default function SignInScreen({ navigation }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      await signIn({ email: email.trim().toLowerCase(), password });
+      const client = getSupabaseClient();
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log('🔐 Signing in with Supabase', { email: normalizedEmail });
+      const { error: signInError } = await client.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      if (signInError) {
+        throw signInError;
+      }
+      const parentNav = navigation.getParent<RootNavigation>();
+      parentNav?.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
     } catch (err) {
       console.error(err);
-      setError('Something went wrong signing you in.');
+      const message = (err as Error)?.message ?? 'Something went wrong signing you in.';
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -98,8 +114,9 @@ export default function SignInScreen({ navigation }: Props) {
             ]}
             disabled={submitting}
           >
-            <Text style={styles.primaryButtonLabel}>{submitting ? 'Signing in…' : 'Sign In'}</Text>
+            <Text style={styles.primaryButtonLabel}>Sign In</Text>
           </Pressable>
+          {submitting ? <ActivityIndicator style={styles.loadingIndicator} color="#a855f7" /> : null}
         </View>
 
         <Pressable
@@ -179,6 +196,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 16,
+  },
+  loadingIndicator: {
+    marginTop: 12,
   },
   inlineLink: {
     alignSelf: 'flex-end',

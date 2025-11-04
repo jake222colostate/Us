@@ -108,12 +108,14 @@ export const useMatchesStore = create<MatchesState>((set) => ({
       const nextMatches = await fetchMatchesFromSupabase(userId);
       set((state) => ({ ...state, matches: nextMatches, isLoading: false }));
     } catch (error) {
-      console.error(error);
+      console.error('❌ Failed to load matches from Supabase', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
       set((state) => ({
         ...state,
         isLoading: false,
-        error: 'Unable to load matches from Supabase.',
+        error: `Unable to load matches from Supabase: ${message}`,
       }));
+      throw error;
     }
   },
   clear() {

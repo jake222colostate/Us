@@ -15,6 +15,7 @@ import {
 } from '../../state/authStore';
 import { useMatchesStore } from '../../state/matchesStore';
 import { getSupabaseClient } from '../../api/supabase';
+import { useToast } from '../../providers/ToastProvider';
 
 const calculateAge = (birthday: string | null): number | null => {
   if (!birthday) return null;
@@ -101,6 +102,7 @@ export default function FeedScreen() {
   const [profiles, setProfiles] = useState<FeedProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { show } = useToast();
 
   const load = useCallback(async () => {
     if (!session) {
@@ -111,6 +113,9 @@ export default function FeedScreen() {
     setError(null);
     try {
       const client = getSupabaseClient();
+      console.log('📸 Feed query: approved photos path', {
+        viewer: session.user.id,
+      });
       const { data: profileRows, error: profileError } = await client
         .from('profiles')
         .select('id, display_name, bio, avatar_url, birthday')
@@ -151,12 +156,14 @@ export default function FeedScreen() {
       }
       setProfiles(mappedProfiles);
     } catch (err) {
-      console.error(err);
-      setError('Unable to load the feed from Supabase.');
+      console.error('Feed load failed', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      show(`Unable to load feed: ${message}`);
+      setError(`Unable to load the feed from Supabase.`);
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, show]);
 
   useEffect(() => {
     load();

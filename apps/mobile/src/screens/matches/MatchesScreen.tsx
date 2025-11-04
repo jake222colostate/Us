@@ -9,6 +9,7 @@ import type { MainTabParamList, RootStackParamList } from '../../navigation/Root
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useMatchesStore } from '../../state/matchesStore';
 import { useAuthStore, selectSession } from '../../state/authStore';
+import { useToast } from '../../providers/ToastProvider';
 
 export default function MatchesScreen() {
   const session = useAuthStore(selectSession);
@@ -18,6 +19,7 @@ export default function MatchesScreen() {
   const error = useMatchesStore((state) => state.error);
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { show } = useToast();
   const navigation = useNavigation<
     CompositeNavigationProp<
       BottomTabNavigationProp<MainTabParamList, 'Matches'>,
@@ -27,9 +29,14 @@ export default function MatchesScreen() {
 
   useEffect(() => {
     if (session) {
-      fetchMatches(session.user.id).catch((err) => console.error(err));
+      console.log('🎯 Loading matches for user', session.user.id);
+      fetchMatches(session.user.id).catch((err) => {
+        console.error('Matches fetch failed', err);
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        show(`Unable to load matches: ${message}`);
+      });
     }
-  }, [session, fetchMatches]);
+  }, [session, fetchMatches, show]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

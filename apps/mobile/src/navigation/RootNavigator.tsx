@@ -15,12 +15,7 @@ import VerifyIdentityScreen from '../screens/verification/VerifyIdentityScreen';
 import CompareScreen from '../screens/compare/CompareScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
-import {
-  selectIsAuthenticated,
-  selectVerificationStatus,
-  selectIsInitialized,
-  useAuthStore,
-} from '../state/authStore';
+import { selectIsAuthenticated, selectVerificationStatus, selectIsInitialized, useAuthStore } from '../state/authStore';
 import { useThemeStore } from '../state/themeStore';
 
 console.log('🔎 RootNavigator imports:', {
@@ -126,14 +121,9 @@ function Tabs() {
 export default function RootNavigator() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const verificationStatus = useAuthStore(selectVerificationStatus);
-  const initializeAuth = useAuthStore((state) => state.initialize);
   const isInitialized = useAuthStore(selectIsInitialized);
   const navKey = `${isAuthenticated ? 'auth' : 'guest'}-${verificationStatus}`;
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
-
-  React.useEffect(() => {
-    initializeAuth().catch((err) => console.error('Auth init failed', err));
-  }, [initializeAuth]);
 
   const navigationTheme = useMemo(() => {
     if (isDarkMode) {

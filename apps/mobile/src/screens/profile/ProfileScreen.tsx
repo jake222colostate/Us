@@ -31,6 +31,7 @@ import type { MainTabParamList, RootStackParamList } from '../../navigation/Root
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { usePostQuotaStore } from '../../state/postQuotaStore';
 import { getSupabaseClient } from '../../api/supabase';
+import { navigate } from '../../navigation/navigationService';
 
 const toInterestList = (value: string) =>
   value
@@ -70,6 +71,10 @@ export default function ProfileScreen() {
   const [interestInput, setInterestInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    console.log('[profile] authed?', isAuthenticated);
+  }, [isAuthenticated]);
 
   const {
     status,
@@ -179,10 +184,6 @@ export default function ProfileScreen() {
 
   const photoList = photoUser?.photos ?? [];
 
-  const rootNavigation = navigation.getParent<
-    NativeStackNavigationProp<RootStackParamList>
-  >();
-
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -192,14 +193,7 @@ export default function ProfileScreen() {
           <Pressable
             accessibilityRole="button"
             style={styles.primaryButton}
-            onPress={() => {
-              const authNavigation = navigation.getParent()?.getParent?.() ?? rootNavigation;
-              try {
-                (authNavigation as { navigate?: (route: string) => void } | null | undefined)?.navigate?.('SignIn');
-              } catch (err) {
-                console.warn('Unable to navigate to SignIn', err);
-              }
-            }}
+            onPress={() => navigate('SignIn')}
           >
             <Text style={styles.primaryButtonLabel}>Go to sign in</Text>
           </Pressable>
@@ -780,12 +774,11 @@ const createStyles = (palette: AppPalette) =>
     try {
       const client = getSupabaseClient();
       await client.auth.signOut();
-      rootNavigation?.navigate('SignIn');
     } catch (err) {
       console.error(err);
       Alert.alert('Unable to sign out', 'Please try again.');
     } finally {
       setSigningOut(false);
     }
-  }, [rootNavigation]);
+  }, []);
 

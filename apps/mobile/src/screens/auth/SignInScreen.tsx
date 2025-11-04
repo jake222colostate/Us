@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,10 +13,8 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../navigation/RootNavigator';
 import { getSupabaseClient } from '../../api/supabase';
-
-type RootNavigation = import('@react-navigation/native-stack').NativeStackNavigationProp<
-  import('../../navigation/RootNavigator').RootStackParamList
->;
+import { navigate, navigationRef } from '../../navigation/navigationService';
+import { selectIsAuthenticated, useAuthStore } from '../../state/authStore';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
 
@@ -25,6 +23,22 @@ export default function SignInScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!navigationRef.isReady()) {
+      setTimeout(() => navigate('MainTabs'), 0);
+      return;
+    }
+    const routeNames = navigationRef.getRootState()?.routeNames;
+    if (routeNames && !routeNames.includes('MainTabs')) {
+      // The tree might still be the auth stack; wait for the swap on the next tick.
+      setTimeout(() => navigate('MainTabs'), 0);
+      return;
+    }
+    navigate('MainTabs');
+  }, [isAuthenticated]);
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) {
@@ -45,8 +59,6 @@ export default function SignInScreen({ navigation }: Props) {
       if (signInError) {
         throw signInError;
       }
-      const parentNav = navigation.getParent<RootNavigation>();
-      parentNav?.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
     } catch (err) {
       console.error(err);
       const message = (err as Error)?.message ?? 'Something went wrong signing you in.';

@@ -21,7 +21,10 @@ export default function CompareScreen({ route }: Props) {
 
   useEffect(() => {
     const loadPhotos = async () => {
-      if (!params.profile?.id) return;
+      if (!params.profile?.id) {
+        setApprovedPhotos([]);
+        return;
+      }
       try {
         const client = getSupabaseClient();
         const { data, error } = await client
@@ -35,14 +38,18 @@ export default function CompareScreen({ route }: Props) {
         const signed = await mapPhotoRows(rows);
         setApprovedPhotos(signed.map((photo) => photo.url).filter((url): url is string => Boolean(url)));
       } catch (err) {
-        console.error(err);
+        console.error('Failed to load comparison photos', err);
+        setApprovedPhotos([]);
       }
     };
     loadPhotos();
   }, [params.profile?.id]);
 
   const providedPhotos = useMemo(() => {
-    const items = params.profile?.photos ?? [];
+    const items = params.profile?.photos;
+    if (!Array.isArray(items)) {
+      return [];
+    }
     return items
       .filter((photo) => photo?.status === 'approved' && photo?.url)
       .map((photo) => photo.url as string);
@@ -57,6 +64,11 @@ export default function CompareScreen({ route }: Props) {
   const right = params.rightPhoto ?? allPhotos[1] ?? allPhotos[0] ?? null;
   const profileName = params.profile?.name ?? 'This profile';
   const profileBio = params.profile?.bio ?? null;
+  const verificationStatus =
+    typeof params.profile?.verification?.status === 'string'
+      ? params.profile.verification.status
+      : null;
+  const verificationLabel = verificationStatus ? `Verification: ${verificationStatus}` : 'Verification pending';
 
   const isVertical = layout === 'vertical';
   const containerStyle = isVertical ? styles.verticalLayout : styles.horizontalLayout;
@@ -67,11 +79,7 @@ export default function CompareScreen({ route }: Props) {
         <View style={styles.header}>
           <Text style={styles.title}>Compare photos</Text>
           <Text style={styles.subtitle}>{profileName}</Text>
-          <Text style={styles.verificationLabel}>
-            {params.profile?.verification?.status
-              ? `Verification: ${params.profile.verification.status}`
-              : 'Verification pending'}
-          </Text>
+          <Text style={styles.verificationLabel}>{verificationLabel}</Text>
           {profileBio ? <Text style={styles.bio}>{profileBio}</Text> : null}
         </View>
 

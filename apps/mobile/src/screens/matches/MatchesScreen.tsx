@@ -8,7 +8,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useMatchesStore } from '../../state/matchesStore';
-import { useAuthStore, selectSession } from '../../state/authStore';
+import { useAuthStore, selectSession, selectIsAuthenticated } from '../../state/authStore';
 import { useToast } from '../../providers/ToastProvider';
 
 export default function MatchesScreen() {
@@ -17,9 +17,11 @@ export default function MatchesScreen() {
   const fetchMatches = useMatchesStore((state) => state.fetchMatches);
   const isLoading = useMatchesStore((state) => state.isLoading);
   const error = useMatchesStore((state) => state.error);
+  const clearMatches = useMatchesStore((state) => state.clear);
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const { show } = useToast();
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const navigation = useNavigation<
     CompositeNavigationProp<
       BottomTabNavigationProp<MainTabParamList, 'Matches'>,
@@ -28,15 +30,17 @@ export default function MatchesScreen() {
   >();
 
   useEffect(() => {
-    if (session) {
-      console.log('🎯 Loading matches for user', session.user.id);
-      fetchMatches(session.user.id).catch((err) => {
-        console.error('Matches fetch failed', err);
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        show(`Unable to load matches: ${message}`);
-      });
+    if (!session || !isAuthenticated) {
+      clearMatches();
+      return;
     }
-  }, [session, fetchMatches, show]);
+    console.log('🎯 Loading matches for user', session.user.id);
+    fetchMatches(session.user.id).catch((err) => {
+      console.error('Matches fetch failed', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      show(`Unable to load matches: ${message}`);
+    });
+  }, [session, isAuthenticated, fetchMatches, show, clearMatches]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

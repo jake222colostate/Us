@@ -12,6 +12,8 @@ import { likeUser } from '../../api/likes';
 import {
   useAuthStore,
   selectSession,
+  selectIsAuthenticated,
+  selectIsInitialized,
 } from '../../state/authStore';
 import { useMatchesStore } from '../../state/matchesStore';
 import { getSupabaseClient } from '../../api/supabase';
@@ -104,9 +106,14 @@ export default function FeedScreen() {
   const [error, setError] = useState<string | null>(null);
   const { show } = useToast();
 
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
+  const isInitialized = useAuthStore(selectIsInitialized);
+
   const load = useCallback(async () => {
-    if (!session) {
+    if (!session || !isAuthenticated || !isInitialized) {
       setProfiles([]);
+      setError(null);
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -163,11 +170,17 @@ export default function FeedScreen() {
     } finally {
       setLoading(false);
     }
-  }, [session, show]);
+  }, [session, show, isAuthenticated, isInitialized]);
 
   useEffect(() => {
+    if (!isAuthenticated || !session || !isInitialized) {
+      setProfiles([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     load();
-  }, [load]);
+  }, [load, isAuthenticated, session, isInitialized]);
 
   const handleLike = useCallback(
     async (targetId: string) => {

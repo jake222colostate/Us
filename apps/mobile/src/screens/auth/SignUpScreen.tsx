@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,13 +11,28 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useAuthStore } from '../../state/authStore';
 import type { AuthStackParamList } from '../../navigation/RootNavigator';
+import { getSupabaseClient } from '../../api/supabase';
+
+type RootNavigation = import('@react-navigation/native-stack').NativeStackNavigationProp<
+  import('../../navigation/RootNavigator').RootStackParamList
+>;
+
+function computeBirthdayFromAge(ageInput?: string): string | null {
+  if (!ageInput) return null;
+  const numericAge = Number(ageInput);
+  if (!Number.isFinite(numericAge) || numericAge <= 0) {
+    return null;
+  }
+  const now = new Date();
+  const birthYear = now.getUTCFullYear() - Math.floor(numericAge);
+  const birthDate = new Date(Date.UTC(birthYear, now.getUTCMonth(), now.getUTCDate()));
+  return birthDate.toISOString().slice(0, 10);
+}
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
 export default function SignUpScreen({ navigation }: Props) {
-  const signUp = useAuthStore((state) => state.signUp);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +41,7 @@ export default function SignUpScreen({ navigation }: Props) {
   const [bio, setBio] = useState('');
   const [interests, setInterests] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -34,20 +51,57 @@ export default function SignUpScreen({ navigation }: Props) {
     }
 
     setError(null);
+    setInfoMessage(null);
     setSubmitting(true);
     try {
-      await signUp({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
+      const client = getSupabaseClient();
+      const normalizedEmail = email.trim().toLowerCase();
+      const displayName = name.trim() || normalizedEmail.split('@')[0] || 'New member';
+      const parsedInterests =
+        interests
+          .split(',')
+          .map((entry) => entry.trim())
+          .filter(Boolean) ?? [];
+      const birthday = computeBirthdayFromAge(age);
+
+      console.log('🆕 Signing up with Supabase', { email: normalizedEmail });
+      const { data, error: signUpError } = await client.auth.signUp({
+        email: normalizedEmail,
         password,
-        age,
-        location,
-        bio,
-        interests,
+        options: {
+          data: {
+            display_name: displayName,
+          },
+        },
       });
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      const userId = data.user?.id ?? data.session?.user.id;
+      if (userId) {
+        await client
+          .from('profiles')
+          .upsert({
+            id: userId,
+            display_name: displayName,
+            bio: bio.trim() || null,
+            interests: parsedInterests,
+            location: location.trim() || null,
+            birthday,
+          }, { onConflict: 'id' });
+      }
+
+      const parentNav = navigation.getParent<RootNavigation>();
+      if (data.session) {
+        parentNav?.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+      } else {
+        setInfoMessage('Account created! Check your email to confirm before signing in.');
+      }
     } catch (err) {
       console.error(err);
-      setError('Unable to create your account right now.');
+      const message = (err as Error)?.message ?? 'Unable to create your account right now.';
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -151,6 +205,7 @@ export default function SignUpScreen({ navigation }: Props) {
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {infoMessage ? <Text style={styles.infoText}>{infoMessage}</Text> : null}
 
           <Pressable
             accessibilityRole="button"
@@ -161,8 +216,9 @@ export default function SignUpScreen({ navigation }: Props) {
             ]}
             disabled={submitting}
           >
-            <Text style={styles.primaryButtonLabel}>{submitting ? 'Creating…' : 'Create account'}</Text>
+            <Text style={styles.primaryButtonLabel}>Create account</Text>
           </Pressable>
+          {submitting ? <ActivityIndicator style={styles.loadingIndicator} color="#a855f7" /> : null}
         </View>
 
         <Pressable
@@ -257,6 +313,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  infoText: {
+    marginTop: 8,
+    color: '#38bdf8',
+    fontWeight: '600',
+  },
   linkButton: {
     marginTop: 24,
     alignItems: 'center',
@@ -264,5 +325,8 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#a855f7',
     fontWeight: '600',
+  },
+  loadingIndicator: {
+    marginTop: 12,
   },
 });

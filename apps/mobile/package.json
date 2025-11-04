@@ -5,6 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "EXPO_USE_STATIC=0 expo start",
+    "start:tunnel": "node ./scripts/check-env.mjs tunnel && EXPO_USE_STATIC=0 EXPO_DEV_SERVER_PORT=8082 expo start --tunnel --port 8082",
+    "start:lan": "node ./scripts/check-env.mjs lan && EXPO_USE_STATIC=0 EXPO_DEV_SERVER_PORT=8082 expo start --lan --port 8082",
+    "kill:expo": "pkill -f \"expo start\" || true",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",

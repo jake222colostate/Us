@@ -350,3 +350,42 @@ The trigger will promote the user’s `verification_status` to `verified` immedi
 ---
 
 Happy shipping! If you discover gaps or missing documentation, update this README so future contributors stay on the same page.
+
+## Getting Started (Supabase + Expo)
+
+### Prerequisites
+- Node.js 18+
+- pnpm 9+
+- Expo Go installed on your iOS or Android device
+
+### Supabase project setup
+1. Create a new Supabase project and copy the **Project URL** plus the **anon public key** from the dashboard.
+2. For local/dev testing, open **Auth → Providers → Email** and disable the “Confirm email” requirement so sign-ups can proceed instantly.
+3. In the Supabase SQL editor paste the contents of [`supabase/seed.sql`](supabase/seed.sql) and run it. The script creates the `profiles`, `photos`, `likes`, and `matches` tables, enables RLS, and applies policies so signed-in users can manage their own data while the public feed only sees approved photos.
+
+### Environment variables
+Create `apps/mobile/.env` with the following values:
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+EXPO_PUBLIC_VERIFICATION_MODE=mock
+```
+Restart Expo after editing this file so the new variables load.
+
+### Install & run the Expo app (with tunnel support)
+```bash
+pnpm -C apps/mobile install
+pnpm -C apps/mobile run start:tunnel
+```
+The `start:tunnel` script prints a warning if Supabase credentials are missing and forces Expo to run on port `8082` with a dev-tunnel URL that works on mobile devices. Use `pnpm -C apps/mobile run start:lan` for LAN-only testing or `pnpm -C apps/mobile run kill:expo` to stop any background CLI processes.
+
+### Common workflow
+1. Sign up or sign in from the mobile app. With email confirmations disabled you will land directly in the main tabs; otherwise the screen shows “Check your email.”
+2. Visit the Profile tab to confirm your account info. The screen will surface a “Verified” badge automatically when `EXPO_PUBLIC_VERIFICATION_MODE=mock`.
+3. Upload a photo, mark it as `approved` in Supabase, and it will appear in the Feed tab. Likes against another profile create rows in `likes` and eventually `matches` when reciprocated.
+4. Kill Expo (`kill:expo`), rerun `start:tunnel`, and observe the session persisting thanks to AsyncStorage-backed Supabase auth.
+
+### Troubleshooting tips
+- **Profile tab says “You’re not signed in”** → ensure `AuthProvider` is wrapping the app (see `apps/mobile/src/RealApp.tsx`) and only one Supabase client instance is used (`apps/mobile/src/api/supabase.ts`).
+- **Red toast says “Unable to load …”** → confirm you are signed in, the `.env` file is populated, and the SQL policies from `supabase/seed.sql` ran successfully.
+- **Env edits not taking effect** → stop Expo (`pnpm -C apps/mobile run kill:expo`), restart `start:tunnel`, and reload the QR code in Expo Go.

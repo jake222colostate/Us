@@ -13,6 +13,7 @@ const fallbackEnv: Record<string, string | undefined> =
 
 let cachedClient: SupabaseClient | null = null;
 let warned = false;
+let loggedInit = false;
 
 function resolveSupabaseEnv() {
   const supabaseUrl = extra.supabaseUrl ?? fallbackEnv.EXPO_PUBLIC_SUPABASE_URL ?? '';
@@ -47,6 +48,22 @@ function createSupabaseClient(): SupabaseClient {
       detectSessionInUrl: false,
     },
   });
+
+  if (!loggedInit) {
+    const host = (() => {
+      try {
+        return new URL(supabaseUrl).host;
+      } catch {
+        return supabaseUrl;
+      }
+    })();
+    const maskedKey =
+      supabaseAnonKey.length > 8
+        ? `${supabaseAnonKey.slice(0, 4)}…${supabaseAnonKey.slice(-4)}`
+        : '***masked***';
+    console.log(`🔌 Supabase client initialised for ${host} (anon key ${maskedKey})`);
+    loggedInit = true;
+  }
 
   return cachedClient;
 }

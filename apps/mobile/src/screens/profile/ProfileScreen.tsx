@@ -24,11 +24,13 @@ import {
   selectCurrentUser,
   selectVerificationStatus,
   selectIsPremium,
+  selectIsAuthenticated,
   useAuthStore,
 } from '../../state/authStore';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { usePostQuotaStore } from '../../state/postQuotaStore';
+import { getSupabaseClient } from '../../api/supabase';
 
 const toInterestList = (value: string) =>
   value
@@ -51,8 +53,8 @@ export default function ProfileScreen() {
     >
   >();
   const user = useAuthStore(selectCurrentUser);
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const verificationStatus = useAuthStore(selectVerificationStatus);
-  const signOut = useAuthStore((state) => state.signOut);
   const updateUser = useAuthStore((state) => state.updateUser);
   const isPremium = useAuthStore(selectIsPremium);
   const setPremium = useAuthStore((state) => state.setPremium);
@@ -67,6 +69,7 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState('');
   const [interestInput, setInterestInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const {
     status,
@@ -176,7 +179,11 @@ export default function ProfileScreen() {
 
   const photoList = photoUser?.photos ?? [];
 
-  if (!user) {
+  const rootNavigation = navigation.getParent<
+    NativeStackNavigationProp<RootStackParamList>
+  >();
+
+  if (!isAuthenticated) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView contentContainerStyle={styles.emptyContainer} style={styles.screen}>
@@ -185,10 +192,28 @@ export default function ProfileScreen() {
           <Pressable
             accessibilityRole="button"
             style={styles.primaryButton}
-            onPress={() => navigation.navigate('Feed')}
+            onPress={() => {
+              const authNavigation = navigation.getParent()?.getParent?.() ?? rootNavigation;
+              try {
+                (authNavigation as { navigate?: (route: string) => void } | null | undefined)?.navigate?.('SignIn');
+              } catch (err) {
+                console.warn('Unable to navigate to SignIn', err);
+              }
+            }}
           >
             <Text style={styles.primaryButtonLabel}>Go to sign in</Text>
           </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView contentContainerStyle={styles.emptyContainer} style={styles.screen}>
+          <ActivityIndicator color={palette.textPrimary} />
+          <Text style={styles.emptyCopy}>Loading your profile…</Text>
         </ScrollView>
       </SafeAreaView>
     );
@@ -392,8 +417,8 @@ export default function ProfileScreen() {
       </View>
 
       <View style={[styles.actionsRow, styles.sectionSpacing]}>
-        <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={signOut}>
-          <Text style={styles.primaryButtonLabel}>Log out</Text>
+        <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={handleSignOut} disabled={signingOut}>
+          <Text style={styles.primaryButtonLabel}>{signingOut ? 'Signing out…' : 'Log out'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" style={styles.dangerButton} onPress={handleDeleteAccount}>
           <Text style={styles.dangerLabel}>Delete account (stub)</Text>
@@ -750,3 +775,17 @@ const createStyles = (palette: AppPalette) =>
       lineHeight: 20,
     },
   });
+  const handleSignOut = useCallback(async () => {
+    setSigningOut(true);
+    try {
+      const client = getSupabaseClient();
+      await client.auth.signOut();
+      rootNavigation?.navigate('SignIn');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Unable to sign out', 'Please try again.');
+    } finally {
+      setSigningOut(false);
+    }
+  }, [rootNavigation]);
+

@@ -1,7 +1,26 @@
 import { create } from 'zustand';
-import type { VerificationStatus } from '@us/api-client';
-import type { ModeratedPhoto, SampleUser } from '../data/sampleProfiles';
-import { demoUser } from '../data/sampleProfiles';
+import type { Session } from '@supabase/supabase-js';
+import { getSupabaseClient } from '../api/supabase';
+import { mapPhotoRows, type PhotoResource, type PhotoRow } from '../lib/photos';
+
+export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
+export type ModerationStatus = PhotoResource['status'];
+
+export type UserPhoto = PhotoResource;
+
+export type AuthenticatedUser = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  birthday?: string | null;
+  age?: number | null;
+  location?: string | null;
+  avatar?: string | null;
+  bio?: string | null;
+  interests: string[];
+  verificationStatus: VerificationStatus;
+  photos: UserPhoto[];
+};
 
 type SignInPayload = {
   email: string;
@@ -19,89 +38,289 @@ type SignUpPayload = {
 };
 
 type AuthState = {
-  user: SampleUser | null;
+  session: Session | null;
+  user: AuthenticatedUser | null;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   verificationStatus: VerificationStatus;
   isPremium: boolean;
+  initialize: () => Promise<void>;
   signIn: (payload: SignInPayload) => Promise<void>;
   signUp: (payload: SignUpPayload) => Promise<void>;
-  signOut: () => void;
-  updateUser: (updates: Partial<SampleUser>) => void;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  updateUser: (updates: { bio?: string; interests?: string[]; name?: string; location?: string | null }) => Promise<void>;
   setVerificationStatus: (status: VerificationStatus) => void;
-  setUserPhotos: (photos: ModeratedPhoto[]) => void;
-  upsertUserPhoto: (photo: ModeratedPhoto) => void;
+  setUserPhotos: (photos: UserPhoto[]) => void;
+  upsertUserPhoto: (photo: UserPhoto) => void;
   removeUserPhoto: (photoId: string) => void;
   setPremium: (value: boolean) => void;
 };
 
-const parseInterests = (value?: string) =>
-  value
-    ?.split(',')
-    .map((item) => item.trim())
-    .filter(Boolean) ?? [];
+let authSubscription: { unsubscribe: () => void } | null = null;
 
-export const useAuthStore = create<AuthState>((set) => ({
+function calculateAge(birthday: string | null | undefined): number | null {
+  if (!birthday) return null;
+  const birthDate = new Date(birthday);
+  if (Number.isNaN(birthDate.getTime())) return null;
+  const now = new Date();
+  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+  const monthDiff = now.getUTCMonth() - birthDate.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getUTCDate() < birthDate.getUTCDate())) {
+    age -= 1;
+  }
+  return age;
+}
+
+async function ensureProfile(userId: string, displayName: string, options?: {
+  bio?: string;
+  birthday?: string | null;
+  interests?: string[];
+  location?: string | null;
+}) {
+  const client = getSupabaseClient();
+  const payload: Record<string, unknown> = {
+    id: userId,
+    display_name: displayName,
+  };
+  if (options?.bio !== undefined) payload.bio = options.bio;
+  if (options?.birthday !== undefined) payload.birthday = options.birthday;
+  if (options?.interests !== undefined) payload.interests = options.interests;
+  if (options?.location !== undefined) payload.location = options.location;
+
+  await client.from('profiles').upsert(payload, { onConflict: 'id' });
+}
+
+async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
+  const client = getSupabaseClient();
+  const { data: profileRow, error: profileError } = await client
+    .from('profiles')
+    .select('*')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  if (!profileRow) {
+    const fallbackName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'New member';
+    await ensureProfile(session.user.id, fallbackName);
+    return fetchProfile(session);
+  }
+
+  const { data: photoRows, error: photosError } = await client
+    .from('photos')
+    .select('*')
+    .eq('user_id', session.user.id)
+    .order('created_at', { ascending: false });
+
+  if (photosError) {
+    throw photosError;
+  }
+
+  const photos = await mapPhotoRows(((photoRows ?? []) as PhotoRow[]));
+  const firstApproved = photos.find((photo) => photo.status === 'approved');
+
+  return {
+    id: profileRow.id,
+    email: session.user.email ?? null,
+    name: profileRow.display_name ?? null,
+    birthday: profileRow.birthday ?? null,
+    age: calculateAge(profileRow.birthday ?? null),
+    location: profileRow.location ?? null,
+    avatar: profileRow.avatar_url ?? firstApproved?.url ?? null,
+    bio: profileRow.bio ?? null,
+    interests: Array.isArray(profileRow.interests) ? (profileRow.interests as string[]) : [],
+    verificationStatus: profileRow.verification_status ?? 'unverified',
+    photos,
+  };
+}
+
+async function hydrateSession(
+  session: Session | null,
+  set: (updater: (prev: AuthState) => AuthState | Partial<AuthState> | AuthState) => void,
+  get: () => AuthState,
+) {
+  if (!session) {
+    set((state) => ({
+      ...state,
+      session: null,
+      user: null,
+      isAuthenticated: false,
+      verificationStatus: 'unverified',
+    }));
+    return;
+  }
+
+  set((state) => ({
+    ...state,
+    session,
+    isAuthenticated: true,
+  }));
+
+  try {
+    const profile = await fetchProfile(session);
+    set((state) => ({
+      ...state,
+      user: profile,
+      verificationStatus: profile.verificationStatus,
+    }));
+  } catch (error) {
+    console.error('Failed to load profile', error);
+    set((state) => ({
+      ...state,
+      user: null,
+      verificationStatus: 'unverified',
+    }));
+  }
+}
+
+function computeBirthdayFromAge(ageInput?: string): string | null {
+  if (!ageInput) return null;
+  const numericAge = Number(ageInput);
+  if (!Number.isFinite(numericAge) || numericAge <= 0) {
+    return null;
+  }
+  const now = new Date();
+  const birthYear = now.getUTCFullYear() - Math.floor(numericAge);
+  const birthDate = new Date(Date.UTC(birthYear, now.getUTCMonth(), now.getUTCDate()));
+  return birthDate.toISOString().slice(0, 10);
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  session: null,
   user: null,
   isAuthenticated: false,
+  isInitialized: false,
   verificationStatus: 'unverified',
   isPremium: false,
-  async signIn({ email }) {
-    set({
-      user: { ...demoUser, email },
-      isAuthenticated: true,
-      verificationStatus: demoUser.verificationStatus,
-      isPremium: false,
+  async initialize() {
+    if (get().isInitialized) {
+      return;
+    }
+    const client = getSupabaseClient();
+    const { data } = await client.auth.getSession();
+    await hydrateSession(data.session, set, get);
+    authSubscription?.unsubscribe?.();
+    const { data: listener } = client.auth.onAuthStateChange(async (_event, newSession) => {
+      await hydrateSession(newSession, set, get);
     });
+    authSubscription = listener?.subscription ?? null;
+    set((state) => ({ ...state, isInitialized: true }));
   },
-  async signUp({ name, email, age, location, bio, interests }) {
-    const parsedAge = Number(age);
-    const interestList = parseInterests(interests);
-
-    set({
-      user: {
-        id: `user-${Date.now()}`,
-        name: name || demoUser.name,
-        email,
-        age: Number.isFinite(parsedAge) && parsedAge > 0 ? parsedAge : demoUser.age,
-        location: location || demoUser.location,
-        avatar: demoUser.avatar,
-        bio: bio || demoUser.bio,
-        interests: interestList.length > 0 ? interestList : demoUser.interests,
-        verificationStatus: 'unverified',
-        photos: demoUser.photos,
-      },
-      isAuthenticated: true,
-      verificationStatus: 'unverified',
-      isPremium: false,
-    });
+  async signIn({ email, password }) {
+    const client = getSupabaseClient();
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    await hydrateSession(data.session ?? null, set, get);
+    if (!data.session) {
+      const { data: refreshed } = await client.auth.getSession();
+      await hydrateSession(refreshed.session, set, get);
+    }
   },
-  signOut() {
-    set({ user: null, isAuthenticated: false, verificationStatus: 'unverified', isPremium: false });
-  },
-  updateUser(updates) {
-    set((state) => {
-      if (!state.user) {
-        return state;
-      }
-
-      return {
-        ...state,
-        user: {
-          ...state.user,
-          ...updates,
-          interests: updates.interests ?? state.user.interests,
+  async signUp({ name, email, password, age, location, bio, interests }) {
+    const client = getSupabaseClient();
+    const parsedInterests =
+      interests
+        ?.split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean) ?? [];
+    const birthday = computeBirthdayFromAge(age);
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: name,
         },
-      };
+      },
     });
+    if (error) throw error;
+    const userId = data.user?.id ?? data.session?.user.id;
+    if (userId) {
+      const displayName = name || email.split('@')[0] || 'New member';
+      await ensureProfile(userId, displayName, {
+        bio: bio?.trim() ?? undefined,
+        birthday,
+        interests: parsedInterests,
+        location: location?.trim() || null,
+      });
+    }
+    await hydrateSession(data.session ?? null, set, get);
+    if (!data.session) {
+      const { data: refreshed } = await client.auth.getSession();
+      await hydrateSession(refreshed.session, set, get);
+    }
+  },
+  async signOut() {
+    const client = getSupabaseClient();
+    await client.auth.signOut();
+    set((state) => ({
+      ...state,
+      session: null,
+      user: null,
+      isAuthenticated: false,
+      verificationStatus: 'unverified',
+    }));
+  },
+  async refreshProfile() {
+    const session = get().session;
+    if (!session) return;
+    await hydrateSession(session, set, get);
+  },
+  async updateUser({ bio, interests, name, location }) {
+    const session = get().session;
+    if (!session) return;
+    const client = getSupabaseClient();
+    const payload: Record<string, unknown> = {};
+    if (bio !== undefined) payload.bio = bio;
+    if (interests !== undefined) payload.interests = interests;
+    if (name !== undefined) payload.display_name = name;
+    if (location !== undefined) payload.location = location;
+    if (Object.keys(payload).length === 0) {
+      return;
+    }
+    const { data, error } = await client
+      .from('profiles')
+      .update(payload)
+      .eq('id', session.user.id)
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return;
+    set((state) => ({
+      ...state,
+      user: state.user
+        ? {
+            ...state.user,
+            name: data.display_name ?? state.user.name,
+            bio: data.bio ?? state.user.bio,
+            interests: Array.isArray(data.interests) ? (data.interests as string[]) : state.user.interests,
+            location: data.location ?? state.user.location,
+          }
+        : state.user,
+    }));
   },
   setVerificationStatus(status) {
+    const session = get().session;
     set((state) => ({
+      ...state,
       verificationStatus: status,
       user: state.user ? { ...state.user, verificationStatus: status } : state.user,
     }));
+    if (session) {
+      const client = getSupabaseClient();
+      client
+        .from('profiles')
+        .update({ verification_status: status })
+        .eq('id', session.user.id)
+        .catch((error) => console.error('Failed to update verification status', error));
+    }
   },
   setUserPhotos(photos) {
     set((state) => ({
+      ...state,
       user: state.user ? { ...state.user, photos } : state.user,
     }));
   },
@@ -110,15 +329,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (!state.user) {
         return state;
       }
-
-      const existingIndex = state.user.photos.findIndex((item) => item.id === photo.id);
+      const index = state.user.photos.findIndex((item) => item.id === photo.id);
       const nextPhotos = [...state.user.photos];
-      if (existingIndex >= 0) {
-        nextPhotos[existingIndex] = photo;
+      if (index >= 0) {
+        nextPhotos[index] = photo;
       } else {
         nextPhotos.unshift(photo);
       }
-
       return {
         ...state,
         user: { ...state.user, photos: nextPhotos },
@@ -130,18 +347,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (!state.user) {
         return state;
       }
-
       return {
         ...state,
-        user: { ...state.user, photos: state.user.photos.filter((item) => item.id !== photoId) },
+        user: {
+          ...state.user,
+          photos: state.user.photos.filter((item) => item.id !== photoId),
+        },
       };
     });
   },
   setPremium(value) {
-    set((state) => ({
-      isPremium: value,
-      user: state.user ? { ...state.user, verificationStatus: state.verificationStatus } : state.user,
-    }));
+    set((state) => ({ ...state, isPremium: value }));
   },
 }));
 
@@ -149,3 +365,5 @@ export const selectCurrentUser = (state: AuthState) => state.user;
 export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
 export const selectVerificationStatus = (state: AuthState) => state.verificationStatus;
 export const selectIsPremium = (state: AuthState) => state.isPremium;
+export const selectSession = (state: AuthState) => state.session;
+export const selectIsInitialized = (state: AuthState) => state.isInitialized;

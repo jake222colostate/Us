@@ -1,15 +1,24 @@
-import React, { useMemo, useCallback } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, View, Pressable, Text } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Image, ScrollView, StyleSheet, View, Pressable, Text, ActivityIndicator } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
-import { useSampleProfiles } from '../../hooks/useSampleData';
-import { useConnectionsStore } from '../../state/connectionsStore';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
+import { mapPhotoRows, type PhotoRow } from '../../lib/photos';
+import { getSupabaseClient } from '../../api/supabase';
+import { useMatchesStore } from '../../state/matchesStore';
 
 export type PublicProfileRoute = RouteProp<RootStackParamList, 'ProfileDetail'>;
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+type PublicProfile = {
+  id: string;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  verification_status: string;
+};
 
 const createStyles = (palette: AppPalette) =>
   StyleSheet.create({
@@ -38,6 +47,7 @@ const createStyles = (palette: AppPalette) =>
       height: 84,
       borderRadius: 42,
       marginRight: 16,
+      backgroundColor: palette.surface,
     },
     headerMeta: {
       flex: 1,
@@ -47,23 +57,9 @@ const createStyles = (palette: AppPalette) =>
       fontSize: 26,
       fontWeight: '700',
     },
-    statsRow: {
-      flexDirection: 'row',
-      marginTop: 16,
-      justifyContent: 'space-around',
-    },
-    statBlock: {
-      alignItems: 'center',
-    },
-    statValue: {
-      color: palette.textPrimary,
-      fontWeight: '700',
-      fontSize: 18,
-    },
-    statLabel: {
+    badge: {
+      marginTop: 6,
       color: palette.muted,
-      marginTop: 4,
-      fontSize: 12,
     },
     bio: {
       marginTop: 16,
@@ -88,18 +84,6 @@ const createStyles = (palette: AppPalette) =>
     gridImage: {
       width: '100%',
       height: '100%',
-    },
-    lockOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: palette.overlay,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 12,
-    },
-    lockLabel: {
-      color: palette.textPrimary,
-      fontWeight: '700',
-      textAlign: 'center',
     },
     section: {
       paddingHorizontal: 20,
@@ -160,78 +144,75 @@ const createStyles = (palette: AppPalette) =>
       textAlign: 'center',
       lineHeight: 20,
     },
+    loader: {
+      marginTop: 60,
+    },
   });
-
-const UNLOCK_PRICE = '$4.99';
 
 const PublicProfileScreen: React.FC = () => {
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const route = useRoute<PublicProfileRoute>();
   const navigation = useNavigation<NavigationProp>();
-  const profiles = useSampleProfiles();
+  const matches = useMatchesStore((state) => state.matches);
+  const [profile, setProfile] = useState<PublicProfile | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { userId } = route.params;
 
-  const profile = useMemo(() => profiles.find((item) => item.id === userId), [profiles, userId]);
-  const isAccessible = useConnectionsStore((state) => state.isProfileAccessible(userId));
-  const isMatched = useConnectionsStore((state) => state.isMatched(userId));
-  const unlockProfile = useConnectionsStore((state) => state.unlockProfile);
-  const addMatch = useConnectionsStore((state) => state.addMatch);
-  const unmatch = useConnectionsStore((state) => state.unmatch);
+  useEffect(() => {
+    const loadProfile = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const client = getSupabaseClient();
+        const { data: profileRow, error: profileError } = await client
+          .from('profiles')
+          .select('id, display_name, bio, avatar_url, verification_status')
+          .eq('id', userId)
+          .single();
+        if (profileError) throw profileError;
+        setProfile(profileRow as PublicProfile);
+        const { data: photosData, error: photosError } = await client
+          .from('photos')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false });
+        if (photosError) throw photosError;
+        const rows = (photosData ?? []) as PhotoRow[];
+        const signed = await mapPhotoRows(rows);
+        setPhotos(signed.map((photo) => photo.url).filter((url): url is string => Boolean(url)));
+      } catch (err) {
+        console.error(err);
+        setError('Unable to load this profile.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadProfile();
+  }, [userId]);
 
-  const approvedPhotos = useMemo(
-    () =>
-      (profile?.photos ?? []).filter((photo) => photo.status === 'approved' && photo.url).map((photo) => photo.url),
-    [profile?.photos],
-  );
+  const isMatched = matches.some((match) => match.userId === userId);
 
-  const handleUnlock = useCallback(() => {
-    if (!profile) return;
-    Alert.alert(
-      'Unlock profile',
-      `Unlock ${profile.name}'s full profile for ${UNLOCK_PRICE}?`,
-      [
-        { text: 'Not now', style: 'cancel' },
-        {
-          text: 'Unlock',
-          style: 'default',
-          onPress: () => unlockProfile(profile.id),
-        },
-      ],
+  if (isLoading) {
+    return (
+      <View style={[styles.screen, styles.emptyState]}>
+        <ActivityIndicator color={palette.accent} style={styles.loader} />
+      </View>
     );
-  }, [profile, unlockProfile]);
-
-  const handleMatch = useCallback(() => {
-    if (!profile) return;
-    if (isMatched) {
-      Alert.alert('Already matched', `You and ${profile.name} are already connected.`);
-      return;
-    }
-    addMatch(profile);
-    Alert.alert('Match confirmed', `You and ${profile.name} now have full access to each other.`);
-  }, [addMatch, isMatched, profile]);
-
-  const handleUnmatch = useCallback(() => {
-    if (!profile) return;
-    Alert.alert('Unmatch', `Remove ${profile.name} from your matches?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Unmatch',
-        style: 'destructive',
-        onPress: () => {
-          unmatch(profile.id);
-          navigation.goBack();
-        },
-      },
-    ]);
-  }, [navigation, profile, unmatch]);
+  }
 
   if (!profile) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.emptyState}>
-        <Text style={styles.emptyTitle}>Profile not found</Text>
-        <Text style={styles.emptyCopy}>This person may have left the feed.</Text>
-      </ScrollView>
+      <View style={[styles.screen, styles.emptyState]}>
+        <Text style={styles.emptyTitle}>{error ?? 'Profile unavailable'}</Text>
+        <Text style={styles.emptyCopy}>This profile may have been removed or set to private.</Text>
+        <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.primaryLabel}>Go back</Text>
+        </Pressable>
+      </View>
     );
   }
 
@@ -239,93 +220,44 @@ const PublicProfileScreen: React.FC = () => {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <View style={styles.topRow}>
-          <Image source={{ uri: profile.avatar }} style={styles.avatar} />
+          {profile.avatar_url ? (
+            <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.gridItem]}>
+              <Text style={{ color: palette.muted, textAlign: 'center' }}>No photo</Text>
+            </View>
+          )}
           <View style={styles.headerMeta}>
-            <Text style={styles.name}>
-              {profile.name}, {profile.age}
-            </Text>
-            <Text style={styles.bio}>{profile.bio}</Text>
+            <Text style={styles.name}>{profile.display_name ?? 'Member'}</Text>
+            <Text style={styles.badge}>Verification: {profile.verification_status}</Text>
           </View>
         </View>
-        <View style={styles.statsRow}>
-          <View style={styles.statBlock}>
-            <Text style={styles.statValue}>{approvedPhotos.length}</Text>
-            <Text style={styles.statLabel}>Posts</Text>
-          </View>
-          <View style={styles.statBlock}>
-            <Text style={styles.statValue}>{isMatched ? '✔︎' : '—'}</Text>
-            <Text style={styles.statLabel}>Match</Text>
-          </View>
-          <View style={styles.statBlock}>
-            <Text style={styles.statValue}>{profile.distanceMi} mi</Text>
-            <Text style={styles.statLabel}>Away</Text>
-          </View>
-        </View>
+        {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Gallery</Text>
-        <View style={styles.grid}>
-          {approvedPhotos.map((url) => (
-            <View key={url} style={styles.gridItem}>
-              <Image source={{ uri: url }} style={styles.gridImage} />
-              {!isAccessible ? (
-                <View style={styles.lockOverlay}>
-                  <Text style={styles.lockLabel}>Unlock to view this post</Text>
-                </View>
-              ) : null}
-            </View>
-          ))}
-          {approvedPhotos.length === 0 ? (
-            <View style={[styles.gridItem, { alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={styles.lockLabel}>No approved photos yet</Text>
-            </View>
-          ) : null}
-        </View>
+        {photos.length ? (
+          <View style={styles.grid}>
+            {photos.map((uri) => (
+              <View key={uri} style={styles.gridItem}>
+                <Image source={{ uri }} style={styles.gridImage} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.sectionCopy}>No approved photos yet.</Text>
+        )}
       </View>
 
-      {!isAccessible ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionCopy}>
-            Send a match request or unlock their profile to see the full gallery and story highlights.
-          </Text>
-          <View style={styles.actionRow}>
-            <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={handleUnlock}>
-              <Text style={styles.primaryLabel}>Unlock profile • {UNLOCK_PRICE}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={handleMatch}>
-              <Text style={styles.secondaryLabel}>Send match request</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.section}>
-          <Text style={styles.sectionCopy}>
-            You have full access to this profile. Say hi and keep the vibe going!
-          </Text>
-          {!isMatched ? (
-            <View style={styles.actionRow}>
-              <Pressable
-                accessibilityRole="button"
-                style={styles.secondaryButton}
-                onPress={handleMatch}
-              >
-                <Text style={styles.secondaryLabel}>Send match request</Text>
-              </Pressable>
-            </View>
-          ) : null}
-        </View>
-      )}
-
-      {isMatched ? (
-        <View style={styles.section}>
-          <View style={styles.actionRow}>
-            <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={handleUnmatch}>
-              <Text style={styles.secondaryLabel}>Unmatch</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
+      <View style={[styles.section, styles.actionRow]}>
+        <Pressable accessibilityRole="button" style={styles.primaryButton}>
+          <Text style={styles.primaryLabel}>{isMatched ? 'Send a message' : 'Send like'}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.secondaryLabel}>Close</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 };

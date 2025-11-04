@@ -22,6 +22,7 @@ type AuthState = {
   user: SampleUser | null;
   isAuthenticated: boolean;
   verificationStatus: VerificationStatus;
+  isPremium: boolean;
   signIn: (payload: SignInPayload) => Promise<void>;
   signUp: (payload: SignUpPayload) => Promise<void>;
   signOut: () => void;
@@ -30,6 +31,7 @@ type AuthState = {
   setUserPhotos: (photos: ModeratedPhoto[]) => void;
   upsertUserPhoto: (photo: ModeratedPhoto) => void;
   removeUserPhoto: (photoId: string) => void;
+  setPremium: (value: boolean) => void;
 };
 
 const parseInterests = (value?: string) =>
@@ -42,11 +44,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   verificationStatus: 'unverified',
+  isPremium: false,
   async signIn({ email }) {
     set({
       user: { ...demoUser, email },
       isAuthenticated: true,
       verificationStatus: demoUser.verificationStatus,
+      isPremium: false,
     });
   },
   async signUp({ name, email, age, location, bio, interests }) {
@@ -68,10 +72,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       },
       isAuthenticated: true,
       verificationStatus: 'unverified',
+      isPremium: false,
     });
   },
   signOut() {
-    set({ user: null, isAuthenticated: false, verificationStatus: 'unverified' });
+    set({ user: null, isAuthenticated: false, verificationStatus: 'unverified', isPremium: false });
   },
   updateUser(updates) {
     set((state) => {
@@ -132,8 +137,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       };
     });
   },
+  setPremium(value) {
+    set((state) => ({
+      isPremium: value,
+      user: state.user ? { ...state.user, verificationStatus: state.verificationStatus } : state.user,
+    }));
+  },
 }));
 
 export const selectCurrentUser = (state: AuthState) => state.user;
 export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
 export const selectVerificationStatus = (state: AuthState) => state.verificationStatus;
+export const selectIsPremium = (state: AuthState) => state.isPremium;

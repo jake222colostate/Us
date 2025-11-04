@@ -1,53 +1,62 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useComparePreferences, type CompareLayout } from '../../state/comparePreferences';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
-import { useSampleProfiles } from '../../hooks/useSampleData';
-
-type Props = NativeStackScreenProps<RootStackParamList, 'Compare'>;
+import { mapPhotoRows, type PhotoRow } from '../../lib/photos';
+import { getSupabaseClient } from '../../api/supabase';
 
 const layoutOptions: { key: CompareLayout; label: string }[] = [
   { key: 'vertical', label: 'Vertical' },
   { key: 'horizontal', label: 'Side by side' },
 ];
 
+type Props = NativeStackScreenProps<RootStackParamList, 'Compare'>;
+
 export default function CompareScreen({ route }: Props) {
   const { layout, setLayout } = useComparePreferences();
   const params = route.params ?? {};
-  const profiles = useSampleProfiles();
+  const [approvedPhotos, setApprovedPhotos] = useState<string[]>([]);
 
-  const fallbackPhotos = useMemo(() => {
-    const firstWithPhotos = profiles.find((profile) =>
-      (profile.photos ?? []).some((photo) => photo?.status === 'approved' && photo?.url),
-    );
-    if (!firstWithPhotos) {
-      return [] as string[];
-    }
+  useEffect(() => {
+    const loadPhotos = async () => {
+      if (!params.profile?.id) return;
+      try {
+        const client = getSupabaseClient();
+        const { data, error } = await client
+          .from('photos')
+          .select('*')
+          .eq('user_id', params.profile.id)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const rows = (data ?? []) as PhotoRow[];
+        const signed = await mapPhotoRows(rows);
+        setApprovedPhotos(signed.map((photo) => photo.url).filter((url): url is string => Boolean(url)));
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadPhotos();
+  }, [params.profile?.id]);
 
-    return (firstWithPhotos.photos ?? [])
-      .filter((photo) => photo?.status === 'approved' && photo?.url)
-      .map((photo) => photo.url);
-  }, [profiles]);
-
-  const profilePhotos = useMemo(() => {
-    const providedPhotos = params.profile?.photos ?? [];
-    return providedPhotos
+  const providedPhotos = useMemo(() => {
+    const items = params.profile?.photos ?? [];
+    return items
       .filter((photo) => photo?.status === 'approved' && photo?.url)
       .map((photo) => photo.url as string);
   }, [params.profile?.photos]);
 
-  const firstFallback = profilePhotos[0] ?? params.leftPhoto ?? fallbackPhotos[0] ?? null;
-  const secondFallback =
-    profilePhotos[1] ?? params.rightPhoto ?? profilePhotos[0] ?? fallbackPhotos[1] ?? firstFallback;
+  const allPhotos = useMemo(() => {
+    const merged = [...providedPhotos, ...approvedPhotos];
+    return Array.from(new Set(merged));
+  }, [approvedPhotos, providedPhotos]);
 
-  const left = params.leftPhoto ?? firstFallback;
-  const right = params.rightPhoto ?? secondFallback;
-
+  const left = params.leftPhoto ?? allPhotos[0] ?? null;
+  const right = params.rightPhoto ?? allPhotos[1] ?? allPhotos[0] ?? null;
   const profileName = params.profile?.name ?? 'This profile';
-  const verificationStatus = params.profile?.verification?.status;
-  const profileBio = params.profile?.bio;
+  const profileBio = params.profile?.bio ?? null;
 
   const isVertical = layout === 'vertical';
   const containerStyle = isVertical ? styles.verticalLayout : styles.horizontalLayout;
@@ -59,7 +68,9 @@ export default function CompareScreen({ route }: Props) {
           <Text style={styles.title}>Compare photos</Text>
           <Text style={styles.subtitle}>{profileName}</Text>
           <Text style={styles.verificationLabel}>
-            {verificationStatus ? `Verification: ${verificationStatus}` : 'Not verified yet'}
+            {params.profile?.verification?.status
+              ? `Verification: ${params.profile.verification.status}`
+              : 'Verification pending'}
           </Text>
           {profileBio ? <Text style={styles.bio}>{profileBio}</Text> : null}
         </View>
@@ -198,75 +209,74 @@ const styles = StyleSheet.create({
   },
   horizontalLayout: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
   photoCard: {
-    backgroundColor: '#0f172a',
+    flex: 1,
     borderRadius: 18,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  verticalPhotoCard: {
-    width: '100%',
     marginBottom: 16,
   },
+  verticalPhotoCard: {
+    height: 320,
+  },
   firstHorizontalPhoto: {
-    width: '48%',
+    flex: 1,
   },
   secondHorizontalPhoto: {
-    width: '48%',
+    flex: 1,
   },
   photo: {
     width: '100%',
-    aspectRatio: 3 / 4,
+    height: '100%',
+    backgroundColor: '#0f172a',
   },
   placeholder: {
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1f2937',
   },
   placeholderLabel: {
-    color: '#64748b',
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#94a3b8',
   },
   ctaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingHorizontal: 16,
     marginTop: 24,
-    marginHorizontal: 16,
     gap: 12,
   },
   primaryButton: {
     flex: 1,
     backgroundColor: '#a855f7',
-    paddingVertical: 16,
-    borderRadius: 16,
+    borderRadius: 18,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   primaryButtonPressed: {
-    opacity: 0.9,
+    opacity: 0.85,
   },
   primaryButtonLabel: {
-    color: '#ffffff',
+    color: '#fff',
     fontWeight: '700',
     fontSize: 16,
   },
   secondaryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#0f172a',
+    borderColor: '#1f2937',
+    paddingVertical: 14,
+    alignItems: 'center',
   },
   secondaryButtonPressed: {
-    opacity: 0.9,
+    opacity: 0.85,
   },
   secondaryButtonLabel: {
     color: '#cbd5f5',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 16,
   },
 });

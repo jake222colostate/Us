@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Platform, Pressable, Text } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import FeedScreen from '../screens/feed/FeedScreen';
@@ -18,6 +18,7 @@ import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
 import {
   selectIsAuthenticated,
   selectVerificationStatus,
+  selectIsInitialized,
   useAuthStore,
 } from '../state/authStore';
 import { useThemeStore } from '../state/themeStore';
@@ -125,8 +126,14 @@ function Tabs() {
 export default function RootNavigator() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const verificationStatus = useAuthStore(selectVerificationStatus);
+  const initializeAuth = useAuthStore((state) => state.initialize);
+  const isInitialized = useAuthStore(selectIsInitialized);
   const navKey = `${isAuthenticated ? 'auth' : 'guest'}-${verificationStatus}`;
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
+
+  React.useEffect(() => {
+    initializeAuth().catch((err) => console.error('Auth init failed', err));
+  }, [initializeAuth]);
 
   const navigationTheme = useMemo(() => {
     if (isDarkMode) {
@@ -157,6 +164,17 @@ export default function RootNavigator() {
   const headerBackground = isDarkMode ? '#0b1220' : '#fdf8ff';
 
   console.log('🔐 auth state:', { isAuthenticated, verificationStatus, navKey });
+
+  if (!isInitialized) {
+    return (
+      <>
+        <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: navigationTheme.colors.background }}>
+          <ActivityIndicator color={navigationTheme.colors.primary} />
+        </View>
+      </>
+    );
+  }
 
   return (
     <>

@@ -6,13 +6,14 @@ import { useAppTheme, type AppPalette } from '../theme/palette';
 
 type Props = {
   name: string;
-  age: number;
+  age?: number | null;
   distanceMi?: number;
-  bio: string;
-  avatar: string;
-  photo?: string;
+  bio: string | null;
+  avatar?: string | null;
+  photo?: string | null;
   onCompare?: () => void;
   onOpenProfile?: () => void;
+  onLike?: () => void;
 };
 
 const createStyles = (palette: AppPalette) =>
@@ -111,6 +112,7 @@ export default function Card({
   photo,
   onCompare,
   onOpenProfile,
+  onLike,
 }: Props) {
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -119,10 +121,10 @@ export default function Card({
     <View style={styles.container}>
       <Pressable onPress={onOpenProfile} accessibilityRole="button">
         <View style={styles.header}>
-          <Image source={{ uri: avatar }} style={styles.avatar} />
+          {avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={[styles.avatar, styles.photoPlaceholder]} />}
           <View style={styles.headerCopy}>
             <Text style={styles.name}>
-              {name}, {age}
+              {age ? `${name}, ${age}` : name}
             </Text>
             {typeof distanceMi === 'number' ? (
               <Text style={styles.distance}>📍 {distanceMi} miles away</Text>
@@ -140,16 +142,18 @@ export default function Card({
 
       <View style={styles.body}>
         <View style={styles.metaRow}>
-          <TouchableOpacity accessibilityRole="button" style={styles.heartButton}>
+          <TouchableOpacity accessibilityRole="button" style={styles.heartButton} onPress={onLike}>
             <Text style={styles.heartIcon}>🤍</Text>
           </TouchableOpacity>
-          <Pill>3m</Pill>
+          <Pill>{distanceMi ? `${distanceMi} mi` : 'New'}</Pill>
         </View>
 
-        <Text style={styles.bio}>
-          <Text style={styles.bioName}>{name} </Text>
-          {bio}
-        </Text>
+        {bio ? (
+          <Text style={styles.bio}>
+            <Text style={styles.bioName}>{name} </Text>
+            {bio}
+          </Text>
+        ) : null}
 
         <TouchableOpacity
           accessibilityRole="button"

@@ -1,17 +1,21 @@
-import React, { useMemo } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
-import { useConnectionsStore } from '../../state/connectionsStore';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
+import { useMatchesStore } from '../../state/matchesStore';
+import { useAuthStore, selectSession } from '../../state/authStore';
 
 export default function MatchesScreen() {
-  const matches = useConnectionsStore((state) => state.matches);
-  const unmatch = useConnectionsStore((state) => state.unmatch);
+  const session = useAuthStore(selectSession);
+  const matches = useMatchesStore((state) => state.matches);
+  const fetchMatches = useMatchesStore((state) => state.fetchMatches);
+  const isLoading = useMatchesStore((state) => state.isLoading);
+  const error = useMatchesStore((state) => state.error);
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const navigation = useNavigation<
@@ -21,31 +25,39 @@ export default function MatchesScreen() {
     >
   >();
 
+  useEffect(() => {
+    if (session) {
+      fetchMatches(session.user.id).catch((err) => console.error(err));
+    }
+  }, [session, fetchMatches]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
-        data={matches.filter((item) =>
-          (item.photos ?? []).some((photo) => photo?.status === 'approved' && photo?.url),
-        )}
-        keyExtractor={(item) => item.id}
+        data={matches}
+        keyExtractor={(item) => item.matchId}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.title}>Matches</Text>
-            <Text style={styles.subtitle}>Everyone here already liked you back.</Text>
+            <Text style={styles.subtitle}>We only surface mutual likes. Say hi and keep it kind.</Text>
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No matches yet</Text>
-            <Text style={styles.emptyCopy}>Keep exploring the feed — we’ll drop your matches here.</Text>
-          </View>
+          isLoading ? (
+            <ActivityIndicator style={styles.loader} color={palette.accent} />
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No matches yet</Text>
+              <Text style={styles.emptyCopy}>Start liking profiles to see your mutual connections here.</Text>
+            </View>
+          )
         }
         renderItem={({ item }) => (
           <Pressable
             accessibilityRole="button"
-            onPress={() => navigation.navigate('ProfileDetail', { userId: item.id })}
+            onPress={() => navigation.navigate('ProfileDetail', { userId: item.userId })}
             style={({ pressed }) => [styles.matchCard, pressed && styles.matchCardPressed]}
           >
             {item.avatar ? (
@@ -56,25 +68,18 @@ export default function MatchesScreen() {
               </View>
             )}
             <View style={styles.matchInfo}>
-              <Text style={styles.matchName}>
-                {item.name}
-                <Text style={styles.matchPercent}> • {item.matchPercent}% match</Text>
+              <Text style={styles.matchName}>{item.name ?? 'Member'}</Text>
+              <Text style={styles.matchMeta}>
+                {new Date(item.createdAt).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                })}
               </Text>
-              <Text style={styles.matchMeta}>{item.lastActive}</Text>
-              <Text style={styles.matchMessage}>{item.lastMessage}</Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={(event) => {
-                  event.stopPropagation();
-                  unmatch(item.id);
-                }}
-                style={({ pressed }) => [styles.unmatchButton, pressed && styles.unmatchButtonPressed]}
-              >
-                <Text style={styles.unmatchLabel}>Unmatch</Text>
-              </Pressable>
+              <Text style={styles.matchMessage}>{item.bio ?? 'No bio yet.'}</Text>
             </View>
           </Pressable>
         )}
+        ListFooterComponent={error ? <Text style={styles.errorText}>{error}</Text> : <View style={styles.footerSpacing} />}
       />
     </SafeAreaView>
   );
@@ -146,11 +151,6 @@ const createStyles = (palette: AppPalette) =>
       color: palette.textPrimary,
       fontWeight: '600',
     },
-    matchPercent: {
-      fontSize: 16,
-      color: palette.accent,
-      fontWeight: '600',
-    },
     matchMeta: {
       color: palette.muted,
       fontSize: 13,
@@ -160,23 +160,10 @@ const createStyles = (palette: AppPalette) =>
       fontSize: 14,
       lineHeight: 20,
     },
-    unmatchButton: {
-      alignSelf: 'flex-start',
-      marginTop: 8,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.card,
-    },
-    unmatchButtonPressed: {
-      opacity: 0.8,
-    },
-    unmatchLabel: {
+    errorText: {
       color: palette.danger,
-      fontWeight: '600',
-      fontSize: 12,
+      textAlign: 'center',
+      marginTop: 16,
     },
     emptyState: {
       marginTop: 120,
@@ -193,5 +180,11 @@ const createStyles = (palette: AppPalette) =>
       color: palette.muted,
       textAlign: 'center',
       lineHeight: 20,
+    },
+    loader: {
+      marginTop: 48,
+    },
+    footerSpacing: {
+      height: 32,
     },
   });

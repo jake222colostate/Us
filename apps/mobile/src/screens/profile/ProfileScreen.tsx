@@ -66,6 +66,7 @@ export default function ProfileScreen() {
 
   const [bio, setBio] = useState('');
   const [interestInput, setInterestInput] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const {
     status,
@@ -74,12 +75,14 @@ export default function ProfileScreen() {
     isLoading: verificationLoading,
     error: verificationError,
   } = useIdentityVerification();
+  const verificationMode = process.env.EXPO_PUBLIC_VERIFICATION_MODE || 'mock';
 
   const {
     user: photoUser,
     uploadPhoto,
     refreshPhoto,
     retryModeration,
+    approvePhoto,
     removePhoto,
     loadPhotos,
     isUploading,
@@ -109,11 +112,19 @@ export default function ProfileScreen() {
     return user.interests.join(' • ');
   }, [user?.interests]);
 
-  const handleSave = useCallback(() => {
-    updateUser({
-      bio: bio.trim(),
-      interests: toInterestList(interestInput),
-    });
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await updateUser({
+        bio: bio.trim(),
+        interests: toInterestList(interestInput),
+      });
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Unable to save', 'Please try again once you have a stable connection.');
+    } finally {
+      setSaving(false);
+    }
   }, [bio, interestInput, updateUser]);
 
   const handleDeleteAccount = useCallback(() => {
@@ -323,13 +334,24 @@ export default function ProfileScreen() {
                     <Text style={styles.secondaryButtonLabel}>Retry moderation</Text>
                   </Pressable>
                 ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => handleRefreshPhoto(photo.id)}
-                    style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
-                  >
-                    <Text style={styles.secondaryButtonLabel}>Refresh status</Text>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => handleRefreshPhoto(photo.id)}
+                      style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+                    >
+                      <Text style={styles.secondaryButtonLabel}>Refresh status</Text>
+                    </Pressable>
+                    {verificationMode === 'mock' && photo.status === 'pending' ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => approvePhoto(photo.id)}
+                        style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+                      >
+                        <Text style={styles.secondaryButtonLabel}>Approve (mock)</Text>
+                      </Pressable>
+                    ) : null}
+                  </>
                 )}
               </View>
             </View>
@@ -347,8 +369,13 @@ export default function ProfileScreen() {
           placeholderTextColor={palette.muted}
           style={styles.input}
         />
-        <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={handleSave}>
-          <Text style={styles.secondaryButtonLabel}>Save changes</Text>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.secondaryButton}
+          onPress={handleSave}
+          disabled={saving}
+        >
+          <Text style={styles.secondaryButtonLabel}>{saving ? 'Saving…' : 'Save changes'}</Text>
         </Pressable>
       </View>
 

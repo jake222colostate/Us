@@ -82,6 +82,57 @@ The project ships with working user flows on both platforms. If Supabase is not 
 
 Supporting tooling lives under `tools/` (binary checks, asset seeding) and `tsup/` (build configurations).
 
+## Backend & Data: Supabase (Auth, DB, Storage, Verification)
+
+### Why Supabase
+Supabase gives the project a single source of truth for auth, relational data, file storage, and row-level security. The Expo mobile client speaks directly to Supabase via `@supabase/supabase-js`, so sessions, storage uploads, and RLS checks all run in the same SDK without a bespoke backend.
+
+### Account & pricing snapshot
+A free Supabase project is enough for local development and early dogfooding. As you scale you will pay for Postgres row count, bandwidth/egress, and storage. Review the current [Supabase pricing page](https://supabase.com/pricing) before enabling production traffic.
+
+### Setup checklist
+1. **Create a Supabase project** (free tier works) and note the Project URL and anon key from the dashboard.
+2. **Populate mobile env vars** – copy `apps/mobile/.env.example` to `apps/mobile/.env` and fill in:
+   ```bash
+   EXPO_PUBLIC_SUPABASE_URL=
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=
+   EXPO_PUBLIC_VERIFICATION_MODE=mock
+   ```
+   The `.env` file is already gitignored.
+3. **Run the migration** – execute the SQL in `supabase/migrations/20240506120000_init_us_app.sql` via the Supabase SQL editor or `supabase db push`. It creates the core tables (`profiles`, `photos`, `likes`, `matches`, `verification_sessions`), RLS policies, and helper functions.
+4. **Create the storage bucket** – from the Supabase dashboard run `profile-photos` as a private bucket. The migration adds policies so owners can manage their own objects and everyone else only sees approved images via signed URLs.
+5. (Optional) **Hook up serverless cleanup** – the migration includes `queue_profile_photo_removal(photo_id uuid)` to help edge functions delete storage objects when rows are removed so no orphaned files are left behind.
+
+### Running everything locally
+1. Install dependencies at the repo root: `pnpm install`.
+2. Configure Expo: `cd apps/mobile && cp .env.example .env`, then fill in the Supabase URL/anon key and keep `EXPO_PUBLIC_VERIFICATION_MODE=mock` for the built-in simulation.
+3. Launch Expo: `pnpm expo start --tunnel` inside `apps/mobile`. Sign up with email/password, upload a photo, and run through the mock verification flow to see the happy path.
+4. The mobile app reads approved photos from Supabase, writes uploads to the `profile-photos` bucket, and persists likes/matches in the new tables.
+
+### Switching from mock to a real verification provider
+1. Set `EXPO_PUBLIC_VERIFICATION_MODE=provider` in `apps/mobile/.env`.
+2. Stand up backend endpoints (`POST /verification/start`, `GET /verification/status`) and provider webhooks. The mobile hook at `apps/mobile/src/hooks/useIdentityVerification.ts` already calls these when provider mode is enabled.
+3. Inject provider API keys on the server side (never ship them to the client). The Expo app only needs the public base URL via `EXPO_PUBLIC_API_BASE_URL`.
+4. Use Supabase Edge Functions or your own backend to update `verification_sessions` and `profiles.verification_status` when webhook callbacks arrive.
+
+### Security & RLS quick tour
+- `profiles`: owners can insert/update/select their own row. An additional policy exposes read-only access to profiles that have at least one approved photo so the feed can display names/bios without leaking pending content.
+- `photos`: owners have full CRUD; other users can only select rows with `status = 'approved'`.
+- `likes`: only the actor (`from_user`) can insert/update/delete their likes.
+- `matches`: participants can insert/update/delete/select matches where they are `user_a` or `user_b`.
+- `verification_sessions`: only the owner can create or inspect their verification runs.
+- Storage (`profile-photos`): owners manage their folder (`<user_id>/…`), and the public read policy only authorises objects linked to approved photos. Signed URLs are generated client-side for display (`apps/mobile/src/lib/photos.ts`).
+
+### Mock verification vs. production
+- Mock mode (`EXPO_PUBLIC_VERIFICATION_MODE=mock`) inserts a `verification_sessions` row, marks the profile as `pending`, opens a placeholder browser session, and flips to `verified` after a short delay.
+- Production mode calls your `/verification/start` and `/verification/status` endpoints. Provide real provider URLs, and update the session in Supabase according to webhook callbacks.
+
+### Troubleshooting cheat sheet
+- **“No photos in feed”** → ensure photos have `status = 'approved'` or use the mock moderation toggle on the profile screen.
+- **“Auth not persisting”** → confirm Supabase URL/key are present and `apps/mobile/src/api/supabase.ts` isn’t warning about missing env vars.
+- **“Storage permission denied”** → double-check the user is signed in (Supabase JWT present) and the storage policies from the migration were applied.
+- **“Verification stuck on pending”** → hit `Refresh status` on the profile screen to re-query `profiles.verification_status`. In provider mode, confirm your backend endpoints return `verified`/`rejected`.
+
 ---
 
 ## Prerequisites

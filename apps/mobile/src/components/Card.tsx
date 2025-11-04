@@ -1,37 +1,142 @@
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Pill from './Pill';
+import { useMemo } from 'react';
+import { useAppTheme, type AppPalette } from '../theme/palette';
 
 type Props = {
   name: string;
   age: number;
-  distanceMi: number;
+  distanceMi?: number;
   bio: string;
   avatar: string;
   photo?: string;
   onCompare?: () => void;
+  onOpenProfile?: () => void;
 };
 
-export default function Card({ name, age, distanceMi, bio, avatar, photo, onCompare }: Props) {
+const createStyles = (palette: AppPalette) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: palette.card,
+      borderRadius: 16,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: palette.border,
+      marginHorizontal: 16,
+      marginTop: 20,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+    },
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 12,
+      backgroundColor: palette.surface,
+    },
+    headerCopy: {
+      flex: 1,
+    },
+    name: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+      fontSize: 16,
+    },
+    distance: {
+      color: palette.muted,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    photo: {
+      width: '100%',
+      aspectRatio: 3 / 4,
+      backgroundColor: palette.surface,
+    },
+    photoPlaceholder: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    placeholderLabel: {
+      color: palette.muted,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    body: {
+      padding: 16,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    heartButton: {
+      marginRight: 8,
+    },
+    heartIcon: {
+      fontSize: 22,
+    },
+    bio: {
+      color: palette.textPrimary,
+      marginBottom: 16,
+      lineHeight: 20,
+    },
+    bioName: {
+      fontWeight: '600',
+    },
+    compareButton: {
+      backgroundColor: palette.accent,
+      paddingVertical: 14,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    compareLabel: {
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 16,
+    },
+  });
+
+export default function Card({
+  name,
+  age,
+  distanceMi,
+  bio,
+  avatar,
+  photo,
+  onCompare,
+  onOpenProfile,
+}: Props) {
+  const palette = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Image source={{ uri: avatar }} style={styles.avatar} />
-        <View style={styles.headerCopy}>
-          <Text style={styles.name}>
-            {name}, {age}
-          </Text>
-          <Text style={styles.distance}>📍 {distanceMi} miles away</Text>
+      <Pressable onPress={onOpenProfile} accessibilityRole="button">
+        <View style={styles.header}>
+          <Image source={{ uri: avatar }} style={styles.avatar} />
+          <View style={styles.headerCopy}>
+            <Text style={styles.name}>
+              {name}, {age}
+            </Text>
+            {typeof distanceMi === 'number' ? (
+              <Text style={styles.distance}>📍 {distanceMi} miles away</Text>
+            ) : null}
+          </View>
         </View>
-      </View>
-
-      {photo ? (
-        <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
-      ) : (
-        <View style={[styles.photo, styles.photoPlaceholder]}>
-          <Text style={styles.placeholderLabel}>Awaiting approval</Text>
-        </View>
-      )}
+        {photo ? (
+          <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
+        ) : (
+          <View style={[styles.photo, styles.photoPlaceholder]}>
+            <Text style={styles.placeholderLabel}>Awaiting approval</Text>
+          </View>
+        )}
+      </Pressable>
 
       <View style={styles.body}>
         <View style={styles.metaRow}>
@@ -58,87 +163,3 @@ export default function Card({ name, age, distanceMi, bio, avatar, photo, onComp
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#0f172a',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    marginHorizontal: 16,
-    marginTop: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  headerCopy: {
-    flex: 1,
-  },
-  name: {
-    color: '#e2e8f0',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  distance: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  photo: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-    backgroundColor: '#111827',
-  },
-  photoPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  placeholderLabel: {
-    color: '#64748b',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  body: {
-    padding: 16,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  heartButton: {
-    marginRight: 8,
-  },
-  heartIcon: {
-    fontSize: 22,
-  },
-  bio: {
-    color: '#e2e8f0',
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  bioName: {
-    fontWeight: '600',
-  },
-  compareButton: {
-    backgroundColor: '#a855f7',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  compareLabel: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-});

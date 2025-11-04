@@ -1,8 +1,10 @@
-import React from 'react';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import React, { useMemo } from 'react';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Platform, Text } from 'react-native';
+import { Platform, Pressable, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 import FeedScreen from '../screens/feed/FeedScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SignInScreen from '../screens/auth/SignInScreen';
@@ -12,11 +14,13 @@ import MatchesScreen from '../screens/matches/MatchesScreen';
 import VerifyIdentityScreen from '../screens/verification/VerifyIdentityScreen';
 import CompareScreen from '../screens/compare/CompareScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
+import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
 import {
   selectIsAuthenticated,
   selectVerificationStatus,
   useAuthStore,
 } from '../state/authStore';
+import { useThemeStore } from '../state/themeStore';
 
 export type MainTabParamList = {
   Feed: undefined;
@@ -48,6 +52,7 @@ export type RootStackParamList = {
       }
     | undefined;
   Settings: undefined;
+  ProfileDetail: { userId: string };
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -65,13 +70,19 @@ function AuthStackNavigator() {
 }
 
 function Tabs() {
+  const isDarkMode = useThemeStore((state) => state.isDarkMode);
+  const tabBackground = isDarkMode ? '#0b1220' : '#f4e6ff';
+  const borderColor = isDarkMode ? '#1f2937' : '#e5def6';
+  const activeTint = '#f472b6';
+  const inactiveTint = isDarkMode ? '#94a3b8' : '#7c699b';
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: '#0b1220', borderTopColor: '#1f2937' },
-        tabBarActiveTintColor: '#f472b6',
-        tabBarInactiveTintColor: '#94a3b8',
+        tabBarStyle: { backgroundColor: tabBackground, borderTopColor: borderColor },
+        tabBarActiveTintColor: activeTint,
+        tabBarInactiveTintColor: inactiveTint,
       }}
     >
       <Tab.Screen
@@ -99,26 +110,73 @@ function Tabs() {
   );
 }
 
-const theme = {
-  ...DefaultTheme,
-  colors: { ...DefaultTheme.colors, background: '#0b1220' },
-};
-
 export default function RootNavigator() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const verificationStatus = useAuthStore(selectVerificationStatus);
   const navKey = `${isAuthenticated ? 'auth' : 'guest'}-${verificationStatus}`;
+  const isDarkMode = useThemeStore((state) => state.isDarkMode);
+
+  const navigationTheme = useMemo(() => {
+    if (isDarkMode) {
+      return {
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          background: '#0b1220',
+          card: '#111b2e',
+          border: '#1f2937',
+          text: '#f8fafc',
+        },
+      };
+    }
+    return {
+      ...DefaultTheme,
+      colors: {
+        ...DefaultTheme.colors,
+        background: '#fdf8ff',
+        card: '#ffffff',
+        border: '#e5def6',
+        text: '#2f0c4d',
+      },
+    };
+  }, [isDarkMode]);
+
+  const headerTint = isDarkMode ? '#f8fafc' : '#2f0c4d';
+  const headerBackground = isDarkMode ? '#0b1220' : '#fdf8ff';
 
   return (
-    <NavigationContainer theme={theme}>
+    <>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+      <NavigationContainer theme={navigationTheme}>
       {isAuthenticated ? (
         <RootStack.Navigator
           key={navKey}
-          screenOptions={{
-            headerStyle: { backgroundColor: '#0b1220' },
-            headerTintColor: '#f8fafc',
+          screenOptions={({ navigation }) => ({
+            headerStyle: { backgroundColor: headerBackground },
+            headerTintColor: headerTint,
+            headerTitleStyle: { color: headerTint },
+            headerBackTitleVisible: false,
             presentation: 'card',
-          }}
+            headerLeft: ({ canGoBack, tintColor }) =>
+              canGoBack ? (
+                <Pressable
+                  onPress={() => navigation.goBack()}
+                  style={({ pressed }) => [
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      paddingHorizontal: 4,
+                    },
+                    pressed && { opacity: 0.6 },
+                  ]}
+                  hitSlop={12}
+                >
+                  <Ionicons name="chevron-back" size={24} color={tintColor ?? headerTint} />
+                  <Text style={{ color: tintColor ?? headerTint, fontWeight: '600' }}>Back</Text>
+                </Pressable>
+              ) : null,
+          })}
         >
           {verificationStatus !== 'verified' && (
             <RootStack.Screen
@@ -146,10 +204,18 @@ export default function RootNavigator() {
               title: 'Settings',
             }}
           />
+          <RootStack.Screen
+            name="ProfileDetail"
+            component={PublicProfileScreen}
+            options={{
+              title: 'Profile',
+            }}
+          />
         </RootStack.Navigator>
       ) : (
         <AuthStackNavigator />
       )}
-    </NavigationContainer>
+      </NavigationContainer>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -8,9 +8,54 @@ import Card from '../../components/Card';
 import { useSampleProfiles } from '../../hooks/useSampleData';
 import type { SampleProfile } from '../../data/sampleProfiles';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
+import { useUserPostsStore } from '../../state/userPostsStore';
+import { useAppTheme, type AppPalette } from '../../theme/palette';
+
+type FeedItem = {
+  id: string;
+  userId: string;
+  name: string;
+  age: number;
+  distanceMi?: number;
+  bio: string;
+  avatar: string;
+  photo?: string;
+  createdAt: number;
+};
+
+const createStyles = (palette: AppPalette) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: palette.background,
+    },
+    content: {
+      paddingBottom: 48,
+    },
+    header: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 8,
+    },
+    title: {
+      color: palette.textPrimary,
+      fontSize: 28,
+      fontWeight: '700',
+    },
+    subtitle: {
+      marginTop: 6,
+      color: palette.muted,
+    },
+    footerSpacing: {
+      height: 32,
+    },
+  });
 
 export default function FeedScreen() {
   const profiles = useSampleProfiles();
+  const userPosts = useUserPostsStore((state) => state.posts);
+  const palette = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const navigation = useNavigation<
     CompositeNavigationProp<
       BottomTabNavigationProp<MainTabParamList, 'Feed'>,
@@ -25,6 +70,34 @@ export default function FeedScreen() {
       ),
     [profiles],
   );
+
+  const feedItems = useMemo(() => {
+    const sampleItems: FeedItem[] = approvedProfiles.map((profile, index) => ({
+      id: `sample-${profile.id}-${index}`,
+      userId: profile.id,
+      name: profile.name,
+      age: profile.age,
+      distanceMi: profile.distanceMi,
+      bio: profile.bio,
+      avatar: profile.avatar,
+      photo: profile.photos.find((photo) => photo.status === 'approved')?.url,
+      createdAt: Date.now() - (index + 1) * 1000,
+    }));
+
+    const authoredPosts: FeedItem[] = userPosts.map((post) => ({
+      id: `user-${post.id}`,
+      userId: post.userId,
+      name: post.name,
+      age: post.age ?? 0,
+      distanceMi: undefined,
+      bio: post.bio ?? 'Shared a new moment',
+      avatar: post.avatar ?? '',
+      photo: post.photoUrl,
+      createdAt: post.createdAt,
+    }));
+
+    return [...authoredPosts, ...sampleItems].sort((a, b) => b.createdAt - a.createdAt);
+  }, [approvedProfiles, userPosts]);
 
   const handleCompare = useCallback(
     (profile: SampleProfile) => {
@@ -46,7 +119,7 @@ export default function FeedScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
-        data={approvedProfiles}
+        data={feedItems}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <Card
@@ -55,8 +128,14 @@ export default function FeedScreen() {
             distanceMi={item.distanceMi}
             bio={item.bio}
             avatar={item.avatar}
-            photo={item.photos.find((photo) => photo.status === 'approved')?.url}
-            onCompare={() => handleCompare(item)}
+            photo={item.photo}
+            onCompare={() => {
+              const profile = approvedProfiles.find((profile) => profile.id === item.userId);
+              if (profile) {
+                handleCompare(profile);
+              }
+            }}
+            onOpenProfile={() => navigation.navigate('ProfileDetail', { userId: item.userId })}
           />
         )}
         contentContainerStyle={styles.content}
@@ -64,13 +143,7 @@ export default function FeedScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.title}>Explore nearby</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => navigation.navigate('MainTabs', { screen: 'Matches' })}
-              style={styles.matchesButton}
-            >
-              <Text style={styles.matchesLabel}>View matches →</Text>
-            </Pressable>
+            <Text style={styles.subtitle}>Tap a profile to open their full gallery.</Text>
           </View>
         }
         ListFooterComponent={<View style={styles.footerSpacing} />}
@@ -78,35 +151,3 @@ export default function FeedScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-  },
-  content: {
-    paddingBottom: 48,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  title: {
-    color: '#f8fafc',
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  matchesButton: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
-  },
-  matchesLabel: {
-    color: '#a855f7',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  footerSpacing: {
-    height: 32,
-  },
-});

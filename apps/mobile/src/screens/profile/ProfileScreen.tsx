@@ -23,9 +23,12 @@ import { usePhotoModeration } from '../../hooks/usePhotoModeration';
 import {
   selectCurrentUser,
   selectVerificationStatus,
+  selectIsPremium,
   useAuthStore,
 } from '../../state/authStore';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
+import { useAppTheme, type AppPalette } from '../../theme/palette';
+import { usePostQuotaStore } from '../../state/postQuotaStore';
 
 const toInterestList = (value: string) =>
   value
@@ -51,6 +54,15 @@ export default function ProfileScreen() {
   const verificationStatus = useAuthStore(selectVerificationStatus);
   const signOut = useAuthStore((state) => state.signOut);
   const updateUser = useAuthStore((state) => state.updateUser);
+  const isPremium = useAuthStore(selectIsPremium);
+  const setPremium = useAuthStore((state) => state.setPremium);
+  const palette = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const statusStyles = useMemo(() => createStatusStyles(palette), [palette]);
+  const postedToday = usePostQuotaStore((state) => state.postedToday);
+  const resetQuota = usePostQuotaStore((state) => state.resetIfNeeded);
+  const dailyLimit = isPremium ? 20 : 3;
+  const remainingPosts = Math.max(dailyLimit - postedToday, 0);
 
   const [bio, setBio] = useState('');
   const [interestInput, setInterestInput] = useState('');
@@ -84,6 +96,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadPhotos();
   }, [loadPhotos]);
+
+  useEffect(() => {
+    resetQuota();
+  }, [resetQuota]);
 
   const formattedInterests = useMemo(() => {
     if (!user?.interests?.length) {
@@ -203,7 +219,7 @@ export default function ProfileScreen() {
       <View style={[styles.section, styles.sectionSpacing]}>
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Identity verification</Text>
-          {verificationLoading ? <ActivityIndicator size="small" color="#f8fafc" /> : null}
+          {verificationLoading ? <ActivityIndicator size="small" color={palette.textPrimary} /> : null}
         </View>
         <Text style={styles.sectionCopy}>{statusCopy[status] ?? statusCopy.unverified}</Text>
         {verificationError ? <Text style={styles.errorText}>{verificationError}</Text> : null}
@@ -236,9 +252,31 @@ export default function ProfileScreen() {
       <View style={[styles.section, styles.sectionSpacing]}>
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Photos</Text>
-          {(isUploading || isRefreshing) && <ActivityIndicator size="small" color="#f8fafc" />}
+          {(isUploading || isRefreshing) && <ActivityIndicator size="small" color={palette.textPrimary} />}
         </View>
         {photoError ? <Text style={styles.errorText}>{photoError}</Text> : null}
+        <Text style={styles.quotaCopy}>
+          {`You've shared ${postedToday} of ${dailyLimit} photos today${
+            remainingPosts > 0 ? ` • ${remainingPosts} remaining` : ''
+          }.`}
+        </Text>
+        {!isPremium ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setPremium(true)}
+            style={({ pressed }) => [styles.premiumButton, pressed && styles.premiumButtonPressed]}
+          >
+            <Text style={styles.premiumButtonLabel}>Upgrade to Premium for 20 daily posts</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setPremium(false)}
+            style={({ pressed }) => [styles.premiumManageButton, pressed && styles.premiumManageButtonPressed]}
+          >
+            <Text style={styles.premiumManageLabel}>Premium active • Tap to switch plans</Text>
+          </Pressable>
+        )}
         <View style={styles.photoGrid}>
           <Pressable
             accessibilityRole="button"
@@ -246,7 +284,7 @@ export default function ProfileScreen() {
             style={({ pressed }) => [styles.addPhotoCard, pressed && styles.addPhotoCardPressed]}
           >
             {isUploading ? (
-              <ActivityIndicator color="#f8fafc" />
+              <ActivityIndicator color={palette.textPrimary} />
             ) : (
               <Text style={styles.addPhotoLabel}>＋ Add photo</Text>
             )}
@@ -306,7 +344,7 @@ export default function ProfileScreen() {
           value={bio}
           onChangeText={setBio}
           placeholder="Write a short bio that shows your vibe."
-          placeholderTextColor="#64748b"
+          placeholderTextColor={palette.muted}
           style={styles.input}
         />
         <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={handleSave}>
@@ -321,7 +359,7 @@ export default function ProfileScreen() {
           value={interestInput}
           onChangeText={setInterestInput}
           placeholder="Comma separated interests"
-          placeholderTextColor="#64748b"
+          placeholderTextColor={palette.muted}
           style={styles.input}
         />
       </View>
@@ -345,290 +383,343 @@ const statusLabels: Record<string, string> = {
   rejected: 'Rejected',
 };
 
-const statusStyles = StyleSheet.create({
-  approved: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: '#10b981',
-  },
-  pending: {
-    backgroundColor: 'rgba(234, 179, 8, 0.15)',
-    borderColor: '#fbbf24',
-  },
-  rejected: {
-    backgroundColor: 'rgba(248, 113, 113, 0.15)',
-    borderColor: '#f87171',
-  },
-});
+const createStatusStyles = (palette: AppPalette) =>
+  StyleSheet.create({
+    approved: {
+      backgroundColor: 'rgba(34, 197, 94, 0.15)',
+      borderColor: palette.success,
+    },
+    pending: {
+      backgroundColor: 'rgba(234, 179, 8, 0.15)',
+      borderColor: palette.accent,
+    },
+    rejected: {
+      backgroundColor: 'rgba(248, 113, 113, 0.15)',
+      borderColor: palette.danger,
+    },
+  });
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 60,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#111b2e',
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  headerCopy: {
-    flex: 1,
-    marginHorizontal: 16,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  avatarPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#111b2e',
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  avatarPlaceholderText: {
-    color: '#94a3b8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#f8fafc',
-  },
-  verifiedBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderColor: '#10b981',
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  verifiedBadgeText: {
-    color: '#34d399',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  meta: {
-    color: '#94a3b8',
-    marginTop: 6,
-  },
-  settingsLink: {
-    color: '#a855f7',
-    fontWeight: '600',
-  },
-  section: {
-    backgroundColor: '#111b2e',
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  sectionSpacing: {
-    marginTop: 24,
-  },
-  sectionTitle: {
-    color: '#f8fafc',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sectionCopy: {
-    color: '#cbd5f5',
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  verificationActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  input: {
-    minHeight: 80,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    padding: 16,
-    color: '#f8fafc',
-    backgroundColor: '#0f172a',
-    textAlignVertical: 'top',
-  },
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  addPhotoCard: {
-    width: '48%',
-    aspectRatio: 3 / 4,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    backgroundColor: '#0f172a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addPhotoCardPressed: {
-    opacity: 0.85,
-  },
-  addPhotoLabel: {
-    color: '#a855f7',
-    fontWeight: '700',
-  },
-  photoCard: {
-    width: '48%',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    overflow: 'hidden',
-    backgroundColor: '#0f172a',
-  },
-  photoPreview: {
-    width: '100%',
-    aspectRatio: 3 / 4,
-  },
-  photoPreviewPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  photoPreviewPlaceholderText: {
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
-  photoMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  statusBadge: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#e2e8f0',
-  },
-  inlineAction: {
-    padding: 4,
-  },
-  inlineActionPressed: {
-    opacity: 0.7,
-  },
-  inlineActionText: {
-    color: '#f87171',
-    fontWeight: '600',
-  },
-  rejectionCopy: {
-    color: '#f87171',
-    fontSize: 12,
-    paddingHorizontal: 12,
-    paddingBottom: 6,
-  },
-  photoActionsRow: {
-    padding: 12,
-  },
-  secondaryButton: {
-    marginTop: 8,
-    backgroundColor: '#1e293b',
-    paddingVertical: 12,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  secondaryButtonPressed: {
-    opacity: 0.85,
-  },
-  secondaryButtonDisabled: {
-    opacity: 0.6,
-  },
-  secondaryButtonLabel: {
-    color: '#f1f5f9',
-    fontWeight: '600',
-  },
-  linkButtonSmall: {
-    paddingVertical: 8,
-  },
-  linkButtonPressed: {
-    opacity: 0.8,
-  },
-  linkTextSmall: {
-    color: '#a855f7',
-    fontWeight: '600',
-  },
-  actionsRow: {
-    gap: 12,
-  },
-  primaryButton: {
-    backgroundColor: '#a855f7',
-    paddingVertical: 14,
-    borderRadius: 18,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  primaryButtonLabel: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  dangerButton: {
-    backgroundColor: '#1e293b',
-    paddingVertical: 14,
-    borderRadius: 18,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  dangerLabel: {
-    color: '#f87171',
-    fontWeight: '600',
-  },
-  errorText: {
-    color: '#f87171',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  emptyContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 48,
-  },
-  emptyTitle: {
-    color: '#f8fafc',
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  emptyCopy: {
-    color: '#94a3b8',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginVertical: 12,
-  },
-});
+const createStyles = (palette: AppPalette) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: palette.background,
+    },
+    screen: {
+      flex: 1,
+      backgroundColor: palette.background,
+    },
+    content: {
+      padding: 20,
+      paddingBottom: 60,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: palette.card,
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    headerCopy: {
+      flex: 1,
+      marginHorizontal: 16,
+      gap: 6,
+    },
+    avatar: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: palette.surface,
+    },
+    avatarPlaceholder: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    avatarPlaceholderText: {
+      color: palette.muted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    name: {
+      color: palette.textPrimary,
+      fontSize: 24,
+      fontWeight: '700',
+    },
+    verifiedBadge: {
+      backgroundColor: palette.accent,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    verifiedBadgeText: {
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    meta: {
+      color: palette.muted,
+    },
+    settingsLink: {
+      color: palette.accent,
+      fontWeight: '600',
+    },
+    section: {
+      backgroundColor: palette.card,
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: palette.border,
+      marginTop: 16,
+    },
+    sectionSpacing: {
+      marginTop: 12,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    sectionTitle: {
+      color: palette.textPrimary,
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    sectionCopy: {
+      color: palette.muted,
+      marginTop: 8,
+      lineHeight: 18,
+    },
+    quotaCopy: {
+      color: palette.muted,
+      marginTop: 12,
+      lineHeight: 18,
+    },
+    premiumButton: {
+      marginTop: 12,
+      backgroundColor: palette.accent,
+      paddingVertical: 12,
+      borderRadius: 14,
+      alignItems: 'center',
+    },
+    premiumButtonPressed: {
+      opacity: 0.9,
+    },
+    premiumButtonLabel: {
+      color: '#ffffff',
+      fontWeight: '700',
+    },
+    premiumManageButton: {
+      alignSelf: 'flex-start',
+      marginTop: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+    },
+    premiumManageButtonPressed: {
+      opacity: 0.85,
+    },
+    premiumManageLabel: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+      fontSize: 12,
+    },
+    errorText: {
+      color: palette.danger,
+      marginTop: 8,
+      fontWeight: '600',
+    },
+    verificationActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 16,
+    },
+    secondaryButton: {
+      flex: 1,
+      backgroundColor: palette.surface,
+      paddingVertical: 14,
+      borderRadius: 14,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    secondaryButtonPressed: {
+      opacity: 0.9,
+    },
+    secondaryButtonDisabled: {
+      opacity: 0.6,
+    },
+    secondaryButtonLabel: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+    },
+    linkButtonSmall: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    linkButtonPressed: {
+      opacity: 0.7,
+    },
+    linkTextSmall: {
+      color: palette.accent,
+      fontWeight: '600',
+    },
+    photoGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginTop: 16,
+    },
+    addPhotoCard: {
+      width: '30%',
+      aspectRatio: 1,
+      borderRadius: 18,
+      borderStyle: 'dashed',
+      borderWidth: 2,
+      borderColor: palette.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: palette.surface,
+    },
+    addPhotoCardPressed: {
+      opacity: 0.9,
+    },
+    addPhotoLabel: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+    },
+    photoCard: {
+      width: '30%',
+      aspectRatio: 1,
+      borderRadius: 18,
+      overflow: 'hidden',
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    photoPreview: {
+      width: '100%',
+      height: '100%',
+    },
+    photoPreviewPlaceholder: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: palette.surface,
+    },
+    photoPreviewPlaceholderText: {
+      color: palette.muted,
+      fontWeight: '600',
+    },
+    photoMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: palette.background,
+    },
+    statusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    statusBadgeText: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+      fontSize: 12,
+    },
+    inlineAction: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    inlineActionPressed: {
+      opacity: 0.85,
+    },
+    inlineActionText: {
+      color: palette.accent,
+      fontWeight: '600',
+    },
+    rejectionCopy: {
+      color: palette.danger,
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+      fontWeight: '600',
+    },
+    photoActionsRow: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+    },
+    input: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
+      padding: 16,
+      backgroundColor: palette.surface,
+      color: palette.textPrimary,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 16,
+    },
+    primaryButton: {
+      flex: 1,
+      backgroundColor: palette.accent,
+      paddingVertical: 14,
+      borderRadius: 18,
+      alignItems: 'center',
+    },
+    primaryButtonLabel: {
+      color: '#ffffff',
+      fontWeight: '700',
+    },
+    dangerButton: {
+      flex: 1,
+      backgroundColor: palette.danger,
+      paddingVertical: 14,
+      borderRadius: 18,
+      alignItems: 'center',
+    },
+    dangerLabel: {
+      color: '#ffffff',
+      fontWeight: '700',
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 16,
+      padding: 24,
+    },
+    emptyTitle: {
+      color: palette.textPrimary,
+      fontSize: 20,
+      fontWeight: '600',
+    },
+    emptyCopy: {
+      color: palette.muted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+  });

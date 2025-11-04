@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { selectVerificationStatus, useAuthStore } from '../../state/authStore';
+import { useThemeStore } from '../../state/themeStore';
+import { useAppTheme, type AppPalette } from '../../theme/palette';
 
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
-  const [darkMode, setDarkMode] = useState(true);
+  const palette = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const isDarkMode = useThemeStore((state) => state.isDarkMode);
+  const setDarkMode = useThemeStore((state) => state.setDarkMode);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [privacyEnabled, setPrivacyEnabled] = useState(false);
   const verificationStatus = useAuthStore(selectVerificationStatus);
@@ -28,16 +33,16 @@ export default function SettingsScreen() {
       <Text style={styles.title}>Settings</Text>
 
       <View style={styles.section}>
-        <View style={styles.rowBetween}>
-          <View>
-            <Text style={styles.sectionHeader}>Identity verification</Text>
-            <Text style={styles.sectionCopy}>
-              {statusCopy[verificationStatus] ?? statusCopy.unverified}
-            </Text>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <View style={styles.rowBetween}>
+            <View>
+              <Text style={styles.sectionHeader}>Identity verification</Text>
+              <Text style={styles.sectionCopy}>
+                {statusCopy[verificationStatus] ?? statusCopy.unverified}
+              </Text>
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            </View>
+            {isLoading ? <ActivityIndicator color={palette.textPrimary} /> : null}
           </View>
-          {isLoading ? <ActivityIndicator color="#f8fafc" /> : null}
-        </View>
         <Pressable
           accessibilityRole="button"
           onPress={beginVerification}
@@ -54,10 +59,10 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Dark mode</Text>
           <Switch
-            value={darkMode}
+            value={isDarkMode}
             onValueChange={setDarkMode}
-            trackColor={{ true: '#a855f7', false: '#1f2937' }}
-            thumbColor={darkMode ? '#f8fafc' : '#64748b'}
+            trackColor={{ true: palette.accent, false: palette.border }}
+            thumbColor={isDarkMode ? '#f8fafc' : palette.muted}
           />
         </View>
       </View>
@@ -133,102 +138,105 @@ const statusCopy: Record<string, string> = {
   rejected: 'Your last verification attempt was rejected. Try again with clearer photos.',
 };
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 60,
-    gap: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#f8fafc',
-  },
-  section: {
-    backgroundColor: '#111b2e',
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  sectionSpacing: {
-    marginTop: 12,
-  },
-  sectionHeader: {
-    color: '#f8fafc',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  sectionCopy: {
-    color: '#94a3b8',
-    marginTop: 8,
-    lineHeight: 18,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  rowBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  rowLabel: {
-    color: '#f1f5f9',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  button: {
-    marginTop: 16,
-    backgroundColor: '#1e293b',
-    paddingVertical: 14,
-    borderRadius: 18,
-    alignItems: 'center',
-  },
-  buttonPressed: {
-    opacity: 0.85,
-  },
-  buttonLabel: {
-    color: '#f1f5f9',
-    fontWeight: '600',
-  },
-  errorText: {
-    color: '#f87171',
-    marginTop: 8,
-    fontWeight: '600',
-  },
-  linkRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  linkRowPressed: {
-    opacity: 0.8,
-  },
-  linkText: {
-    color: '#a855f7',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  chevron: {
-    color: '#64748b',
-    fontSize: 22,
-  },
-  metaLabel: {
-    color: '#94a3b8',
-    fontSize: 13,
-  },
-  metaValue: {
-    color: '#e2e8f0',
-    fontWeight: '600',
-    marginTop: 4,
-  },
-});
+const createStyles = (palette: AppPalette) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: palette.background,
+    },
+    content: {
+      padding: 20,
+      paddingBottom: 60,
+      gap: 20,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: palette.textPrimary,
+    },
+    section: {
+      backgroundColor: palette.card,
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    sectionSpacing: {
+      marginTop: 12,
+    },
+    sectionHeader: {
+      color: palette.textPrimary,
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    sectionCopy: {
+      color: palette.muted,
+      marginTop: 8,
+      lineHeight: 18,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 16,
+    },
+    rowBetween: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
+    },
+    rowLabel: {
+      color: palette.textPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    button: {
+      marginTop: 16,
+      backgroundColor: palette.surface,
+      paddingVertical: 14,
+      borderRadius: 18,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    buttonPressed: {
+      opacity: 0.85,
+    },
+    buttonLabel: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+    },
+    errorText: {
+      color: palette.danger,
+      marginTop: 8,
+      fontWeight: '600',
+    },
+    linkRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 12,
+    },
+    linkRowPressed: {
+      opacity: 0.8,
+    },
+    linkText: {
+      color: palette.accent,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    chevron: {
+      color: palette.muted,
+      fontSize: 22,
+    },
+    metaLabel: {
+      color: palette.muted,
+      fontSize: 13,
+    },
+    metaValue: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+      marginTop: 4,
+    },
+  });

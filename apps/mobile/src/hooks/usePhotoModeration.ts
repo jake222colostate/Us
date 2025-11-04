@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import { api, type PhotoResource } from '@us/api-client';
-import { useAuthStore } from '../state/authStore';
+import { useAuthStore, selectIsPremium, selectCurrentUser } from '../state/authStore';
+import { usePostQuotaStore } from '../state/postQuotaStore';
+import { useUserPostsStore } from '../state/userPostsStore';
 
 type UploadResult = {
   success: boolean;
@@ -17,10 +19,16 @@ type RNFile = {
 };
 
 export function usePhotoModeration() {
-  const user = useAuthStore((state) => state.user);
+  const user = useAuthStore(selectCurrentUser);
   const upsertPhoto = useAuthStore((state) => state.upsertUserPhoto);
   const removePhotoFromState = useAuthStore((state) => state.removeUserPhoto);
   const setPhotos = useAuthStore((state) => state.setUserPhotos);
+  const isPremium = useAuthStore(selectIsPremium);
+  const { canPost, markPosted } = usePostQuotaStore((state) => ({
+    canPost: state.canPost,
+    markPosted: state.markPosted,
+  }));
+  const addUserPost = useUserPostsStore((state) => state.addPost);
   const [isUploading, setIsUploading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +52,13 @@ export function usePhotoModeration() {
       if (!uri) {
         return { success: false };
       }
+      const dailyLimit = isPremium ? 20 : 3;
+      if (!canPost(dailyLimit)) {
+        setError(
+          `You have reached your daily posting limit of ${dailyLimit} photos. Upgrade to premium to share more.`,
+        );
+        return { success: false };
+      }
       setError(null);
       setIsUploading(true);
       try {
@@ -56,6 +71,19 @@ export function usePhotoModeration() {
 
         const photo = await api.photos.upload(formData);
         upsertPhoto(photo);
+        if (user && photo.url) {
+          addUserPost({
+            id: photo.id,
+            userId: user.id,
+            name: user.name,
+            age: user.age,
+            bio: user.bio,
+            avatar: user.avatar,
+            photoUrl: photo.url,
+            createdAt: Date.now(),
+          });
+        }
+        markPosted();
         return { success: true, photo };
       } catch (err) {
         console.error(err);
@@ -66,12 +94,25 @@ export function usePhotoModeration() {
           status: 'pending',
         };
         upsertPhoto(fallbackPhoto);
+        if (user) {
+          addUserPost({
+            id: fallbackPhoto.id,
+            userId: user.id,
+            name: user.name,
+            age: user.age,
+            bio: user.bio,
+            avatar: user.avatar,
+            photoUrl: uri,
+            createdAt: Date.now(),
+          });
+        }
+        markPosted();
         return { success: false, photo: fallbackPhoto };
       } finally {
         setIsUploading(false);
       }
     },
-    [upsertPhoto],
+    [addUserPost, canPost, isPremium, markPosted, upsertPhoto, user],
   );
 
   const refreshPhoto = useCallback(

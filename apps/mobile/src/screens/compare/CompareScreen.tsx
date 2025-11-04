@@ -82,7 +82,7 @@ export default function CompareScreen({ route }: Props) {
         </View>
 
         <View style={[styles.compareArea, containerStyle]}>
-          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.firstHorizontalPhoto]}> 
+          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.firstHorizontalPhoto]}>
             {left ? (
               <Image source={{ uri: left }} style={styles.photo} resizeMode="cover" />
             ) : (
@@ -112,9 +112,6 @@ export default function CompareScreen({ route }: Props) {
           <Pressable
             accessibilityRole="button"
             style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
-            onPress={() => {
-              // TODO: Hook into feed data source to advance to the next profile.
-            }}
           >
             <Text style={styles.secondaryButtonLabel}>Next profile</Text>
           </Pressable>

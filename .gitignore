@@ -21,3 +21,4 @@ coverage/
 .venv/
 **/.venv/
 frontend/dist/
+.env

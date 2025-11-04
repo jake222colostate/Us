@@ -1,6 +1,17 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+// set up global error handler to dump full stacks
+if (typeof global !== 'undefined' && (global as any).ErrorUtils && typeof (global as any).ErrorUtils.setGlobalHandler === 'function') {
+  const prev = (global as any).ErrorUtils.getGlobalHandler
+    ? (global as any).ErrorUtils.getGlobalHandler()
+    : (global as any).ErrorUtils._globalHandler;
+  (global as any).ErrorUtils.setGlobalHandler((err: any, isFatal?: boolean) => {
+    console.log('🟥 Global error handler hit:', { message: err?.message, name: err?.name, stack: err?.stack, isFatal });
+    if (prev) prev(err, isFatal);
+  });
+}
 
 // Global crash logger (web)
 if (
@@ -9,16 +20,10 @@ if (
   typeof window.removeEventListener === 'function'
 ) {
   const handleError = (e: { error?: unknown; message?: unknown }) => {
-    if (__DEV__) {
-      // eslint-disable-next-line no-console
-      console.error('🟥 window.error:', e.error || e.message || e);
-    }
+    console.log('🟥 window.error:', e.error || e.message || e);
   };
   const handleRejection = (e: { reason?: unknown }) => {
-    if (__DEV__) {
-      // eslint-disable-next-line no-console
-      console.error('🟧 unhandledrejection:', e.reason || e);
-    }
+    console.log('🟧 unhandledrejection:', e.reason || e);
   };
   window.addEventListener('error', handleError);
   window.addEventListener('unhandledrejection', handleRejection);
@@ -41,23 +46,16 @@ let RealApp: React.ComponentType | null = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const mod = require('./RealApp');
-  RealApp = (mod && (mod.default || mod)) || null;
-  if (__DEV__) {
-    // eslint-disable-next-line no-console
-    console.debug('🟩 RealApp resolved:', !!RealApp);
-  }
-} catch (e) {
-  if (__DEV__) {
-    // eslint-disable-next-line no-console
-    console.debug('🟨 RealApp not found, using Fallback:', e);
-  }
+  console.log('🔍 RealApp module loaded:', mod);
+  const comp = (mod && (mod.default || mod)) || null;
+  console.log('🔍 RealApp component resolved:', typeof comp);
+  RealApp = comp;
+} catch (e: any) {
+  console.log('🟨 RealApp not found, using Fallback:', e?.message, e?.stack);
 }
 
 export default function AppRoot() {
-  if (__DEV__) {
-    // eslint-disable-next-line no-console
-    console.debug('🟦 AppRoot render');
-  }
+  console.log('🟦 AppRoot render on', Platform.OS);
   const Comp = RealApp ?? Fallback;
   return <Comp />;
 }

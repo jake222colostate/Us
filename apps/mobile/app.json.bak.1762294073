@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Us",
+    "slug": "us-mobile",
+    "entryPoint": "./index.js",
+    "sdkVersion": "54.0.0",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "jsEngine": "jsc"
+    }
+  }
+}

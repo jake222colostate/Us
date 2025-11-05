@@ -1,0 +1,11 @@
+const path = require('path');
+module.exports = {
+  projectRoot: path.resolve(__dirname),
+  watchFolders: [path.resolve(__dirname, '..', '..')],
+  resolver: {
+    sourceExts: ['expo.ts','expo.tsx','expo.js','expo.jsx','ts','tsx','js','jsx','json'],
+  },
+  transformer: {
+    unstable_allowRequireContext: true,
+  },
+};

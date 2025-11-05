@@ -1,1 +1,10 @@
-{"name":"@us/api-client","version":"0.1.0","private":true,"type":"module","main":"src/index.ts","exports":{".":"./src/index.ts"}}
+{
+  "name": "@us/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

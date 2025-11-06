@@ -13,6 +13,7 @@ import SignInScreen from '../screens/auth/SignInScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import MatchesScreen from '../screens/matches/MatchesScreen';
+import ChatScreen from '../screens/chat/ChatScreen';
 import VerifyIdentityScreen from '../screens/verification/VerifyIdentityScreen';
 import CompareScreen from '../screens/compare/CompareScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
@@ -75,6 +76,13 @@ export type RootStackParamList = {
   Settings: undefined;
   ProfileDetail: { userId: string };
   EditProfile: undefined;
+  Chat: {
+    matchId: string;
+    userId: string;
+    name: string | null;
+    avatar: string | null;
+    createdAt: string;
+  };
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -373,6 +381,13 @@ export default function RootNavigator() {
             component={PublicProfileScreen}
             options={{
               title: 'Profile',
+            }}
+          />
+          <RootStack.Screen
+            name="Chat"
+            component={ChatScreen}
+            options={{
+              title: 'Chat',
             }}
           />
         </RootStack.Navigator>

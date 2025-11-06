@@ -1,32 +1,27 @@
 {
   "name": "@us/ui",
   "version": "0.0.0",
-  "private": false,
-  "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
-  },
+  "sideEffects": false,
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --out-dir dist",
-    "dev": "tsup src/index.ts --watch --format esm,cjs --dts --out-dir dist"
-  },
-  "devDependencies": {
-    "tsup": "^8.2.4",
-    "typescript": "^5.6.3"
+    "clean": "rm -rf dist node_modules"
   },
   "peerDependencies": {
-    "react": ">=18",
-    "react-dom": ">=18"
+    "react": "^18.3.1",
+    "react-native": ">=0.72"
   },
-  "sideEffects": false
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "tsup": "^8.5.0",
+    "@types/react": "^19.1.17",
+    "react": "18.3.1",
+    "react-native": "0.81.5"
+  },
+  "dependencies": {}
 }

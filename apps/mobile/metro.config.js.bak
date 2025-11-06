@@ -1,0 +1,32 @@
+const path = require('path');
+const { getDefaultConfig } = require('@expo/metro-config');
+const { exclusionList } = require('metro-config');
+
+const projectRoot = __dirname;                          // apps/mobile
+const workspaceRoot = path.resolve(projectRoot, '../..'); // repo root
+
+const config = getDefaultConfig(projectRoot);
+
+// Watch the workspace so local packages (e.g. @us/ui) rebuild and resolve
+config.watchFolders = [workspaceRoot];
+
+// Resolve modules from this app first, then the workspace root
+config.resolver.nodeModulesPaths = [
+  path.join(projectRoot, 'node_modules'),
+  path.join(workspaceRoot, 'node_modules'),
+];
+
+// Block duplicates coming from the workspace root node_modules,
+// but allow react and react-native to come from the app
+const rootNM = path
+  .join(workspaceRoot, 'node_modules')
+  .replace(/[/\\]/g, '[\\\\/]');
+
+config.resolver.blockList = exclusionList([
+  new RegExp(`^${rootNM}(?![\\\\/](react|react-native)([\\\\/]|$)).*`)
+]);
+
+// Be explicit about resolution to avoid climbing surprises
+config.resolver.disableHierarchicalLookup = true;
+
+module.exports = config;

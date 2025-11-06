@@ -1,0 +1,29 @@
+console.log("[BOOT] index.js begin");
+import 'react-native-gesture-handler';
+console.log("[BOOT] gesture-handler imported");
+import 'react-native-reanimated';
+console.log("[BOOT] reanimated imported");
+import { AppRegistry, Platform } from 'react-native';
+import App from './App';
+console.log("[BOOT] App imported, registering component");
+AppRegistry.registerComponent('main', () => App);
+try {
+  const { registerRootComponent } = require('expo');
+  registerRootComponent(App);
+  console.log("[BOOT] registerRootComponent called");
+} catch(e) {
+  console.log("[BOOT] expo registerRootComponent failed:", String(e));
+}
+if (Platform.OS === 'web') {
+  try {
+    const { createRoot } = require('react-dom/client');
+    const React = require('react');
+    const rootNode = document.getElementById('root') || (() => {
+      const d = document.createElement('div'); d.id = 'root'; document.body.appendChild(d); return d;
+    })();
+    createRoot(rootNode).render(React.createElement(App));
+    console.log("[BOOT] web root rendered");
+  } catch(e) {
+    console.log("[BOOT] web render skipped:", String(e));
+  }
+}

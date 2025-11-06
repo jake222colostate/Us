@@ -1,0 +1,3 @@
+infra/supabase/functions/**
+infra/supabase/tests/**
+apps/mobile/e2e/**

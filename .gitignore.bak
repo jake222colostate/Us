@@ -46,22 +46,3 @@ apps/**/.expo/*
 .expo
 *.env
 apps/*/.env
-# --- generated / heavy ---
-node_modules/
-.pnp.*
-.pnpm-store/
-.expo/
-.expo-shared/
-dist/
-build/
-.tmp/
-.cache/
-**/.DS_Store
-# env files
-.env
-*.env.local
-# Metro caches
-**/.metro-cache/
-# Vite/Expo outputs
-apps/**/dist/
-apps/**/.expo/

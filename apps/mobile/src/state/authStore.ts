@@ -221,11 +221,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }));
     if (session) {
       const client = getSupabaseClient();
-      client
-        .from('profiles')
-        .update({ verification_status: status })
-        .eq('id', session.user.id)
-        .catch((error) => console.error('Failed to update verification status', error));
+      const updateVerificationStatus = async () => {
+        try {
+          await client
+            .from('profiles')
+            .update({ verification_status: status })
+            .eq('id', session.user.id);
+        } catch (error) {
+          console.error('Failed to update verification status', error);
+        }
+      };
+      void updateVerificationStatus();
     }
   },
   setUserPhotos(photos) {

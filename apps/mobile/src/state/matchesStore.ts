@@ -57,7 +57,7 @@ async function fetchMatchesFromSupabase(userId: string): Promise<MatchProfile[]>
 
   const { data: profilesData, error: profilesError } = await client
     .from('profiles')
-    .select('id, display_name, bio, avatar_url, verification_status')
+    .select('id, display_name, bio, verification_status')
     .in('id', otherUserIds);
   if (profilesError) throw profilesError;
   const profileMap = new Map<string, ProfileRecord>(

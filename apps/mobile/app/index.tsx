@@ -1,2 +1,11 @@
-import { View, Text } from 'react-native';
-export default function Home(){ return <View style={{flex:1,alignItems:'center',justifyContent:'center'}}><Text testID="hello">Hello SDK54</Text></View>; }
+import { NavigationIndependentTree } from '@react-navigation/native';
+import RealApp from '../src/RealApp';
+
+export default function Index() {
+  // We isolate navigation because RealApp already owns a NavigationContainer.
+  return (
+    <NavigationIndependentTree>
+      <RealApp />
+    </NavigationIndependentTree>
+  );
+}

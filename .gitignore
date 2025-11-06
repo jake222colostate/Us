@@ -43,3 +43,4 @@ apps/**/.next/
 apps/**/.turbo/
 apps/**/.cache/
 apps/**/.expo/*
+.expo

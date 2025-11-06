@@ -125,7 +125,7 @@ export default function FeedScreen() {
       });
       const { data: profileRows, error: profileError } = await client
         .from('profiles')
-        .select('id, display_name, bio, avatar_url, birthday')
+        .select('id, display_name, bio, birthday')
         .neq('id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(40);

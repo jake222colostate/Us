@@ -154,7 +154,7 @@ export default function ProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: [ImagePicker.MediaType.Images],
+      mediaTypes: [ImagePicker.MediaTypeOptions.Images],
       quality: 0.8,
       selectionLimit: 1,
     });

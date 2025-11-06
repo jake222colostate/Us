@@ -169,7 +169,7 @@ const PublicProfileScreen: React.FC = () => {
         const client = getSupabaseClient();
         const { data: profileRow, error: profileError } = await client
           .from('profiles')
-          .select('id, display_name, bio, avatar_url, verification_status')
+          .select('id, display_name, bio, verification_status')
           .eq('id', userId)
           .single();
         if (profileError) throw profileError;
@@ -221,7 +221,7 @@ const PublicProfileScreen: React.FC = () => {
       <View style={styles.header}>
         <View style={styles.topRow}>
           {profile.avatar_url ? (
-            <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+            <Image source={{ uri: photos?.[0]?.url }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, styles.gridItem]}>
               <Text style={{ color: palette.muted, textAlign: 'center' }}>No photo</Text>

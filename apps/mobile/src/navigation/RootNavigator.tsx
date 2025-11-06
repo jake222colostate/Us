@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import FeedScreen from '../screens/feed/FeedScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import SignInScreen from '../screens/auth/SignInScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
@@ -62,6 +63,7 @@ export type RootStackParamList = {
     | undefined;
   Settings: undefined;
   ProfileDetail: { userId: string };
+  EditProfile: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -225,6 +227,13 @@ export default function RootNavigator() {
             component={SettingsScreen}
             options={{
               title: 'Settings',
+            }}
+          />
+          <RootStack.Screen
+            name="EditProfile"
+            component={EditProfileScreen}
+            options={{
+              title: 'Edit profile',
             }}
           />
           <RootStack.Screen

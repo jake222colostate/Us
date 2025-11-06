@@ -8,8 +8,8 @@ import { mapPhotoRows, type PhotoRow } from '../../lib/photos';
 import { getSupabaseClient } from '../../api/supabase';
 
 const layoutOptions: { key: CompareLayout; label: string }[] = [
-  { key: 'vertical', label: 'Vertical' },
   { key: 'horizontal', label: 'Side by side' },
+  { key: 'vertical', label: 'Vertical' },
 ];
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Compare'>;
@@ -217,7 +217,6 @@ const styles = StyleSheet.create({
   },
   horizontalLayout: {
     flexDirection: 'row',
-    gap: 12,
   },
   photoCard: {
     flex: 1,
@@ -230,9 +229,13 @@ const styles = StyleSheet.create({
   },
   firstHorizontalPhoto: {
     flex: 1,
+    marginBottom: 0,
+    marginRight: 8,
   },
   secondHorizontalPhoto: {
     flex: 1,
+    marginBottom: 0,
+    marginLeft: 8,
   },
   photo: {
     width: '100%',

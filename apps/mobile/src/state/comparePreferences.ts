@@ -8,6 +8,6 @@ type ComparePreferencesState = {
 };
 
 export const useComparePreferences = create<ComparePreferencesState>((set) => ({
-  layout: 'vertical',
+  layout: 'horizontal',
   setLayout: (layout) => set({ layout }),
 }));

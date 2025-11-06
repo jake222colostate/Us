@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { ThemeProvider, DarkTheme, DefaultTheme } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import * as ImagePicker from 'expo-image-picker';
 import FeedScreen from '../screens/feed/FeedScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
@@ -16,9 +17,17 @@ import VerifyIdentityScreen from '../screens/verification/VerifyIdentityScreen';
 import CompareScreen from '../screens/compare/CompareScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
-import { selectIsAuthenticated, selectVerificationStatus, selectIsInitialized, useAuthStore } from '../state/authStore';
+import LikesScreen from '../screens/likes/LikesScreen';
+import {
+  selectIsAuthenticated,
+  selectVerificationStatus,
+  selectIsInitialized,
+  useAuthStore,
+} from '../state/authStore';
 import { useThemeStore } from '../state/themeStore';
 import { navigationRef, logNavigationReady } from './navigationService';
+import { useToast } from '../providers/ToastProvider';
+import { usePhotoModeration } from '../hooks/usePhotoModeration';
 
 console.log('🔎 RootNavigator imports:', {
   FeedScreen: typeof FeedScreen,
@@ -34,6 +43,8 @@ console.log('🔎 RootNavigator imports:', {
 
 export type MainTabParamList = {
   Feed: undefined;
+  Likes: undefined;
+  Upload: undefined;
   Matches: undefined;
   Profile: undefined;
 };
@@ -70,6 +81,120 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 
+const UploadPlaceholder: React.FC = () => null;
+
+const uploadButtonStyles = StyleSheet.create({
+  wrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -18,
+  },
+  wrapperPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  circle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+    borderWidth: 3,
+  },
+});
+
+const UploadTabButton: React.FC<BottomTabBarButtonProps> = ({
+  accessibilityLabel,
+  style,
+  onPress: _onPress,
+  ...rest
+}) => {
+  const isDarkMode = useThemeStore((state) => state.isDarkMode);
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
+  const { uploadPhoto, isUploading } = usePhotoModeration();
+  const { show } = useToast();
+
+  const handleUpload = useCallback(async () => {
+    if (isUploading) return;
+    if (!isAuthenticated) {
+      Alert.alert('Sign in required', 'Create an account to share a new photo.');
+      return;
+    }
+
+    try {
+      const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+      if (cameraPermission.granted) {
+        const capture = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+        });
+
+        if (!capture.canceled && capture.assets?.length) {
+          const outcome = await uploadPhoto(capture.assets[0].uri);
+          if (!outcome.success) {
+            Alert.alert('Upload failed', 'We could not add your photo. Please try again.');
+          } else {
+            show('Photo uploaded! It will appear on your feed after moderation.');
+          }
+          return;
+        }
+      } else {
+        Alert.alert('Camera access needed', 'Enable camera access to snap a new photo.');
+      }
+
+      const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!libraryPermission.granted) {
+        return;
+      }
+
+      const library = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        selectionLimit: 1,
+        quality: 0.85,
+      });
+
+      if (!library.canceled && library.assets?.length) {
+        const outcome = await uploadPhoto(library.assets[0].uri);
+        if (!outcome.success) {
+          Alert.alert('Upload failed', 'We could not add your photo. Please try again.');
+        } else {
+          show('Photo uploaded! It will appear on your feed after moderation.');
+        }
+      }
+    } catch (err) {
+      console.error('Photo upload failed', err);
+      Alert.alert('Upload failed', 'We could not add your photo. Please try again.');
+    }
+  }, [isAuthenticated, isUploading, uploadPhoto, show]);
+
+  return (
+    <Pressable
+      {...rest}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? 'Add a new photo'}
+      onPress={handleUpload}
+      disabled={isUploading}
+      style={({ pressed }) => [style, uploadButtonStyles.wrapper, pressed && uploadButtonStyles.wrapperPressed]}
+    >
+      <View
+        style={[
+          uploadButtonStyles.circle,
+          {
+            backgroundColor: '#f472b6',
+            borderColor: isDarkMode ? '#0b1220' : '#f4e6ff',
+          },
+        ]}
+      >
+        {isUploading ? <ActivityIndicator color="#fff" /> : <Ionicons name="add" size={30} color="#fff" />}
+      </View>
+    </Pressable>
+  );
+};
+
 function AuthStackNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
@@ -89,34 +214,41 @@ function Tabs() {
 
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: { backgroundColor: tabBackground, borderTopColor: borderColor },
         tabBarActiveTintColor: activeTint,
         tabBarInactiveTintColor: inactiveTint,
-      }}
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarIcon: ({ color, size, focused }) => {
+          if (route.name === 'Feed') {
+            return <Ionicons name={focused ? 'grid' : 'grid-outline'} size={size} color={color} />;
+          }
+          if (route.name === 'Likes') {
+            return <Ionicons name={focused ? 'heart' : 'heart-outline'} size={size} color={color} />;
+          }
+          if (route.name === 'Matches') {
+            return <Ionicons name={focused ? 'chatbubble' : 'chatbubble-outline'} size={size} color={color} />;
+          }
+          if (route.name === 'Profile') {
+            return <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />;
+          }
+          return null;
+        },
+      })}
     >
+      <Tab.Screen name="Feed" component={FeedScreen} />
+      <Tab.Screen name="Likes" component={LikesScreen} />
       <Tab.Screen
-        name="Feed"
-        component={FeedScreen}
+        name="Upload"
+        component={UploadPlaceholder}
         options={{
-          tabBarLabel: ({ color }) => <Text style={{ color, fontSize: 12 }}>Feed</Text>,
+          tabBarLabel: () => null,
+          tabBarButton: (props) => <UploadTabButton {...props} />,
         }}
       />
-      <Tab.Screen
-        name="Matches"
-        component={MatchesScreen}
-        options={{
-          tabBarLabel: ({ color }) => <Text style={{ color, fontSize: 12 }}>Matches</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: ({ color }) => <Text style={{ color, fontSize: 12 }}>Profile</Text>,
-        }}
-      />
+      <Tab.Screen name="Matches" component={MatchesScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }

@@ -1,5 +1,3 @@
-import { decode as atob } from "base-64";
-import * as FileSystem from "expo-file-system";
 import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
@@ -78,7 +76,7 @@ export function usePhotoModeration() {
         const client = getSupabaseClient();
         const { error: uploadError } = await client.storage
           .from(PROFILE_PHOTO_BUCKET)
-          (async () => {  const __B64__ = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });  const __BYTES__ = Uint8Array.from(atob(__B64__), c => c.charCodeAt(0));  return client.storage.from(PROFILE_PHOTO_BUCKET).upload(path, __BYTES__, { contentType, upsert: false });
+          .upload(path, blob, { contentType, upsert: false });
         if (uploadError) {
           throw uploadError;
         }

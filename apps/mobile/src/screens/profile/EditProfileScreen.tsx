@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
+import type { PhotoResource } from '../../lib/photos';
 import {
   selectCurrentUser,
   selectVerificationStatus,
@@ -46,6 +47,14 @@ const statusCopy: Record<string, string> = {
   rejected: 'Verification was rejected. Update your info and try again.',
 };
 
+type PhotoTabKey = 'library' | 'feed' | 'camera';
+
+const PHOTO_TAB_OPTIONS: { key: PhotoTabKey; label: string }[] = [
+  { key: 'library', label: 'Library' },
+  { key: 'feed', label: 'Feed photos' },
+  { key: 'camera', label: 'Camera' },
+];
+
 export default function EditProfileScreen() {
   const navigation = useNavigation<
     CompositeNavigationProp<
@@ -54,11 +63,13 @@ export default function EditProfileScreen() {
     >
   >();
   const user = useAuthStore(selectCurrentUser);
+  const currentAvatarPath = user?.avatarStoragePath ?? null;
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const verificationStatus = useAuthStore(selectVerificationStatus);
   const updateUser = useAuthStore((state) => state.updateUser);
   const isPremium = useAuthStore(selectIsPremium);
   const setPremium = useAuthStore((state) => state.setPremium);
+  const setAvatar = useAuthStore((state) => state.setAvatar);
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const statusStyles = useMemo(() => createStatusStyles(palette), [palette]);
@@ -71,6 +82,8 @@ export default function EditProfileScreen() {
   const [interestInput, setInterestInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [photoTab, setPhotoTab] = useState<PhotoTabKey>('library');
+  const cameraLaunchRef = useRef(false);
 
   useEffect(() => {
     console.log('[profile] authed?', isAuthenticated);
@@ -98,6 +111,11 @@ export default function EditProfileScreen() {
     error: photoError,
     clearError: clearPhotoError,
   } = usePhotoModeration();
+  const photoList = photoUser?.photos ?? [];
+  const approvedPhotos = useMemo(
+    () => photoList.filter((item) => item.status === 'approved'),
+    [photoList],
+  );
 
   useEffect(() => {
     setBio(user?.bio ?? '');
@@ -146,7 +164,7 @@ export default function EditProfileScreen() {
     );
   }, []);
 
-  const handleAddPhoto = useCallback(async () => {
+  const handlePickFromLibrary = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permission needed', 'We need photo library access to add new photos.');
@@ -154,7 +172,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
       selectionLimit: 1,
     });
@@ -163,8 +181,79 @@ export default function EditProfileScreen() {
       return;
     }
 
-    await uploadPhoto(result.assets[0].uri);
-  }, [uploadPhoto]);
+    const uploadResult = await uploadPhoto(result.assets[0].uri);
+    if (uploadResult?.success && uploadResult.photo) {
+      try {
+        await setAvatar(uploadResult.photo.storagePath);
+        Alert.alert('Profile photo updated', 'Your new photo is live on your profile and feed.');
+      } catch (err) {
+        console.error(err);
+        Alert.alert('Unable to update profile photo', 'Try again once you have a stable connection.');
+      }
+    }
+  }, [setAvatar, uploadPhoto]);
+
+  const handleCapturePhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'We need camera access to take new photos.');
+      setPhotoTab('library');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      setPhotoTab('library');
+      return;
+    }
+
+    const uploadResult = await uploadPhoto(result.assets[0].uri);
+    if (uploadResult?.success && uploadResult.photo) {
+      try {
+        await setAvatar(uploadResult.photo.storagePath);
+        Alert.alert('Photo shared', 'Your new photo was added to your profile and feed.');
+      } catch (err) {
+        console.error(err);
+        Alert.alert('Unable to update profile photo', 'Try again once you have a stable connection.');
+      }
+    }
+    setPhotoTab('library');
+  }, [setAvatar, setPhotoTab, uploadPhoto]);
+
+  const handleSelectProfilePhoto = useCallback(
+    async (photo: PhotoResource) => {
+      if (photo.status !== 'approved') {
+        Alert.alert('Pending approval', 'Only approved photos can become your profile photo.');
+        return;
+      }
+      try {
+        await setAvatar(photo.storagePath);
+        Alert.alert('Profile photo updated', 'We refreshed your profile with this photo.');
+      } catch (err) {
+        console.error(err);
+        Alert.alert('Unable to update profile photo', 'Try again once you have a stable connection.');
+      }
+    },
+    [setAvatar],
+  );
+
+  useEffect(() => {
+    if (photoTab !== 'camera') {
+      cameraLaunchRef.current = false;
+      return;
+    }
+    if (cameraLaunchRef.current) {
+      return;
+    }
+    cameraLaunchRef.current = true;
+    handleCapturePhoto().finally(() => {
+      cameraLaunchRef.current = false;
+    });
+  }, [photoTab, handleCapturePhoto]);
 
   const handleRefreshPhoto = useCallback(
     async (photoId: string) => {
@@ -181,8 +270,6 @@ export default function EditProfileScreen() {
     },
     [clearPhotoError, retryModeration],
   );
-
-  const photoList = photoUser?.photos ?? [];
 
   if (!isAuthenticated) {
     return (
@@ -232,18 +319,19 @@ export default function EditProfileScreen() {
         )}
         <View style={styles.headerCopy}>
           <View style={styles.nameRow}>
-            <Text style={styles.name}>{user.name ?? 'Your profile'}</Text>
+            <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+              {user.name ?? 'Your profile'}
+            </Text>
             {verificationStatus === 'verified' ? (
               <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedBadgeText}>Verified</Text>
               </View>
             ) : null}
           </View>
-          <Text style={styles.meta}>{profileMeta}</Text>
+          <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
+            {profileMeta}
+          </Text>
         </View>
-        <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.settingsLink}>⚙️ Settings</Text>
-        </Pressable>
       </View>
 
       <View style={[styles.section, styles.sectionSpacing]}>
@@ -307,75 +395,170 @@ export default function EditProfileScreen() {
             <Text style={styles.premiumManageLabel}>Premium active • Tap to switch plans</Text>
           </Pressable>
         )}
-        <View style={styles.photoGrid}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleAddPhoto}
-            style={({ pressed }) => [styles.addPhotoCard, pressed && styles.addPhotoCardPressed]}
-          >
-            {isUploading ? (
-              <ActivityIndicator color={palette.textPrimary} />
-            ) : (
-              <Text style={styles.addPhotoLabel}>＋ Add photo</Text>
-            )}
-          </Pressable>
-          {photoList.map((photo) => (
-            <View key={photo.id} style={styles.photoCard}>
-              {photo.url ? (
-                <Image source={{ uri: photo.url }} style={styles.photoPreview} />
-              ) : (
-                <View style={[styles.photoPreview, styles.photoPreviewPlaceholder]}>
-                  <Text style={styles.photoPreviewPlaceholderText}>No photo</Text>
-                </View>
-              )}
-              <View style={styles.photoMetaRow}>
-                <View style={[styles.statusBadge, statusStyles[photo.status]]}>
-                  <Text style={styles.statusBadgeText}>{statusLabels[photo.status]}</Text>
-                </View>
+        <View style={styles.photoTabs}>
+          {PHOTO_TAB_OPTIONS.map((option) => {
+            const isActive = photoTab === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                accessibilityRole="tab"
+                onPress={() => setPhotoTab(option.key)}
+                style={({ pressed }) => [
+                  styles.photoTabButton,
+                  isActive && styles.photoTabButtonActive,
+                  !isActive && pressed && styles.photoTabButtonPressed,
+                ]}
+              >
+                <Text style={[styles.photoTabLabel, isActive && styles.photoTabLabelActive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {photoTab === 'camera' ? (
+          <View style={styles.cameraContainer}>
+            <Text style={styles.sectionCopy}>
+              Take a new photo to share it instantly on your profile and feed.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleCapturePhoto}
+              style={({ pressed }) => [
+                styles.solidButton,
+                styles.cameraActionButton,
+                pressed && styles.solidButtonPressed,
+              ]}
+            >
+              <Text style={styles.solidButtonLabel}>Open camera</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={handlePickFromLibrary}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                styles.cameraActionButton,
+                pressed && styles.secondaryButtonPressed,
+              ]}
+            >
+              <Text style={styles.secondaryButtonLabel}>Upload from library</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            {photoTab === 'feed' ? (
+              <Text style={[styles.sectionCopy, styles.photoTabCopy]}>
+                Choose one of your approved feed photos to make it your profile picture.
+              </Text>
+            ) : null}
+            <View style={styles.photoGrid}>
+              {photoTab === 'library' ? (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => removePhoto(photo.id)}
-                  style={({ pressed }) => [styles.inlineAction, pressed && styles.inlineActionPressed]}
+                  onPress={handlePickFromLibrary}
+                  style={({ pressed }) => [styles.addPhotoCard, pressed && styles.addPhotoCardPressed]}
                 >
-                  <Text style={styles.inlineActionText}>Remove</Text>
+                  {isUploading ? (
+                    <ActivityIndicator color={palette.textPrimary} />
+                  ) : (
+                    <Text style={styles.addPhotoLabel}>＋ Add photo</Text>
+                  )}
                 </Pressable>
-              </View>
-              {photo.status === 'rejected' && photo.rejectionReason ? (
-                <Text style={styles.rejectionCopy}>{photo.rejectionReason}</Text>
               ) : null}
-              <View style={styles.photoActionsRow}>
-                {photo.status === 'rejected' ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => handleRetryModeration(photo.id)}
-                    style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
-                  >
-                    <Text style={styles.secondaryButtonLabel}>Retry moderation</Text>
-                  </Pressable>
-                ) : (
-                  <>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => handleRefreshPhoto(photo.id)}
-                      style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
-                    >
-                      <Text style={styles.secondaryButtonLabel}>Refresh status</Text>
-                    </Pressable>
-                    {verificationMode === 'mock' && photo.status === 'pending' ? (
+              {(photoTab === 'feed' ? approvedPhotos : photoList).map((photo) => {
+                const isCurrent = currentAvatarPath ? photo.storagePath === currentAvatarPath : false;
+                return (
+                  <View key={photo.id} style={[styles.photoCard, isCurrent && styles.photoCardSelected]}>
+                    {photo.url ? (
+                      <Image source={{ uri: photo.url }} style={styles.photoPreview} />
+                    ) : (
+                      <View style={[styles.photoPreview, styles.photoPreviewPlaceholder]}>
+                        <Text style={styles.photoPreviewPlaceholderText}>No photo</Text>
+                      </View>
+                    )}
+                    {isCurrent ? (
+                      <View style={styles.currentBadge}>
+                        <Text style={styles.currentBadgeText}>Profile photo</Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.photoMetaRow}>
+                      <View style={[styles.statusBadge, statusStyles[photo.status]]}>
+                        <Text style={styles.statusBadgeText}>{statusLabels[photo.status]}</Text>
+                      </View>
                       <Pressable
                         accessibilityRole="button"
-                        onPress={() => approvePhoto(photo.id)}
-                        style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+                        onPress={() => removePhoto(photo.id)}
+                        style={({ pressed }) => [styles.inlineAction, pressed && styles.inlineActionPressed]}
                       >
-                        <Text style={styles.secondaryButtonLabel}>Approve (mock)</Text>
+                        <Text style={styles.inlineActionText}>Remove</Text>
                       </Pressable>
+                    </View>
+                    {photo.status === 'rejected' && photo.rejectionReason ? (
+                      <Text style={styles.rejectionCopy}>{photo.rejectionReason}</Text>
                     ) : null}
-                  </>
-                )}
-              </View>
+                    <View style={styles.photoActionsRow}>
+                      {photo.status === 'rejected' ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => handleRetryModeration(photo.id)}
+                          style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+                        >
+                          <Text style={styles.secondaryButtonLabel}>Retry moderation</Text>
+                        </Pressable>
+                      ) : (
+                        <>
+                          {photo.status === 'approved' ? (
+                            <Pressable
+                              accessibilityRole="button"
+                              onPress={() => handleSelectProfilePhoto(photo)}
+                              disabled={isCurrent}
+                              style={({ pressed }) => [
+                                styles.solidButton,
+                                styles.photoActionButton,
+                                pressed && styles.solidButtonPressed,
+                                isCurrent && styles.solidButtonDisabled,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.solidButtonLabel,
+                                  isCurrent && styles.solidButtonLabelDisabled,
+                                ]}
+                              >
+                                {isCurrent ? 'Profile photo' : 'Use as profile photo'}
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() => handleRefreshPhoto(photo.id)}
+                            style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+                          >
+                            <Text style={styles.secondaryButtonLabel}>Refresh status</Text>
+                          </Pressable>
+                          {verificationMode === 'mock' && photo.status === 'pending' ? (
+                            <Pressable
+                              accessibilityRole="button"
+                              onPress={() => approvePhoto(photo.id)}
+                              style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+                            >
+                              <Text style={styles.secondaryButtonLabel}>Approve (mock)</Text>
+                            </Pressable>
+                          ) : null}
+                        </>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
             </View>
-          ))}
-        </View>
+            {photoTab === 'feed' && approvedPhotos.length === 0 ? (
+              <Text style={styles.sectionCopy}>
+                You don't have any approved feed photos yet. Upload or capture a photo to get started.
+              </Text>
+            ) : null}
+          </>
+        )}
       </View>
 
       <View style={[styles.section, styles.sectionSpacing]}>
@@ -472,6 +655,7 @@ const createStyles = (palette: AppPalette) =>
       flex: 1,
       marginHorizontal: 16,
       gap: 6,
+      flexShrink: 1,
     },
     avatar: {
       width: 80,
@@ -500,6 +684,7 @@ const createStyles = (palette: AppPalette) =>
       color: palette.textPrimary,
       fontSize: 24,
       fontWeight: '700',
+      flexShrink: 1,
     },
     verifiedBadge: {
       backgroundColor: palette.accent,
@@ -514,10 +699,7 @@ const createStyles = (palette: AppPalette) =>
     },
     meta: {
       color: palette.muted,
-    },
-    settingsLink: {
-      color: palette.accent,
-      fontWeight: '600',
+      flexShrink: 1,
     },
     section: {
       backgroundColor: palette.card,
@@ -544,6 +726,9 @@ const createStyles = (palette: AppPalette) =>
       color: palette.muted,
       marginTop: 8,
       lineHeight: 18,
+    },
+    photoTabCopy: {
+      marginTop: 16,
     },
     quotaCopy: {
       color: palette.muted,
@@ -631,6 +816,40 @@ const createStyles = (palette: AppPalette) =>
       gap: 12,
       marginTop: 16,
     },
+    photoTabs: {
+      flexDirection: 'row',
+      gap: 8,
+      backgroundColor: palette.surface,
+      borderRadius: 999,
+      padding: 6,
+      marginTop: 16,
+    },
+    photoTabButton: {
+      flex: 1,
+      borderRadius: 999,
+      paddingVertical: 8,
+      alignItems: 'center',
+    },
+    photoTabButtonActive: {
+      backgroundColor: palette.accent,
+    },
+    photoTabButtonPressed: {
+      backgroundColor: palette.border,
+    },
+    photoTabLabel: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+    },
+    photoTabLabelActive: {
+      color: '#ffffff',
+    },
+    cameraContainer: {
+      marginTop: 16,
+      gap: 12,
+    },
+    cameraActionButton: {
+      alignSelf: 'stretch',
+    },
     addPhotoCard: {
       width: '30%',
       aspectRatio: 1,
@@ -657,6 +876,10 @@ const createStyles = (palette: AppPalette) =>
       backgroundColor: palette.surface,
       borderWidth: 1,
       borderColor: palette.border,
+      position: 'relative',
+    },
+    photoCardSelected: {
+      borderColor: palette.accent,
     },
     photoPreview: {
       width: '100%',
@@ -716,6 +939,23 @@ const createStyles = (palette: AppPalette) =>
       paddingHorizontal: 12,
       paddingBottom: 12,
     },
+    photoActionButton: {
+      flex: 1,
+    },
+    currentBadge: {
+      position: 'absolute',
+      top: 8,
+      left: 8,
+      backgroundColor: 'rgba(15, 23, 42, 0.75)',
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    currentBadgeText: {
+      color: '#ffffff',
+      fontSize: 12,
+      fontWeight: '600',
+    },
     input: {
       borderRadius: 16,
       borderWidth: 1,
@@ -739,6 +979,25 @@ const createStyles = (palette: AppPalette) =>
     primaryButtonLabel: {
       color: '#ffffff',
       fontWeight: '700',
+    },
+    solidButton: {
+      backgroundColor: palette.accent,
+      paddingVertical: 14,
+      borderRadius: 14,
+      alignItems: 'center',
+    },
+    solidButtonPressed: {
+      opacity: 0.9,
+    },
+    solidButtonDisabled: {
+      opacity: 0.6,
+    },
+    solidButtonLabel: {
+      color: '#ffffff',
+      fontWeight: '700',
+    },
+    solidButtonLabelDisabled: {
+      color: '#f1f5f9',
     },
     dangerButton: {
       flex: 1,

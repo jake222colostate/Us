@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../api/supabase';
-import { mapPhotoRows, type PhotoResource, type PhotoRow } from '../lib/photos';
+import { createSignedPhotoUrl, mapPhotoRows, type PhotoResource, type PhotoRow } from '../lib/photos';
 
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 export type ModerationStatus = PhotoResource['status'];
@@ -16,6 +16,7 @@ export type AuthenticatedUser = {
   age?: number | null;
   location?: string | null;
   avatar?: string | null;
+  avatarStoragePath?: string | null;
   bio?: string | null;
   interests: string[];
   verificationStatus: VerificationStatus;
@@ -37,6 +38,7 @@ type AuthState = {
   upsertUserPhoto: (photo: UserPhoto) => void;
   removeUserPhoto: (photoId: string) => void;
   setPremium: (value: boolean) => void;
+  setAvatar: (storagePath: string | null) => Promise<void>;
 };
 
 function calculateAge(birthday: string | null | undefined): number | null {
@@ -101,6 +103,9 @@ async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
 
   const photos = await mapPhotoRows(((photoRows ?? []) as PhotoRow[]));
   const firstApproved = photos.find((photo) => photo.status === 'approved');
+  const signedAvatar = profileRow.avatar_url
+    ? await createSignedPhotoUrl(profileRow.avatar_url)
+    : null;
 
   return {
     id: profileRow.id,
@@ -109,7 +114,8 @@ async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
     birthday: profileRow.birthday ?? null,
     age: calculateAge(profileRow.birthday ?? null),
     location: profileRow.location ?? null,
-    avatar: profileRow.avatar_url ?? firstApproved?.url ?? null,
+    avatar: signedAvatar ?? firstApproved?.url ?? null,
+    avatarStoragePath: profileRow.avatar_url ?? firstApproved?.storagePath ?? null,
     bio: profileRow.bio ?? null,
     interests: Array.isArray(profileRow.interests) ? (profileRow.interests as string[]) : [],
     verificationStatus: profileRow.verification_status ?? 'unverified',
@@ -271,6 +277,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         },
       };
     });
+  },
+  async setAvatar(storagePath) {
+    const session = get().session;
+    if (!session) return;
+    const client = getSupabaseClient();
+    const { error } = await client
+      .from('profiles')
+      .update({ avatar_url: storagePath })
+      .eq('id', session.user.id);
+    if (error) {
+      throw error;
+    }
+    const signed = storagePath ? await createSignedPhotoUrl(storagePath) : null;
+    set((state) => ({
+      ...state,
+      user: state.user
+        ? { ...state.user, avatar: signed, avatarStoragePath: storagePath ?? null }
+        : state.user,
+    }));
   },
   setPremium(value) {
     set((state) => ({ ...state, isPremium: value }));

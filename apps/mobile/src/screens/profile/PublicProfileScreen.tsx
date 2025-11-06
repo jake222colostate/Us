@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, View, Pressable, Text, ActivityIndicator } from 'react-native';
+import { Image, ScrollView, StyleSheet, View, Pressable, Text, ActivityIndicator, Alert } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
@@ -7,6 +7,8 @@ import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { mapPhotoRows, type PhotoRow } from '../../lib/photos';
 import { getSupabaseClient } from '../../api/supabase';
 import { useMatchesStore } from '../../state/matchesStore';
+import { useAuthStore, selectSession, selectIsAuthenticated } from '../../state/authStore';
+import { likeUser } from '../../api/likes';
 
 export type PublicProfileRoute = RouteProp<RootStackParamList, 'ProfileDetail'>;
 
@@ -112,6 +114,12 @@ const createStyles = (palette: AppPalette) =>
       borderRadius: 16,
       alignItems: 'center',
     },
+    primaryButtonPressed: {
+      opacity: 0.9,
+    },
+    primaryButtonDisabled: {
+      opacity: 0.6,
+    },
     secondaryButton: {
       flex: 1,
       backgroundColor: palette.card,
@@ -155,10 +163,14 @@ const PublicProfileScreen: React.FC = () => {
   const route = useRoute<PublicProfileRoute>();
   const navigation = useNavigation<NavigationProp>();
   const matches = useMatchesStore((state) => state.matches);
+  const fetchMatches = useMatchesStore((state) => state.fetchMatches);
+  const session = useAuthStore(selectSession);
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [liking, setLiking] = useState(false);
   const { userId } = route.params;
 
   useEffect(() => {
@@ -195,6 +207,38 @@ const PublicProfileScreen: React.FC = () => {
   }, [userId]);
 
   const isMatched = matches.some((match) => match.userId === userId);
+
+  const handleSendLike = async () => {
+    if (liking) return;
+    if (!session || !isAuthenticated) {
+      Alert.alert('Sign in required', 'Create an account to send a like.');
+      return;
+    }
+
+    setLiking(true);
+    try {
+      const result = await likeUser(session.user.id, userId);
+      if (result.matchCreated) {
+        await fetchMatches(session.user.id);
+        Alert.alert('It’s a match!', 'You both liked each other. Say hi in Matches.');
+      } else {
+        Alert.alert('Like sent', 'They’ll see your heart in their likes tab.');
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Unable to send like', 'Please try again in a moment.');
+    } finally {
+      setLiking(false);
+    }
+  };
+
+  const handlePrimaryPress = () => {
+    if (isMatched) {
+      navigation.navigate('MainTabs', { screen: 'Matches' });
+      return;
+    }
+    void handleSendLike();
+  };
 
   if (isLoading) {
     return (
@@ -251,8 +295,19 @@ const PublicProfileScreen: React.FC = () => {
       </View>
 
       <View style={[styles.section, styles.actionRow]}>
-        <Pressable accessibilityRole="button" style={styles.primaryButton}>
-          <Text style={styles.primaryLabel}>{isMatched ? 'Send a message' : 'Send like'}</Text>
+        <Pressable
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed && styles.primaryButtonPressed,
+            liking && !isMatched && styles.primaryButtonDisabled,
+          ]}
+          onPress={handlePrimaryPress}
+          disabled={liking && !isMatched}
+        >
+          <Text style={styles.primaryLabel}>
+            {isMatched ? 'Send a message' : liking ? 'Sending…' : 'Send like'}
+          </Text>
         </Pressable>
         <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.goBack()}>
           <Text style={styles.secondaryLabel}>Close</Text>

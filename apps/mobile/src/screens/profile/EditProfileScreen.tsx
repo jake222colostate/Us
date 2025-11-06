@@ -18,6 +18,7 @@ import {
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
 import type { PhotoResource } from '../../lib/photos';
@@ -310,13 +311,18 @@ export default function EditProfileScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        {user.avatar ? (
-          <Image source={{ uri: user.avatar }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Text style={styles.avatarPlaceholderText}>No photo</Text>
+        <View style={styles.avatarWrapper}>
+          {user.avatar ? (
+            <Image source={{ uri: user.avatar }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Text style={styles.avatarPlaceholderText}>No photo</Text>
+            </View>
+          )}
+          <View style={styles.avatarBadge}>
+            <Ionicons name="add" size={16} color="#fff" />
           </View>
-        )}
+        </View>
         <View style={styles.headerCopy}>
           <View style={styles.nameRow}>
             <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
@@ -657,11 +663,32 @@ const createStyles = (palette: AppPalette) =>
       gap: 6,
       flexShrink: 1,
     },
+    avatarWrapper: {
+      position: 'relative',
+    },
     avatar: {
       width: 80,
       height: 80,
       borderRadius: 40,
       backgroundColor: palette.surface,
+    },
+    avatarBadge: {
+      position: 'absolute',
+      right: -6,
+      bottom: -6,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: palette.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: palette.card,
+      shadowColor: '#000',
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
     },
     avatarPlaceholder: {
       justifyContent: 'center',

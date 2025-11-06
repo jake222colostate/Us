@@ -44,3 +44,5 @@ apps/**/.turbo/
 apps/**/.cache/
 apps/**/.expo/*
 .expo
+*.env
+apps/*/.env

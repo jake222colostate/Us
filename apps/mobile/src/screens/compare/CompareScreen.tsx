@@ -101,7 +101,7 @@ export default function CompareScreen({ route }: Props) {
         </View>
 
         <View style={[styles.compareArea, containerStyle]}>
-          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.firstHorizontalPhoto]}>
+          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
             {left ? (
               <Image source={{ uri: left }} style={styles.photo} resizeMode="cover" />
             ) : (
@@ -110,7 +110,7 @@ export default function CompareScreen({ route }: Props) {
               </View>
             )}
           </View>
-          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.secondHorizontalPhoto]}>
+          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
             {right ? (
               <Image source={{ uri: right }} style={styles.photo} resizeMode="cover" />
             ) : (
@@ -211,31 +211,29 @@ const styles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 16,
     marginTop: 16,
+    gap: 16,
+    alignItems: 'stretch',
   },
   verticalLayout: {
     flexDirection: 'column',
   },
   horizontalLayout: {
     flexDirection: 'row',
+    gap: 16,
   },
   photoCard: {
     flex: 1,
     borderRadius: 18,
     overflow: 'hidden',
-    marginBottom: 16,
+    backgroundColor: '#0f172a',
+    aspectRatio: 3 / 4,
+    minHeight: 0,
   },
   verticalPhotoCard: {
-    height: 320,
+    width: '100%',
   },
-  firstHorizontalPhoto: {
-    flex: 1,
-    marginBottom: 0,
-    marginRight: 8,
-  },
-  secondHorizontalPhoto: {
-    flex: 1,
-    marginBottom: 0,
-    marginLeft: 8,
+  horizontalPhotoCard: {
+    flexBasis: 0,
   },
   photo: {
     width: '100%',

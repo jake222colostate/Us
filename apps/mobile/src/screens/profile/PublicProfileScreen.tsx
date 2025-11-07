@@ -6,6 +6,7 @@ import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { mapPhotoRows, type PhotoRow } from '../../lib/photos';
 import { getSupabaseClient } from '../../api/supabase';
+import { isTableMissingError, logTableMissingWarning } from '../../api/postgrestErrors';
 import { useMatchesStore } from '../../state/matchesStore';
 import { useAuthStore, selectSession, selectIsAuthenticated } from '../../state/authStore';
 import { likeUser } from '../../api/likes';
@@ -197,12 +198,21 @@ const PublicProfileScreen: React.FC = () => {
         const rows = (photosData ?? []) as PhotoRow[];
         const signed = await mapPhotoRows(rows);
         setPhotos(signed.map((photo) => photo.url).filter((url): url is string => Boolean(url)));
-        const { data: quizData } = await client
+        const { data: quizData, error: quizError } = await client
           .from('quizzes')
           .select('id')
           .eq('owner_id', userId)
           .maybeSingle();
-        setHasQuiz(Boolean(quizData));
+        if (quizError) {
+          if (isTableMissingError(quizError, 'quizzes')) {
+            logTableMissingWarning('quizzes', quizError);
+            setHasQuiz(false);
+          } else {
+            throw quizError;
+          }
+        } else {
+          setHasQuiz(Boolean(quizData));
+        }
       } catch (err) {
         console.error(err);
         setError('Unable to load this profile.');

@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabase';
+import { isTableMissingError, logTableMissingWarning } from './postgrestErrors';
 
 type LikeOptions = {
   kind?: 'like' | 'superlike';
@@ -15,16 +16,30 @@ export async function likeUser(fromUserId: string, toUserId: string, options?: L
     .from('likes')
     .insert({ from_user: fromUserId, to_user: toUserId, kind: options?.kind ?? 'like' });
 
-  if (likeError && !String(likeError.message).includes('duplicate key value')) {
-    throw likeError;
+  if (likeError) {
+    if (isTableMissingError(likeError, 'likes')) {
+      logTableMissingWarning('likes', likeError);
+      return { matchCreated: false };
+    }
+    if (!String(likeError.message).includes('duplicate key value')) {
+      throw likeError;
+    }
   }
 
-  const { data: reciprocal } = await client
+  const { data: reciprocal, error: reciprocalError } = await client
     .from('likes')
     .select('id')
     .eq('from_user', toUserId)
     .eq('to_user', fromUserId)
     .maybeSingle();
+
+  if (reciprocalError) {
+    if (isTableMissingError(reciprocalError, 'likes')) {
+      logTableMissingWarning('likes', reciprocalError);
+      return { matchCreated: false };
+    }
+    throw reciprocalError;
+  }
 
   if (!reciprocal) {
     return { matchCreated: false };
@@ -37,8 +52,14 @@ export async function likeUser(fromUserId: string, toUserId: string, options?: L
     .select('*')
     .maybeSingle();
 
-  if (matchError && !String(matchError.message).includes('matches_unique_pair')) {
-    throw matchError;
+  if (matchError) {
+    if (isTableMissingError(matchError, 'matches')) {
+      logTableMissingWarning('matches', matchError);
+      return { matchCreated: false };
+    }
+    if (!String(matchError.message).includes('matches_unique_pair')) {
+      throw matchError;
+    }
   }
 
   return { matchCreated: true, matchId: (matchRow as { id: string } | null)?.id ?? undefined };

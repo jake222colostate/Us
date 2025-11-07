@@ -223,7 +223,7 @@ export default function LikesScreen() {
             <ActivityIndicator style={styles.loader} color={palette.accent} />
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No likes yet</Text>
+              <Text style={styles.emptyTitle}>Keep posting, There's Someone for Everyone</Text>
               <Text style={styles.emptyCopy}>When someone hearts your photos, you’ll see them here.</Text>
             </View>
           )

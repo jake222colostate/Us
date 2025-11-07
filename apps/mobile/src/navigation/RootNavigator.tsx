@@ -15,6 +15,7 @@ import SettingsScreen from '../screens/settings/SettingsScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
 import QuizScreen from '../screens/quiz/QuizScreen';
 import QuizResultsScreen from '../screens/quiz/QuizResultsScreen';
+import MyQuizBuilderScreen from '../screens/quiz/MyQuizBuilderScreen';
 import {
   selectIsAuthenticated,
   selectVerificationStatus,
@@ -61,6 +62,7 @@ export type RootStackParamList = {
   Settings: undefined;
   ProfileDetail: { userId: string };
   EditProfile: undefined;
+  MyQuizBuilder: undefined;
   Chat: {
     matchId: string;
     userId: string;
@@ -210,6 +212,13 @@ export default function RootNavigator() {
             component={EditProfileScreen}
             options={{
               title: 'Edit profile',
+            }}
+          />
+          <RootStack.Screen
+            name="MyQuizBuilder"
+            component={MyQuizBuilderScreen}
+            options={{
+              title: 'Create a quiz',
             }}
           />
           <RootStack.Screen

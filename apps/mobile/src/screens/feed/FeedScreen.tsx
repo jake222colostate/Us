@@ -238,14 +238,11 @@ export default function FeedScreen() {
         const photoRows = photosByUser.get(row.id) ?? [];
         const photos = await mapPhotoRows(photoRows);
         const heroPhoto = photos.find((photo) => photo.status === 'approved' && photo.url);
-        if (!heroPhoto?.url) {
-          continue;
-        }
         mappedProfiles.push({
           id: row.id,
           name: row.display_name,
           bio: row.bio,
-          photo: heroPhoto.url,
+          photo: heroPhoto?.url ?? null,
           hasQuiz: quizOwners.has(row.id),
         });
       }

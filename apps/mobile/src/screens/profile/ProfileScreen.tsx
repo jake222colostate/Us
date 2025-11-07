@@ -192,6 +192,16 @@ const ProfileScreen: React.FC = () => {
           <Pressable
             accessibilityRole="button"
             style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+            onPress={() => navigation.navigate('MyQuizBuilder')}
+          >
+            <Text style={styles.secondaryButtonLabel}>Create Quiz</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.buttonRowSingle}>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
             onPress={handleAddPhoto}
             disabled={isUploading}
           >
@@ -360,6 +370,10 @@ function createStyles(palette: AppPalette) {
     buttonRow: {
       flexDirection: 'row',
       gap: 12,
+      marginBottom: 12,
+    },
+    buttonRowSingle: {
+      flexDirection: 'row',
       marginBottom: 24,
     },
     primaryButton: {

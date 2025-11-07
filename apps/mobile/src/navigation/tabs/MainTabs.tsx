@@ -1,19 +1,18 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import React, { useMemo, useCallback } from 'react';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import FeedScreen from '../../screens/feed/FeedScreen';
 import LikesScreen from '../../screens/likes/LikesScreen';
 import MatchesScreen from '../../screens/matches/MatchesScreen';
 import ProfileScreen from '../../screens/profile/ProfileScreen';
 import PostScreen from '../../screens/post/PostScreen';
-import MyQuizBuilderScreen from '../../screens/quiz/MyQuizBuilderScreen';
 import { useThemeStore } from '../../state/themeStore';
 
 export type MainTabParamList = {
   Feed: undefined;
   Likes: undefined;
   Post: undefined;
-  Quiz: undefined;
   Matches: undefined;
   Profile: undefined;
 };
@@ -26,12 +25,62 @@ export const MainTabs = () => {
   const borderColor = isDarkMode ? '#1f2937' : '#e5def6';
   const activeTint = '#f472b6';
   const inactiveTint = isDarkMode ? '#94a3b8' : '#7c699b';
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        tabBar: {
+          backgroundColor: tabBackground,
+          borderTopColor: borderColor,
+          height: 72,
+          paddingBottom: 12,
+          paddingTop: 8,
+        },
+        postButtonContainer: {
+          top: -22,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        postButtonPressed: {
+          opacity: 0.85,
+        },
+        postButton: {
+          width: 64,
+          height: 64,
+          borderRadius: 32,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#f472b6',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: isDarkMode ? 0.45 : 0.2,
+          shadowRadius: 8,
+          elevation: 6,
+        },
+        postButtonFocused: {
+          shadowOpacity: isDarkMode ? 0.6 : 0.3,
+        },
+      }),
+    [borderColor, isDarkMode, tabBackground],
+  );
+
+  const renderPostButton = useCallback(
+    ({ children, style, ...props }: BottomTabBarButtonProps) => (
+      <Pressable
+        {...props}
+        style={({ pressed }) => [style, styles.postButtonContainer, pressed && styles.postButtonPressed]}
+        accessibilityRole="button"
+      >
+        {children}
+      </Pressable>
+    ),
+    [styles],
+  );
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: { backgroundColor: tabBackground, borderTopColor: borderColor },
+        tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: activeTint,
         tabBarInactiveTintColor: inactiveTint,
         tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
@@ -42,9 +91,11 @@ export const MainTabs = () => {
             case 'Likes':
               return <Ionicons name={focused ? 'heart' : 'heart-outline'} size={size} color={color} />;
             case 'Post':
-              return <Ionicons name={focused ? 'camera' : 'camera-outline'} size={size} color={color} />;
-            case 'Quiz':
-              return <Ionicons name={focused ? 'help-circle' : 'help-circle-outline'} size={size} color={color} />;
+              return (
+                <View style={[styles.postButton, focused && styles.postButtonFocused]}>
+                  <Ionicons name="add" size={32} color="#fff" />
+                </View>
+              );
             case 'Matches':
               return <Ionicons name={focused ? 'chatbubble' : 'chatbubble-outline'} size={size} color={color} />;
             case 'Profile':
@@ -57,8 +108,14 @@ export const MainTabs = () => {
     >
       <Tab.Screen name="Feed" component={FeedScreen} />
       <Tab.Screen name="Likes" component={LikesScreen} />
-      <Tab.Screen name="Post" component={PostScreen} />
-      <Tab.Screen name="Quiz" component={MyQuizBuilderScreen} options={{ title: 'Take My Quiz' }} />
+      <Tab.Screen
+        name="Post"
+        component={PostScreen}
+        options={{
+          tabBarLabel: () => null,
+          tabBarButton: renderPostButton,
+        }}
+      />
       <Tab.Screen name="Matches" component={MatchesScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

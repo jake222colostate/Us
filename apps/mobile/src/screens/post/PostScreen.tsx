@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
 import { Buffer } from 'buffer';
@@ -184,25 +183,26 @@ const PostScreen: React.FC = () => {
         return;
       }
 
-      let imageUri = asset.uri;
-      if (asset.uri.toLowerCase().endsWith('.heic') || asset.uri.toLowerCase().endsWith('.heif')) {
-        const manipulated = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          [],
-          { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG, base64: false },
-        );
-        imageUri = manipulated.uri;
+      let contentType: string = 'image/jpeg';
+      let extension: string = 'jpg';
+      const lowerUri = asset.uri.toLowerCase();
+      if (lowerUri.endsWith('.heic')) {
+        contentType = 'image/heic';
+        extension = 'heic';
+      } else if (lowerUri.endsWith('.heif')) {
+        contentType = 'image/heif';
+        extension = 'heif';
       }
 
-      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
       const bytes = toBytes(base64);
-      const path = `live/${session.user.id}/${ensureUuid()}.jpg`;
+      const path = `live/${session.user.id}/${ensureUuid()}.${extension}`;
       const client = getSupabaseClient();
       const { error: uploadError } = await client.storage
         .from(PROFILE_PHOTO_BUCKET)
-        .upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+        .upload(path, bytes, { contentType, upsert: false });
       if (uploadError) {
         throw uploadError;
       }

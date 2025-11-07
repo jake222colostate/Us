@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Post, Profile } from "@us/types";
 
 import { formatRelativeTime, formatDistanceKm } from "../lib/format";
+import { getLookingForLabel } from "../lib/profile";
 import SideBySideModal from "./SideBySideModal";
 import { fetchProfileAccess, unlockProfile } from "../api/access";
 import { getSupabaseClient } from "../api/supabase";
@@ -51,8 +52,11 @@ export default function FeedCard({ post, currentUser, onReact }: FeedCardProps) 
     if (!profile?.looking_for || !currentUser?.looking_for) return null;
     if (profile.looking_for === "everyone" && currentUser.looking_for === "everyone") return "Open to everyone";
     if (profile.looking_for === currentUser.gender) return "Mutual preferences align";
+    if (profile.looking_for === currentUser.looking_for && profile.looking_for === "nonbinary") return "You both prefer they/them matches";
     return null;
   }, [profile?.looking_for, currentUser?.looking_for, currentUser?.gender]);
+
+  const lookingForLabel = getLookingForLabel(profile?.looking_for);
 
   const createdAtText = formatRelativeTime(post.created_at);
   const currentPhoto = currentUser?.photos?.find((photo) => photo.is_primary)?.url
@@ -165,7 +169,7 @@ export default function FeedCard({ post, currentUser, onReact }: FeedCardProps) 
         </div>
         <p className="feed-card__bio">{post.caption ?? profile?.bio ?? "Say hi and share your favorite photo spot."}</p>
         <div className="feed-card__tags">
-          {profile?.looking_for ? <span className="tag">Looking for {profile.looking_for}</span> : null}
+          {lookingForLabel ? <span className="tag">Looking for {lookingForLabel}</span> : null}
           {compatibilityHint ? <span className="tag">{compatibilityHint}</span> : null}
         </div>
         <div className="feed-card__actions">

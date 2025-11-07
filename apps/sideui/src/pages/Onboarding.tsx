@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
+import type { Gender, LookingFor } from "@us/types";
+
 import DistanceSlider from "../components/DistanceSlider";
 import { ENABLE_DEMO_DATA } from "../config";
 import { useProfile } from "../hooks/useProfile";
@@ -8,6 +10,7 @@ import { useAuth } from "../auth";
 import { upsertUserSettings } from "../api/settings";
 import { getSupabaseClient } from "../api/supabase";
 import { ApiError } from "../api/client";
+import { GENDER_OPTIONS, LOOKING_FOR_OPTIONS } from "../lib/profile";
 
 const steps = ["Basics", "Preferences", "Safety"] as const;
 
@@ -22,7 +25,8 @@ export default function Onboarding() {
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [radius, setRadius] = useState(profile?.radius_km ?? 25);
-  const [lookingFor, setLookingFor] = useState(profile?.looking_for ?? "everyone");
+  const [lookingFor, setLookingFor] = useState<LookingFor>(profile?.looking_for ?? "everyone");
+  const [gender, setGender] = useState<Gender | "">(profile?.gender ?? "");
   const [commitment, setCommitment] = useState("collaboration");
   const [saving, setSaving] = useState(false);
 
@@ -31,7 +35,8 @@ export default function Onboarding() {
     setBio(profile?.bio ?? "");
     setRadius(profile?.radius_km ?? 25);
     setLookingFor(profile?.looking_for ?? "everyone");
-  }, [profile?.display_name, profile?.bio, profile?.radius_km, profile?.looking_for]);
+    setGender(profile?.gender ?? "");
+  }, [profile?.display_name, profile?.bio, profile?.radius_km, profile?.looking_for, profile?.gender]);
 
   const goToNext = () => {
     const currentIndex = steps.indexOf(currentStep);
@@ -56,6 +61,7 @@ export default function Onboarding() {
         bio,
         radius_km: radius,
         looking_for: lookingFor,
+        gender: gender || null,
       });
 
       if (user?.id && supabase) {
@@ -100,6 +106,22 @@ export default function Onboarding() {
               />
             </div>
             <div className="form-field">
+              <label htmlFor="gender">Gender</label>
+              <select
+                id="gender"
+                value={gender ?? ""}
+                onChange={(event) => setGender(event.target.value as Gender | "")}
+                required
+              >
+                <option value="">Choose the option that fits best</option>
+                {GENDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-field">
               <label htmlFor="bio">Bio</label>
               <textarea
                 id="bio"
@@ -115,10 +137,12 @@ export default function Onboarding() {
           <>
             <div className="form-field">
               <label htmlFor="lookingFor">Looking for</label>
-              <select id="lookingFor" value={lookingFor} onChange={(event) => setLookingFor(event.target.value)}>
-                <option value="women">Women</option>
-                <option value="men">Men</option>
-                <option value="everyone">Everyone</option>
+              <select id="lookingFor" value={lookingFor} onChange={(event) => setLookingFor(event.target.value as LookingFor)}>
+                {LOOKING_FOR_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-field">

@@ -1,5 +1,5 @@
 export type Gender = 'woman' | 'man' | 'nonbinary' | 'other';
-export type LookingFor = 'women' | 'men' | 'everyone';
+export type LookingFor = 'women' | 'men' | 'nonbinary' | 'everyone';
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 export type ProfilePhoto = {

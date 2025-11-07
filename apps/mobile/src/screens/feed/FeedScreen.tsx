@@ -19,25 +19,10 @@ import { useMatchesStore } from '../../state/matchesStore';
 import { getSupabaseClient } from '../../api/supabase';
 import { useToast } from '../../providers/ToastProvider';
 
-const calculateAge = (birthday: string | null): number | null => {
-  if (!birthday) return null;
-  const birthDate = new Date(birthday);
-  if (Number.isNaN(birthDate.getTime())) return null;
-  const now = new Date();
-  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
-  const monthDiff = now.getUTCMonth() - birthDate.getUTCMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && now.getUTCDate() < birthDate.getUTCDate())) {
-    age -= 1;
-  }
-  return age;
-};
-
 type FeedProfile = {
   id: string;
   name: string | null;
-  age: number | null;
   bio: string | null;
-  avatar: string | null;
   photo: string | null;
 };
 
@@ -120,9 +105,6 @@ export default function FeedScreen() {
     setError(null);
     try {
       const client = getSupabaseClient();
-      console.log('📸 Feed query: approved photos path', {
-        viewer: session.user.id,
-      });
       const { data: profileRows, error: profileError } = await client
         .from('profiles')
         .select('id, display_name, bio')
@@ -139,7 +121,8 @@ export default function FeedScreen() {
         .from('photos')
         .select('*')
         .in('user_id', ids)
-        .eq('status', 'approved');
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
       if (photosError) throw photosError;
       const photosByUser = new Map<string, PhotoRow[]>();
       (photosData as PhotoRow[] | null)?.forEach((row) => {
@@ -151,14 +134,15 @@ export default function FeedScreen() {
       for (const row of profileRows ?? []) {
         const photoRows = photosByUser.get(row.id) ?? [];
         const photos = await mapPhotoRows(photoRows);
-        const heroPhoto = photos.find((photo) => photo.status === 'approved');
+        const heroPhoto = photos.find((photo) => photo.status === 'approved' && photo.url);
+        if (!heroPhoto?.url) {
+          continue;
+        }
         mappedProfiles.push({
           id: row.id,
           name: row.display_name,
-          age: calculateAge(row.birthday ?? null),
           bio: row.bio,
-          avatar: row.avatar_url ?? heroPhoto?.url ?? null,
-          photo: heroPhoto?.url ?? null,
+          photo: heroPhoto.url,
         });
       }
       setProfiles(mappedProfiles);
@@ -219,9 +203,8 @@ export default function FeedScreen() {
         renderItem={({ item }) => (
           <Card
             name={item.name ?? 'Member'}
-            age={item.age}
             bio={item.bio}
-            avatar={item.avatar}
+            avatar={item.photo}
             photo={item.photo}
             onLike={() => handleLike(item.id)}
             onCompare={() =>

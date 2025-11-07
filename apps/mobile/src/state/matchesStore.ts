@@ -14,7 +14,6 @@ type ProfileRecord = {
   id: string;
   display_name: string | null;
   bio: string | null;
-  avatar_url: string | null;
   verification_status: VerificationStatus;
 };
 
@@ -83,15 +82,16 @@ async function fetchMatchesFromSupabase(userId: string): Promise<MatchProfile[]>
       const profile = profileMap.get(partnerId);
       const photoRows = photosByUser.get(partnerId) ?? [];
       const photos = await mapPhotoRows(photoRows);
-      const firstPhoto = photos.find((photo) => photo.status === 'approved');
+      const approvedPhotos = photos.filter((photo) => photo.status === 'approved' && photo.url);
+      const firstPhoto = approvedPhotos[0] ?? null;
       return {
         matchId: row.id,
         userId: partnerId,
         name: profile?.display_name ?? 'New member',
         bio: profile?.bio ?? null,
-        avatar: profile?.avatar_url ?? firstPhoto?.url ?? null,
+        avatar: firstPhoto?.url ?? null,
         verificationStatus: profile?.verification_status ?? 'unverified',
-        photos,
+        photos: approvedPhotos,
         createdAt: row.created_at,
       } satisfies MatchProfile;
     }),

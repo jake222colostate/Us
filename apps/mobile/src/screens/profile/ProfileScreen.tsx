@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   Pressable,
   ScrollView,
@@ -9,407 +10,356 @@ import {
   Text,
   View,
 } from 'react-native';
-import {
-  useNavigation,
-  type BottomTabNavigationProp,
-  type CompositeNavigationProp,
-} from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import {
-  selectCurrentUser,
-  selectIsAuthenticated,
-  selectVerificationStatus,
-  useAuthStore,
-} from '../../state/authStore';
-import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
+import * as ImagePicker from 'expo-image-picker';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { usePhotoModeration } from '../../hooks/usePhotoModeration';
+import { selectCurrentUser, useAuthStore } from '../../state/authStore';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
-import { navigate } from '../../navigation/navigationService';
+import { useToast } from '../../providers/ToastProvider';
 
-const formatStatValue = (value: number) => {
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
-  }
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
-  }
-  return String(value);
-};
+const PLACEHOLDER_BIO = 'Share a short bio so matches know a little about you.';
 
-const getNumericStat = (value: unknown): number =>
-  typeof value === 'number' && Number.isFinite(value) ? value : 0;
-
-export default function ProfileScreen() {
-  const navigation = useNavigation<
-    CompositeNavigationProp<
-      BottomTabNavigationProp<MainTabParamList, 'Profile'>,
-      NativeStackNavigationProp<RootStackParamList>
-    >
-  >();
-  const user = useAuthStore(selectCurrentUser);
-  const isAuthenticated = useAuthStore(selectIsAuthenticated);
-  const verificationStatus = useAuthStore(selectVerificationStatus);
+const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const approvedPhotos = useMemo(
+  const user = useAuthStore(selectCurrentUser);
+  const { uploadPhoto, isUploading, loadPhotos, removePhoto, error } = usePhotoModeration();
+  const { show } = useToast();
+  const handledRejections = useRef<Set<string>>(new Set());
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPhotos().catch((err) => console.warn('Failed to load profile photos', err));
+    }, [loadPhotos]),
+  );
+
+  React.useEffect(() => {
+    if (!user?.photos?.length) {
+      return;
+    }
+    user.photos
+      .filter((photo) => photo.status === 'rejected')
+      .forEach((photo) => {
+        if (!handledRejections.current.has(photo.id)) {
+          handledRejections.current.add(photo.id);
+          show('A photo was rejected by moderation. Please choose another.');
+          removePhoto(photo.id).catch((err) => console.warn('Failed to delete rejected photo', err));
+        }
+      });
+  }, [user?.photos, removePhoto, show]);
+
+  const approvedPhotos = React.useMemo(
     () =>
-      (user?.photos ?? []).filter(
-        (photo) => photo?.status === 'approved' && typeof photo?.url === 'string',
-      ),
+      (user?.photos ?? []).filter((photo) => photo.status === 'approved' && (photo.url || photo.localUri)),
     [user?.photos],
   );
 
-  if (!isAuthenticated) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.emptyContainer} style={styles.screen}>
-          <Text style={styles.emptyTitle}>You’re not signed in</Text>
-          <Text style={styles.emptyCopy}>Head to the sign in screen to pick up where you left off.</Text>
-          <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={() => navigate('SignIn')}>
-            <Text style={styles.primaryButtonLabel}>Go to sign in</Text>
-          </Pressable>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
+  const pendingCount = React.useMemo(
+    () => (user?.photos ?? []).filter((photo) => photo.status === 'pending').length,
+    [user?.photos],
+  );
+
+  const displayName = user?.name?.trim().length ? user.name.trim() : 'Your profile';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase())
+    .join('')
+    .slice(0, 2);
+
+  const avatarUri = user?.avatar ?? approvedPhotos[0]?.url ?? approvedPhotos[0]?.localUri ?? null;
+  const bioCopy = user?.bio?.trim().length ? user.bio.trim() : PLACEHOLDER_BIO;
+
+  const handleSelection = useCallback(
+    async (source: 'camera' | 'library') => {
+      try {
+        const permission =
+          source === 'camera'
+            ? await ImagePicker.requestCameraPermissionsAsync()
+            : await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          show(
+            source === 'camera'
+              ? 'Camera access is required to take a photo.'
+              : 'Media library access is required to pick a photo.',
+          );
+          return;
+        }
+
+        const result =
+          source === 'camera'
+            ? await ImagePicker.launchCameraAsync({ quality: 0.8, exif: true })
+            : await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: 'images',
+                allowsMultipleSelection: false,
+                quality: 0.8,
+                exif: true,
+              });
+
+        if (result.canceled || !result.assets?.length) {
+          return;
+        }
+
+        const outcome = await uploadPhoto({ asset: result.assets[0] });
+        if (!outcome.success) {
+          show('Upload failed. Please try again when you have a stable connection.');
+          return;
+        }
+
+        if (outcome.status === 'approved') {
+          show('Photo uploaded! It is now live on your profile.');
+        } else if (outcome.status === 'pending') {
+          show('Photo uploaded! We will notify you when it is approved.');
+        } else {
+          show('This photo was rejected by moderation. Try another one.');
+        }
+      } catch (err) {
+        console.error('Photo selection failed', err);
+        show('We could not access your photo. Please try again.');
+      }
+    },
+    [show, uploadPhoto],
+  );
+
+  const handleAddPhoto = useCallback(() => {
+    Alert.alert('Add a photo', 'Choose where to pick your photo from.', [
+      { text: 'Camera', onPress: () => handleSelection('camera') },
+      { text: 'Library', onPress: () => handleSelection('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [handleSelection]);
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.emptyContainer} style={styles.screen}>
-          <ActivityIndicator color={palette.textPrimary} />
-          <Text style={styles.emptyCopy}>Loading your profile…</Text>
-        </ScrollView>
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <ActivityIndicator color={palette.textPrimary} />
+        <Text style={styles.loadingLabel}>Loading your profile…</Text>
       </SafeAreaView>
     );
   }
 
-  const extraStats = user as {
-    followers?: number | null;
-    followerCount?: number | null;
-    following?: number | null;
-    followingCount?: number | null;
-  };
-  const postsCount = approvedPhotos.length;
-  const followerCount = getNumericStat(extraStats.followers ?? extraStats.followerCount);
-  const followingCount = getNumericStat(extraStats.following ?? extraStats.followingCount);
-  const stats = [
-    { label: 'Posts', value: postsCount },
-    { label: 'Followers', value: followerCount },
-    { label: 'Following', value: followingCount },
-  ];
-
-  const primaryLine = [user.name ?? 'Your profile', typeof user.age === 'number' ? user.age : null]
-    .filter((part) => part !== null && part !== undefined && `${part}`.length > 0)
-    .join(', ');
-
-  const metaParts = [user.location ?? null, user.email ?? null].filter(
-    (part): part is string => typeof part === 'string' && part.length > 0,
-  );
-  const meta = metaParts.join(' • ');
-  const bioCopy = user.bio?.trim().length ? user.bio.trim() : 'Share a short bio to let others know about you.';
-  const interests = user.interests ?? [];
-  const interestCopy = interests.length ? interests.join(' • ') : 'Add interests to highlight your vibe.';
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.topBar}>
-          <Text style={styles.username}>{user.email ?? 'Your profile'}</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open settings"
-            onPress={() => navigation.navigate('Settings')}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
-            hitSlop={16}
-          >
-            <Ionicons name="settings-outline" size={22} color={palette.textPrimary} />
-          </Pressable>
-        </View>
-
-        <View style={styles.profileRow}>
-          {user.avatar ? (
-            <Image source={{ uri: user.avatar }} style={styles.avatar} />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.headerRow}>
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarPlaceholderText}>No photo</Text>
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarPlaceholderText}>{initials || '😊'}</Text>
             </View>
           )}
-          <View style={styles.statsRow}>
-            {stats.map((stat) => (
-              <View key={stat.label} style={styles.statBlock}>
-                <Text style={styles.statValue}>{formatStatValue(stat.value)}</Text>
-                <Text style={styles.statLabel}>{stat.label}</Text>
-              </View>
-            ))}
+          <View style={styles.headerText}>
+            <Text style={styles.displayName}>{displayName}</Text>
+            {user.email ? <Text style={styles.email}>{user.email}</Text> : null}
           </View>
         </View>
 
-        <View style={styles.nameSection}>
-          <View style={styles.nameRow}>
-            <Text style={styles.displayName}>{primaryLine || 'Your profile'}</Text>
-            {verificationStatus === 'verified' ? (
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedLabel}>Verified</Text>
-              </View>
-            ) : null}
-          </View>
-          {meta ? <Text style={styles.meta}>{meta}</Text> : null}
-        </View>
-
-        <View style={styles.actionRow}>
+        <View style={styles.buttonRow}>
           <Pressable
             accessibilityRole="button"
-            style={({ pressed }) => [styles.primaryAction, pressed && styles.primaryActionPressed]}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
             onPress={() => navigation.navigate('EditProfile')}
           >
-            <Text style={styles.primaryActionLabel}>Edit profile</Text>
+            <Text style={styles.primaryButtonLabel}>Edit Profile</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            style={({ pressed }) => [styles.secondaryAction, pressed && styles.secondaryActionPressed]}
-            onPress={() => Alert.alert('Share your profile', 'Sharing is coming soon.')}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+            onPress={handleAddPhoto}
+            disabled={isUploading}
           >
-            <Text style={styles.secondaryActionLabel}>Share profile</Text>
+            {isUploading ? (
+              <ActivityIndicator color={palette.accent} />
+            ) : (
+              <Text style={styles.secondaryButtonLabel}>Add Photo</Text>
+            )}
           </Pressable>
         </View>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Bio</Text>
-          <Text style={styles.sectionCopy}>{bioCopy}</Text>
+          <Text style={styles.sectionBody}>{bioCopy}</Text>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Interests</Text>
-          <Text style={styles.sectionCopy}>{interestCopy}</Text>
-        </View>
+        {pendingCount > 0 ? (
+          <View style={styles.noticeBox}>
+            <Text style={styles.noticeText}>
+              {pendingCount === 1
+                ? '1 photo is pending review.'
+                : `${pendingCount} photos are pending review.`}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>
-          <View style={styles.photoGrid}>
-            {approvedPhotos.length ? (
-              approvedPhotos.map((photo) => (
-                <Image key={photo.id} source={{ uri: photo.url as string }} style={styles.photoTile} />
-              ))
-            ) : (
-              <View style={styles.emptyPhotoTile}>
-                <Text style={styles.emptyPhotoLabel}>No photos yet</Text>
-              </View>
-            )}
-          </View>
+          {approvedPhotos.length ? (
+            <FlatList
+              data={approvedPhotos}
+              keyExtractor={(item) => item.id}
+              numColumns={3}
+              scrollEnabled={false}
+              columnWrapperStyle={styles.photoRow}
+              renderItem={({ item }) => (
+                <Image
+                  source={{ uri: item.url ?? item.localUri ?? '' }}
+                  style={styles.photo}
+                />
+              )}
+              ListFooterComponent={<View style={styles.photoFooterSpacer} />}
+            />
+          ) : (
+            <Text style={styles.placeholderText}>Add a photo to start building your gallery.</Text>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
-}
+};
 
-const createStyles = (palette: AppPalette) =>
-  StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: palette.background,
-    },
-    screen: {
+function createStyles(palette: AppPalette) {
+  return StyleSheet.create({
+    container: {
       flex: 1,
       backgroundColor: palette.background,
     },
     content: {
-      padding: 20,
-      paddingBottom: 48,
+      paddingHorizontal: 20,
+      paddingVertical: 24,
     },
-    topBar: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 24,
-    },
-    username: {
-      color: palette.textPrimary,
-      fontSize: 20,
-      fontWeight: '700',
-    },
-    iconButton: {
-      height: 40,
-      width: 40,
-      borderRadius: 20,
+    loadingContainer: {
+      flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: palette.card,
-      borderWidth: 1,
-      borderColor: palette.border,
+      backgroundColor: palette.background,
+      gap: 12,
     },
-    iconButtonPressed: {
-      opacity: 0.7,
+    loadingLabel: {
+      color: palette.textSecondary,
     },
-    profileRow: {
+    headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 24,
+      gap: 16,
       marginBottom: 24,
     },
     avatar: {
       width: 96,
       height: 96,
       borderRadius: 48,
-      backgroundColor: palette.surface,
     },
     avatarPlaceholder: {
-      justifyContent: 'center',
+      width: 96,
+      height: 96,
+      borderRadius: 48,
       alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.surface,
       borderWidth: 1,
       borderColor: palette.border,
     },
     avatarPlaceholderText: {
       color: palette.muted,
-      fontWeight: '600',
-    },
-    statsRow: {
-      flex: 1,
-      flexDirection: 'row',
-      justifyContent: 'space-evenly',
-    },
-    statBlock: {
-      alignItems: 'center',
-    },
-    statValue: {
-      color: palette.textPrimary,
-      fontSize: 20,
+      fontSize: 24,
       fontWeight: '700',
     },
-    statLabel: {
-      color: palette.muted,
-      fontSize: 12,
-      marginTop: 4,
-    },
-    nameSection: {
-      marginBottom: 24,
-      gap: 6,
-    },
-    nameRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
+    headerText: {
+      flex: 1,
+      gap: 4,
     },
     displayName: {
       color: palette.textPrimary,
       fontSize: 24,
       fontWeight: '700',
     },
-    verifiedBadge: {
-      backgroundColor: palette.accent,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 999,
-    },
-    verifiedLabel: {
-      color: '#ffffff',
-      fontWeight: '700',
-      fontSize: 12,
-    },
-    meta: {
-      color: palette.muted,
-    },
-    actionRow: {
-      flexDirection: 'row',
-      gap: 12,
-      marginBottom: 28,
-    },
-    primaryAction: {
-      flex: 1,
-      backgroundColor: palette.accent,
-      borderRadius: 14,
-      paddingVertical: 12,
-      alignItems: 'center',
-    },
-    primaryActionPressed: {
-      opacity: 0.85,
-    },
-    primaryActionLabel: {
-      color: '#ffffff',
-      fontWeight: '700',
-    },
-    secondaryAction: {
-      flex: 1,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: palette.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: palette.card,
-      paddingVertical: 12,
-    },
-    secondaryActionPressed: {
-      opacity: 0.85,
-    },
-    secondaryActionLabel: {
-      color: palette.textPrimary,
-      fontWeight: '700',
-    },
-    section: {
-      marginBottom: 28,
-      gap: 12,
-    },
-    sectionTitle: {
-      color: palette.textPrimary,
-      fontSize: 18,
-      fontWeight: '700',
-    },
-    sectionCopy: {
+    email: {
       color: palette.textSecondary,
-      lineHeight: 20,
     },
-    photoGrid: {
+    buttonRow: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
       gap: 12,
-    },
-    photoTile: {
-      width: '30%',
-      aspectRatio: 1,
-      borderRadius: 16,
-      overflow: 'hidden',
-    },
-    emptyPhotoTile: {
-      width: '30%',
-      aspectRatio: 1,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: palette.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: palette.surface,
-    },
-    emptyPhotoLabel: {
-      color: palette.muted,
-      fontWeight: '600',
-    },
-    emptyContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: 16,
-      padding: 24,
-    },
-    emptyTitle: {
-      color: palette.textPrimary,
-      fontSize: 20,
-      fontWeight: '600',
-    },
-    emptyCopy: {
-      color: palette.muted,
-      textAlign: 'center',
-      lineHeight: 20,
+      marginBottom: 24,
     },
     primaryButton: {
+      flex: 1,
       backgroundColor: palette.accent,
+      borderRadius: 14,
       paddingVertical: 14,
-      paddingHorizontal: 24,
-      borderRadius: 18,
       alignItems: 'center',
     },
     primaryButtonLabel: {
       color: '#ffffff',
       fontWeight: '700',
     },
+    secondaryButton: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: palette.accent,
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.surface,
+    },
+    secondaryButtonLabel: {
+      color: palette.accent,
+      fontWeight: '700',
+    },
+    buttonPressed: {
+      opacity: 0.85,
+    },
+    errorText: {
+      color: palette.danger,
+      marginBottom: 16,
+    },
+    section: {
+      marginBottom: 24,
+      gap: 8,
+    },
+    sectionTitle: {
+      color: palette.textPrimary,
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    sectionBody: {
+      color: palette.textSecondary,
+      lineHeight: 20,
+    },
+    noticeBox: {
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: palette.card,
+      borderWidth: 1,
+      borderColor: palette.border,
+      marginBottom: 24,
+    },
+    noticeText: {
+      color: palette.textSecondary,
+    },
+    photoRow: {
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    photo: {
+      width: '31%',
+      aspectRatio: 1,
+      borderRadius: 16,
+    },
+    photoFooterSpacer: {
+      height: 8,
+    },
+    placeholderText: {
+      color: palette.muted,
+      fontStyle: 'italic',
+    },
   });
+}
+
+export default ProfileScreen;

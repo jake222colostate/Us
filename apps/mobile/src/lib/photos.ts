@@ -6,16 +6,22 @@ export type PhotoRow = {
   id: string;
   user_id: string;
   url: string;
+  content_type: string | null;
+  width: number | null;
+  height: number | null;
   status: ModerationStatus;
-  rejection_reason?: string | null;
 };
 
 export type PhotoResource = {
   id: string;
-  storagePath: string;
+  storagePath: string | null;
   status: ModerationStatus;
-  rejectionReason?: string | null;
   url: string | null;
+  contentType: string | null;
+  width: number | null;
+  height: number | null;
+  rejectionReason?: string | null;
+  localUri?: string | null;
 };
 
 export const PROFILE_PHOTO_BUCKET = 'profile-photos';
@@ -41,13 +47,26 @@ export async function createSignedPhotoUrl(
   }
 }
 
+export function extractStoragePathFromPublicUrl(url: string | null): string | null {
+  if (!url) return null;
+  const marker = `/object/public/${PROFILE_PHOTO_BUCKET}/`;
+  const index = url.indexOf(marker);
+  if (index === -1) {
+    return null;
+  }
+  return url.slice(index + marker.length);
+}
+
 export async function mapPhotoRow(row: PhotoRow): Promise<PhotoResource> {
   return {
     id: row.id,
-    storagePath: row.url,
+    storagePath: extractStoragePathFromPublicUrl(row.url),
     status: row.status,
-    rejectionReason: row.rejection_reason ?? null,
-    url: await createSignedPhotoUrl(row.url),
+    url: row.url ?? null,
+    contentType: row.content_type ?? null,
+    width: row.width ?? null,
+    height: row.height ?? null,
+    rejectionReason: null,
   };
 }
 

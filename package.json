@@ -4,18 +4,13 @@
   "version": "1.0.0",
   "packageManager": "pnpm@8.15.4",
   "scripts": {
-    "dev": "pnpm --filter sideui dev",
-    "build": "pnpm --filter sideui build",
+    "dev": "pnpm --filter app-mobile expo start",
+    "build": "pnpm --filter app-mobile expo prebuild",
     "repo:unstage-binaries": "git rm -r --cached . && git add . && git commit -m \"chore: drop binaries from index via .gitignore\" || echo \"No changes\"",
     "repo:strip-binaries": "bash tools/strip_binaries.sh",
     "repo:check-binaries": "node tools/check_binaries.mjs",
     "seed:assets": "node tools/seed_assets.mjs",
-    "dev:web": "expo start --web",
     "dev:native": "pnpm --filter app-mobile expo start",
-    "dev:web:mobile": "pnpm --filter app-mobile expo start --web",
-    "web:dev": "pnpm -C apps/sideui dev",
-    "web:build": "pnpm -C apps/sideui build",
-    "web:preview": "pnpm -C apps/sideui preview",
     "mobile:start": "pnpm -C apps/mobile start",
     "lint": "pnpm lint:root && pnpm lint:mobile",
     "lint:root": "eslint .",
@@ -24,10 +19,7 @@
     "test": "pnpm --recursive test",
     "migrate:dev": "pnpm --filter supabase-infra migrate:dev",
     "seed": "pnpm --filter supabase-infra seed",
-    "format": "prettier --write .",
-    "dev:frontend": "pnpm -C apps/sideui dev",
-    "build:frontend": "pnpm -C apps/sideui build",
-    "preview:frontend": "pnpm -C apps/sideui preview"
+    "format": "prettier --write ."
   },
   "devDependencies": {
     "@babel/core": "^7",
@@ -39,7 +31,6 @@
     "@types/react": "~19.1.17",
     "@typescript-eslint/eslint-plugin": "6.13.1",
     "@typescript-eslint/parser": "6.13.1",
-    "@vitejs/plugin-react": "^4.3.0",
     "eslint": "8.56.0",
     "eslint-config-prettier": "9.1.0",
     "eslint-plugin-import": "2.29.1",
@@ -49,9 +40,7 @@
     "expo-modules-autolinking": "^3.0.20",
     "jest-expo": "~54.0.13",
     "prettier": "3.1.1",
-    "react-native-web": "~0.19.12",
-    "typescript": "5.9.3",
-    "vite": "^5.4.0"
+    "typescript": "5.9.3"
   },
   "dependencies": {
     "@expo/metro-config": "^54.0.8",
@@ -70,7 +59,6 @@
     "metro": "^0.83.3",
     "metro-cache": "^0.83.3",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-reanimated": "~4.1.0",
     "react-native-worklets": "^0.5.2"
@@ -78,8 +66,7 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "infra/*",
-    "frontend"
+    "infra/*"
   ],
   "pnpm": {
     "overrides": {

@@ -1,6 +1,6 @@
 # Us – Full-stack dating experience
 
-This repository contains **Us**, a Supabase-backed dating experience with an Expo mobile app and a Vite web client. The goal of this README is to explain **every feature, tool, and workflow** so that someone with no prior knowledge of the codebase can operate it confidently.
+This repository contains **Us**, a Supabase-backed dating experience delivered through an Expo mobile app. The goal of this README is to explain **every feature, tool, and workflow** so that someone with no prior knowledge of the codebase can operate it confidently.
 
 ## Table of contents
 - [What you can do in the app](#what-you-can-do-in-the-app)
@@ -10,14 +10,12 @@ This repository contains **Us**, a Supabase-backed dating experience with an Exp
   - [Likes, matches, and chat](#likes-matches-and-chat)
   - [Photos & storage](#photos--storage)
   - [Verification flows](#verification-flows)
-  - [Web vs. mobile experiences](#web-vs-mobile-experiences)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Prerequisites](#prerequisites)
 - [Environment variables](#environment-variables)
 - [Step-by-step: running the stack](#step-by-step-running-the-stack)
   - [Quickstart in a remote/container environment](#quickstart-in-a-remotecontainer-environment)
   - [Local Supabase database & storage](#local-supabase-database--storage)
-  - [Web client workflow](#web-client-workflow)
   - [Mobile (Expo) workflow](#mobile-expo-workflow)
 - [Developer tools & quality gates](#developer-tools--quality-gates)
 - [Database schema & storage buckets](#database-schema--storage-buckets)
@@ -26,53 +24,45 @@ This repository contains **Us**, a Supabase-backed dating experience with an Exp
 ---
 
 ## What you can do in the app
-The project ships with working user flows on both platforms. If Supabase is not configured yet, the clients seamlessly fall back to bundled demo data so the interfaces still work.
+The project ships with working user flows in the mobile client. If Supabase is not configured yet, the app seamlessly falls back to bundled demo data so the interface still works.
 
 ### Accounts & authentication
-- **Email + password sign up / sign in** powered by Supabase Auth. The web client exposes sign-in and sign-up forms (`apps/sideui/src/auth.tsx`) and persists sessions automatically via Supabase’s JS client.
-- **Session persistence** keeps you logged in between refreshes on web and across launches on mobile. Expo uses `@react-native-async-storage/async-storage` to cache Supabase tokens (`apps/mobile/src/api/supabase.ts`).
-- **Sign out** from either client revokes the Supabase session and clears cached state. The profile screens expose the sign-out controls.
+- **Email + password sign up / sign in** powered by Supabase Auth. The Expo client persists sessions automatically via Supabase’s JS client.
+- **Session persistence** keeps you logged in across launches on mobile. Expo uses `@react-native-async-storage/async-storage` to cache Supabase tokens (`apps/mobile/src/api/supabase.ts`).
+- **Sign out** from the profile screen revokes the Supabase session and clears cached state.
 
 ### Profiles & identity
-- **Automatic profile creation**: during onboarding the clients create a `profiles` row with bio, display name, dating preferences, discovery radius, and interests (`apps/sideui/src/hooks/useProfile.tsx`, `apps/mobile/src/state/authStore.ts`).
-- **Profile editing**: update display name, bio, “looking for” filter, and radius from the web Edit Profile page (`apps/sideui/src/pages/EditProfile.tsx`) or from the mobile profile screen, which also lets you edit interests inline (`apps/mobile/src/screens/profile/ProfileScreen.tsx`).
-- **Settings inside profile**: discovery radius, communication preferences, and safe-mode toggles live under Settings (`apps/sideui/src/pages/Settings.tsx`; `apps/mobile/src/screens/settings/SettingsScreen.tsx`).
-- **Soft delete**: the mobile profile settings expose a delete-account action (currently a guarded preview), modelling the flow for eventual account retirement.
+- **Automatic profile creation**: during onboarding the app creates a `profiles` row with bio, display name, dating preferences, discovery radius, and interests (`apps/mobile/src/state/authStore.ts`).
+- **Profile editing**: update display name, bio, “looking for” filter, radius, and interests inline from the profile screen (`apps/mobile/src/screens/profile/ProfileScreen.tsx`).
+- **Settings inside profile**: discovery radius, communication preferences, and safe-mode toggles live under Settings (`apps/mobile/src/screens/settings/SettingsScreen.tsx`).
+- **Soft delete**: the profile settings expose a delete-account action (currently a guarded preview), modelling the flow for eventual account retirement.
 
 ### Discovery feed & reactions
-- **Personalised feed** pulls nearby creatives from Supabase (`apps/sideui/src/api/feed.ts`) or from bundled demo posts if the backend is offline (`apps/sideui/src/hooks/useFeed.ts`).
+- **Personalised feed** pulls nearby creatives from Supabase or from bundled demo posts if the backend is offline (`apps/mobile/src/hooks/useFeed.ts`).
 - **Endless scrolling** with “Load more” for additional cards and an explicit refresh option.
-- **Reactions**: pass, like, or big-like from either client. Web calls the Supabase RPCs (`apps/sideui/src/api/feed.ts`), while mobile updates the shared state store and queues API writes via `packages/api-client`.
-- **Compare view** (mobile) lets you evaluate two photos side by side or stacked, with layout toggles optimized for phone screens (`apps/mobile/src/screens/compare/ComparePhotosScreen.tsx`).
+- **Reactions**: pass, like, or big-like. The mobile client updates the shared state store and queues API writes via `packages/api-client`.
+- **Compare view** lets you evaluate two photos side by side or stacked, with layout toggles optimized for phone screens (`apps/mobile/src/screens/compare/ComparePhotosScreen.tsx`).
 
 ### Likes, matches, and chat
-- **Likes inbox**: see people who liked you and promote them to matches (`apps/sideui/src/pages/Likes.tsx`; `apps/mobile/src/screens/matches/IncomingLikesScreen.tsx`).
-- **Match list**: the Matches tab surfaces mutual likes, badge copy, and compatibility hints (`apps/sideui/src/pages/Matches.tsx`; `apps/mobile/src/screens/matches/MatchesScreen.tsx`).
-- **Chat threads**: the web Chat page loads conversations, displays unread counts, and lets you compose new messages (`apps/sideui/src/pages/Chat.tsx`). When Supabase is offline the UI falls back to seeded demo threads so the interface stays functional (`apps/sideui/src/hooks/useChat.ts`).
+- **Likes inbox**: see people who liked you and promote them to matches (`apps/mobile/src/screens/matches/IncomingLikesScreen.tsx`).
+- **Match list**: the Matches tab surfaces mutual likes, badge copy, and compatibility hints (`apps/mobile/src/screens/matches/MatchesScreen.tsx`).
+- **Chat threads**: the mobile chat experience loads conversations, displays unread counts, and lets you compose new messages (`apps/mobile/src/screens/chat/ChatScreen.tsx`). Offline mode falls back to seeded demo threads so the interface stays functional (`apps/mobile/src/state/chatStore.ts`).
 
 ### Photos & storage
-- **Photo library**: both clients read from the `user_photos` Supabase table, which stores canonical URLs, storage paths, and whether the photo is primary or a verification asset (`packages/types/src/index.ts`).
-- **Uploads from mobile**: the mobile profile screen uses Expo Image Picker to grab photos from the camera or library and uploads them via Supabase Storage, with moderation helpers and retry options (`apps/mobile/src/hooks/usePhotoModeration.ts`, `apps/mobile/src/screens/profile/ProfileScreen.tsx`).
-- **Uploads from web**: verification flows reuse the shared `uploadProfilePhoto` helper to push files into Supabase Storage (`apps/sideui/src/api/photos.ts`).
+- **Photo library**: the mobile client reads from the `user_photos` Supabase table, which stores canonical URLs, storage paths, and whether the photo is primary or a verification asset (`packages/types/src/index.ts`).
+- **Uploads from mobile**: the profile screen uses Expo Image Picker to grab photos from the camera or library and uploads them via Supabase Storage, with moderation helpers and retry options (`apps/mobile/src/hooks/usePhotoModeration.ts`, `apps/mobile/src/screens/profile/ProfileScreen.tsx`).
 - **Primary photo selection** and moderation status are surfaced in the mobile UI (`apps/mobile/src/hooks/usePhotoModeration.ts`).
 
 ### Verification flows
-- **Photo verification**: start a selfie challenge, upload proof shots, and create a `verifications` record with status `pending` (`apps/sideui/src/api/verification.ts`; `apps/mobile/src/hooks/usePhotoModeration.ts`).
+- **Photo verification**: start a selfie challenge, upload proof shots, and create a `verifications` record with status `pending` (`apps/mobile/src/hooks/usePhotoModeration.ts`).
 - **Identity verification**: the mobile verification screen launches a hosted verification session (deep link via Expo WebBrowser) and polls Supabase for status updates (`apps/mobile/src/hooks/useIdentityVerification.ts`, `apps/mobile/src/screens/verification/VerifyIdentityScreen.tsx`).
-- **Status badges**: once approved, both clients surface a “Verified” badge on profile headers and discovery cards (`apps/mobile/src/screens/profile/ProfileScreen.tsx`; `apps/sideui/src/components/FeedCard.tsx`).
+- **Status badges**: once approved, the app surfaces a “Verified” badge on profile headers and discovery cards (`apps/mobile/src/screens/profile/ProfileScreen.tsx`).
 - **Admin review**: mark trusted reviewers by toggling `profiles.is_admin` in Supabase. Admins can approve or reject verification submissions directly in the Supabase dashboard or via SQL, which triggers the `touch_verification_status` trigger to update the linked profile (`infra/supabase/migrations/0005_user_core.sql`).
-
-### Web vs. mobile experiences
-- **Web (`apps/sideui`)** focuses on moderation and desktop workflows: quick access to Likes, Matches, Chat, Settings, and profile management with toast notifications for every action.
-- **Mobile (`apps/mobile`)** optimises for on-the-go usage: bottom-tab navigation (Feed, Matches, Profile), in-app verification hub, gesture-friendly photo comparison, and offline-friendly seed data so preview builds stay interactive before the backend is wired up.
-
----
 
 ## Architecture at a glance
 
 | Layer | Location | Tech | Notes |
 | --- | --- | --- | --- |
-| Web app | `apps/sideui` | Vite 5 + React 18 + TypeScript | Desktop-optimised UI with TanStack Query for data fetching and toast-driven feedback. |
 | Mobile app | `apps/mobile` | Expo SDK 50 / React Native 0.73 | Shares types and API client, persists Supabase auth, and supports camera/library uploads. |
 | API client | `packages/api-client` | TypeScript | REST abstractions that both clients share for Supabase edge-function calls. |
 | Shared UI | `packages/ui` | TypeScript / React | Primitive components consumed by the mobile experience. |
@@ -148,15 +138,6 @@ A free Supabase project is enough for local development and early dogfooding. As
 ## Environment variables
 Each surface reads environment variables from `.env` files so you can keep secrets out of version control.
 
-### Web (Vite) – `apps/sideui`
-Create `apps/sideui/.env` for local overrides. These values are read via `import.meta.env`:
-```
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-VITE_SUPABASE_STORAGE_BUCKET=profile-photos
-VITE_SUPABASE_SERVICE_ROLE_KEY= # optional, only for server-side admin tools
-```
-
 ### Mobile (Expo) – `apps/mobile`
 Expo public env vars live in `.env` or can be baked into `app.config.ts`:
 ```
@@ -203,16 +184,16 @@ Follow these steps sequentially. Commands prefixed with `$` should be run in a t
    ```
 
 ### Quickstart in a remote/container environment
-- Launch the web app with a single command:
+- Launch the Expo dev server with a single command:
   ```bash
   $ pnpm dev
   ```
-  Vite binds to `0.0.0.0:5173`, so in RunPod/Gitpod-style environments the forwarded URL will just work. Use the provided proxy URL instead of `localhost` when accessing via browser.
-- For Expo preview in the browser (no native simulators required):
+  Metro binds to `0.0.0.0`, so in RunPod/Gitpod-style environments you can open the forwarded URL in Expo Go or the web preview tab. Append `-- --tunnel` if you need a tunnelled connection for physical devices.
+- Prefer scoped commands? Run everything from the app workspace:
   ```bash
-  $ pnpm dev:web:mobile
+  $ pnpm mobile:start
   ```
-  This runs `expo start --web`, again binding to `0.0.0.0` so the remote preview opens inside your container-friendly browser.
+  This proxies through `apps/mobile` and mirrors the behaviour of `pnpm dev` for developers who like to stay inside the workspace folder.
 
 ### Local Supabase database & storage
 1. Install the Supabase CLI (`npm install -g supabase`).
@@ -234,25 +215,6 @@ Follow these steps sequentially. Commands prefixed with `$` should be run in a t
    $ supabase functions serve --env-file infra/supabase/.env.dev
    ```
    The shared API client expects bearer tokens returned from Supabase auth.
-
-### Web client workflow
-1. Start the dev server:
-   ```bash
-   $ pnpm web:dev
-   ```
-   Navigate to <http://localhost:5173> (or the forwarded URL). Sign up with an email/password; Supabase will create the auth + profile rows automatically.
-2. Explore the app:
-   - Finish onboarding to populate your profile.
-   - Visit **Feed** to browse suggestions and react with like/super-like/pass.
-   - Open **Likes** to promote admirers into matches.
-   - Enter **Matches** to jump into conversations.
-   - Use **Profile → Edit profile** to update bio, preferences, and discovery radius.
-   - Upload verification photos from the verification actions; once an admin approves them in Supabase you’ll see the badge instantly.
-3. Build for production when ready:
-   ```bash
-   $ pnpm web:build
-   ```
-   Artifacts land in `apps/sideui/dist`.
 
 ### Mobile (Expo) workflow
 1. Prepare Expo assets:
@@ -297,11 +259,10 @@ Common commands are centralised in the root `package.json`:
 
 | Command | What it does |
 | --- | --- |
-| `pnpm dev` | Alias for `pnpm --filter sideui dev`; starts the Vite web dev server bound to `0.0.0.0:5173`. |
-| `pnpm build` / `pnpm web:build` | Production build for the web client. |
-| `pnpm web:preview` | Serves the static build at `0.0.0.0:5173` for smoke tests. |
-| `pnpm mobile:start` | Boots the Expo dev server for the native app (Metro). |
-| `pnpm dev:web` / `pnpm dev:web:mobile` | Launch Expo’s web preview for the mobile app. |
+| `pnpm dev` | Starts the Expo dev server for the mobile app. |
+| `pnpm build` | Runs `expo prebuild` for native projects to generate iOS/Android directories. |
+| `pnpm mobile:start` | Boots the Expo dev server from `apps/mobile`. |
+| `pnpm dev:native` | Alias for `pnpm --filter app-mobile expo start`. |
 | `pnpm lint` | Runs ESLint across the monorepo (`pnpm lint:root` + `pnpm lint:mobile`). |
 | `pnpm typecheck` | Executes `tsc --noEmit` in every workspace via PNPM recursion. |
 | `pnpm test` | Runs Vitest suites wherever they exist. Mobile unit tests target pure helpers so they run in Node. |
@@ -318,7 +279,7 @@ You can safely run `pnpm install --offline` after the first checkout; all tarbal
 - Visit the **Profile** page to try the daily spin widget. The UI calls the rewards edge functions, shows cooldowns, and lists active bonuses (boosts/highlights) returned by Supabase.
 - Browse to another user’s profile from the feed to exercise the profile access flow. When the profile is locked the page shows an unlock call-to-action that invokes `profile-unlock`.
 - The feed’s “Compare photos” button now checks access before opening the side-by-side modal. If the profile is locked you can unlock from the toast inline.
-- In demo/offline mode (`VITE_ENABLE_DEMO=true`) the UI falls back to deterministic rewards/unlock responses so the flows remain usable without Supabase.
+- In demo/offline mode the app falls back to deterministic rewards/unlock responses so the flows remain usable without Supabase.
 
 ---
 
@@ -343,9 +304,9 @@ The trigger will promote the user’s `verification_status` to `verified` immedi
 
 ## Troubleshooting
 - **Supabase CLI missing**: install it globally (`npm install -g supabase`) because the workspace does not download the binary during `pnpm install`.
-- **React version warnings**: the web pins React 18.3.1 while Expo SDK 50 bundles React 18.2.0. This mismatch is safe; Expo provides its own React runtime.
+- **React version warnings**: Expo SDK 54 ships React 19 by default. If your local tooling pins a different React version, Metro will print a warning — the managed workflow still supplies a single runtime at build time.
 - **Offline installation errors**: run `pnpm install --offline` to leverage the vendored PNPM store.
-- **Supabase unavailable**: both clients display helpful error banners and fall back to demo data so you can continue exploring while the backend is offline. Configure the env vars listed above to unlock full functionality.
+- **Supabase unavailable**: the mobile app displays helpful error banners and falls back to demo data so you can continue exploring while the backend is offline. Configure the env vars listed above to unlock full functionality.
 
 ---
 

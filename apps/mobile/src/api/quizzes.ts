@@ -1,4 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 import { getSupabaseClient } from './supabase';
+import { isTableMissingError, logTableMissingWarning } from './postgrestErrors';
 
 export type QuizOptionRow = {
   id: string;
@@ -55,6 +58,79 @@ export type QuizDraft = {
   }>;
 };
 
+const OWNER_STORAGE_PREFIX = 'quiz:owner:';
+const ID_STORAGE_PREFIX = 'quiz:id:';
+
+function generateId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return Crypto.randomUUID();
+}
+
+async function readQuizFromStorage(key: string): Promise<Quiz | null> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Quiz | null;
+    if (!parsed || !parsed.id) {
+      await AsyncStorage.removeItem(key);
+      return null;
+    }
+    return parsed;
+  } catch {
+    await AsyncStorage.removeItem(key);
+    return null;
+  }
+}
+
+async function loadQuizFromStorageByOwner(ownerId: string): Promise<Quiz | null> {
+  return readQuizFromStorage(`${OWNER_STORAGE_PREFIX}${ownerId}`);
+}
+
+async function loadQuizFromStorageById(quizId: string): Promise<Quiz | null> {
+  return readQuizFromStorage(`${ID_STORAGE_PREFIX}${quizId}`);
+}
+
+async function persistQuizToStorage(ownerId: string, draft: QuizDraft): Promise<string> {
+  const existing = await loadQuizFromStorageByOwner(ownerId);
+  const quizId = draft.id ?? existing?.id ?? generateId();
+  const questions: QuizQuestion[] = draft.questions.map((question, index) => ({
+    id: (question as { id?: string }).id ?? generateId(),
+    prompt: question.prompt,
+    type: question.type,
+    position: index,
+    options: question.options.map((option, optionIndex) => ({
+      id: (option as { id?: string }).id ?? generateId(),
+      label: option.label,
+      isCorrect: draft.isScored ? option.isCorrect : false,
+      position: optionIndex,
+    })),
+  }));
+
+  const record: Quiz = {
+    id: quizId,
+    owner_id: ownerId,
+    title: draft.title,
+    description: draft.description ?? null,
+    is_scored: draft.isScored,
+    questions,
+  };
+
+  const payload = JSON.stringify(record);
+  const storagePairs: [string, string][] = [
+    [`${OWNER_STORAGE_PREFIX}${ownerId}`, payload],
+    [`${ID_STORAGE_PREFIX}${quizId}`, payload],
+  ];
+
+  if (existing && existing.id !== quizId) {
+    await AsyncStorage.removeItem(`${ID_STORAGE_PREFIX}${existing.id}`);
+  }
+
+  await AsyncStorage.multiSet(storagePairs);
+  return quizId;
+}
+
 export async function fetchQuizByOwner(ownerId: string): Promise<Quiz | null> {
   const client = getSupabaseClient();
   const { data: quizRow, error } = await client
@@ -65,12 +141,18 @@ export async function fetchQuizByOwner(ownerId: string): Promise<Quiz | null> {
     .limit(1)
     .maybeSingle();
 
-  if (error && error.code !== 'PGRST116') {
-    throw error;
+  if (error) {
+    if (isTableMissingError(error, 'quizzes')) {
+      logTableMissingWarning('quizzes', error);
+      return loadQuizFromStorageByOwner(ownerId);
+    }
+    if (error.code !== 'PGRST116') {
+      throw error;
+    }
   }
 
   if (!quizRow) {
-    return null;
+    return loadQuizFromStorageByOwner(ownerId);
   }
 
   return fetchQuizWithQuestions((quizRow as QuizRow).id);
@@ -84,12 +166,18 @@ export async function fetchQuizWithQuestions(quizId: string): Promise<Quiz | nul
     .eq('id', quizId)
     .maybeSingle();
 
-  if (error && error.code !== 'PGRST116') {
-    throw error;
+  if (error) {
+    if (isTableMissingError(error, 'quizzes')) {
+      logTableMissingWarning('quizzes', error);
+      return loadQuizFromStorageById(quizId);
+    }
+    if (error.code !== 'PGRST116') {
+      throw error;
+    }
   }
 
   if (!quizRow) {
-    return null;
+    return loadQuizFromStorageById(quizId);
   }
 
   const quiz = quizRow as QuizRow;
@@ -101,6 +189,10 @@ export async function fetchQuizWithQuestions(quizId: string): Promise<Quiz | nul
     .order('position', { ascending: true });
 
   if (questionError) {
+    if (isTableMissingError(questionError, 'quiz_questions')) {
+      logTableMissingWarning('quiz_questions', questionError);
+      return loadQuizFromStorageById(quizId);
+    }
     throw questionError;
   }
 
@@ -113,6 +205,10 @@ export async function fetchQuizWithQuestions(quizId: string): Promise<Quiz | nul
     .order('position', { ascending: true });
 
   if (optionError) {
+    if (isTableMissingError(optionError, 'quiz_options')) {
+      logTableMissingWarning('quiz_options', optionError);
+      return loadQuizFromStorageById(quizId);
+    }
     throw optionError;
   }
 
@@ -153,78 +249,90 @@ export async function saveQuiz(ownerId: string, draft: QuizDraft): Promise<strin
     updated_at: new Date().toISOString(),
   } as Record<string, unknown>;
 
-  let quizId = draft.id ?? null;
-  if (quizId) {
-    const { error } = await client.from('quizzes').update(payload).eq('id', quizId);
-    if (error) {
-      throw error;
+  try {
+    let quizId = draft.id ?? null;
+    if (quizId) {
+      const { error } = await client.from('quizzes').update(payload).eq('id', quizId);
+      if (error) {
+        throw error;
+      }
+    } else {
+      const { data, error } = await client
+        .from('quizzes')
+        .insert(payload)
+        .select('id')
+        .single();
+      if (error) {
+        throw error;
+      }
+      quizId = (data as { id: string }).id;
     }
-  } else {
-    const { data, error } = await client
-      .from('quizzes')
-      .insert(payload)
-      .select('id')
-      .single();
-    if (error) {
-      throw error;
+
+    if (!quizId) {
+      throw new Error('Unable to resolve quiz id');
     }
-    quizId = (data as { id: string }).id;
-  }
 
-  if (!quizId) {
-    throw new Error('Unable to resolve quiz id');
-  }
+    await client.from('quiz_questions').delete().eq('quiz_id', quizId);
 
-  await client.from('quiz_questions').delete().eq('quiz_id', quizId);
+    if (!draft.questions.length) {
+      return quizId;
+    }
 
-  if (!draft.questions.length) {
-    return quizId;
-  }
+    const questionInserts = draft.questions.map((question, index) => ({
+      quiz_id: quizId!,
+      prompt: question.prompt,
+      type: question.type,
+      position: index,
+    }));
 
-  const questionInserts = draft.questions.map((question, index) => ({
-    quiz_id: quizId,
-    prompt: question.prompt,
-    type: question.type,
-    position: index,
-  }));
+    const { data: insertedQuestions, error: insertQuestionsError } = await client
+      .from('quiz_questions')
+      .insert(questionInserts)
+      .select('id, position');
 
-  const { data: insertedQuestions, error: insertQuestionsError } = await client
-    .from('quiz_questions')
-    .insert(questionInserts)
-    .select('id, position');
+    if (insertQuestionsError) {
+      throw insertQuestionsError;
+    }
 
-  if (insertQuestionsError) {
-    throw insertQuestionsError;
-  }
+    const inserted = (insertedQuestions ?? []) as { id: string; position: number }[];
+    const optionPayload: {
+      question_id: string;
+      label: string;
+      is_correct: boolean;
+      position: number;
+    }[] = [];
 
-  const inserted = (insertedQuestions ?? []) as { id: string; position: number }[];
-  const optionPayload: {
-    question_id: string;
-    label: string;
-    is_correct: boolean;
-    position: number;
-  }[] = [];
-
-  inserted.forEach((row) => {
-    const questionDraft = draft.questions[row.position];
-    questionDraft.options.forEach((option, optionIndex) => {
-      optionPayload.push({
-        question_id: row.id,
-        label: option.label,
-        is_correct: draft.isScored ? option.isCorrect : false,
-        position: optionIndex,
+    inserted.forEach((row) => {
+      const questionDraft = draft.questions[row.position];
+      questionDraft.options.forEach((option, optionIndex) => {
+        optionPayload.push({
+          question_id: row.id,
+          label: option.label,
+          is_correct: draft.isScored ? option.isCorrect : false,
+          position: optionIndex,
+        });
       });
     });
-  });
 
-  if (optionPayload.length) {
-    const { error: optionInsertError } = await client.from('quiz_options').insert(optionPayload);
-    if (optionInsertError) {
-      throw optionInsertError;
+    if (optionPayload.length) {
+      const { error: optionInsertError } = await client.from('quiz_options').insert(optionPayload);
+      if (optionInsertError) {
+        throw optionInsertError;
+      }
     }
-  }
 
-  return quizId;
+    return quizId;
+  } catch (error) {
+    if (
+      isTableMissingError(error, 'quizzes') ||
+      isTableMissingError(error, 'quiz_questions') ||
+      isTableMissingError(error, 'quiz_options')
+    ) {
+      logTableMissingWarning('quizzes', error);
+      return persistQuizToStorage(ownerId, draft);
+    }
+    throw error;
+  }
 }
 
 export type QuizAttemptInput = {
@@ -252,6 +360,10 @@ export async function submitQuizAttempt({ quizId, takerId, score, maxScore, answ
     .single();
 
   if (attemptError) {
+    if (isTableMissingError(attemptError, 'quiz_attempts')) {
+      logTableMissingWarning('quiz_attempts', attemptError);
+      return `local-attempt-${Date.now()}`;
+    }
     throw attemptError;
   }
 
@@ -265,6 +377,10 @@ export async function submitQuizAttempt({ quizId, takerId, score, maxScore, answ
     }));
     const { error: answersError } = await client.from('quiz_answers').insert(payload);
     if (answersError) {
+      if (isTableMissingError(answersError, 'quiz_answers')) {
+        logTableMissingWarning('quiz_answers', answersError);
+        return attemptId;
+      }
       throw answersError;
     }
   }
@@ -286,6 +402,10 @@ export async function fetchQuizStats(quizId: string): Promise<QuizStats> {
     .order('created_at', { ascending: false });
 
   if (attemptsError) {
+    if (isTableMissingError(attemptsError, 'quiz_attempts')) {
+      logTableMissingWarning('quiz_attempts', attemptsError);
+      return { attempts: [], answers: [] };
+    }
     throw attemptsError;
   }
 
@@ -307,6 +427,10 @@ export async function fetchQuizStats(quizId: string): Promise<QuizStats> {
     .in('attempt_id', attemptIds);
 
   if (answersError) {
+    if (isTableMissingError(answersError, 'quiz_answers')) {
+      logTableMissingWarning('quiz_answers', answersError);
+      return { attempts, answers: [] };
+    }
     throw answersError;
   }
 

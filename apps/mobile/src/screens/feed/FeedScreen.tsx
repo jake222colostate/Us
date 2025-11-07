@@ -27,6 +27,7 @@ import {
 } from '../../state/authStore';
 import { useMatchesStore } from '../../state/matchesStore';
 import { getSupabaseClient } from '../../api/supabase';
+import { isTableMissingError, logTableMissingWarning } from '../../api/postgrestErrors';
 import { useToast } from '../../providers/ToastProvider';
 import { fetchLiveNow, type LiveNowItem } from '../../api/livePosts';
 import LiveCountdown from '../../components/LiveCountdown';
@@ -218,8 +219,24 @@ export default function FeedScreen() {
         setProfiles([]);
         return;
       }
-      const { data: quizRows } = await client.from('quizzes').select('owner_id').in('owner_id', ids);
-      const quizOwners = new Set<string>((quizRows ?? []).map((row) => row.owner_id as string));
+      const { data: quizRows, error: quizError } = await client
+        .from('quizzes')
+        .select('owner_id')
+        .in('owner_id', ids);
+      const quizOwners = new Set<string>();
+      if (quizError) {
+        if (isTableMissingError(quizError, 'quizzes')) {
+          logTableMissingWarning('quizzes', quizError);
+        } else {
+          throw quizError;
+        }
+      } else {
+        (quizRows ?? []).forEach((row) => {
+          if (row?.owner_id) {
+            quizOwners.add(row.owner_id as string);
+          }
+        });
+      }
       const { data: photosData, error: photosError } = await client
         .from('photos')
         .select('*')

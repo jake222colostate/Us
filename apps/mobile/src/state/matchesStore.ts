@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getSupabaseClient } from '../api/supabase';
+import { isTableMissingError, logTableMissingWarning } from '../api/postgrestErrors';
 import { mapPhotoRows, type PhotoRow } from '../lib/photos';
 import type { VerificationStatus, UserPhoto } from './authStore';
 
@@ -108,6 +109,11 @@ export const useMatchesStore = create<MatchesState>((set) => ({
       const nextMatches = await fetchMatchesFromSupabase(userId);
       set((state) => ({ ...state, matches: nextMatches, isLoading: false }));
     } catch (error) {
+      if (isTableMissingError(error, 'matches')) {
+        logTableMissingWarning('matches', error);
+        set((state) => ({ ...state, matches: [], isLoading: false, error: null }));
+        return;
+      }
       console.error('❌ Failed to load matches from Supabase', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       set((state) => ({

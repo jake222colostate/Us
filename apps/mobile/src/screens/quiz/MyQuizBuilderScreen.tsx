@@ -322,7 +322,7 @@ const MyQuizBuilderScreen: React.FC = () => {
           <Text style={styles.loadingText}>Loading your quiz…</Text>
         </View>
       ) : null}
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Design your quiz</Text>
           <Text style={styles.subtitle}>Create up to ten questions that anyone can take for free.</Text>
@@ -551,6 +551,9 @@ function createStyles(palette: AppPalette) {
       flex: 1,
       backgroundColor: palette.background,
     },
+    scroll: {
+      flex: 1,
+    },
     centered: {
       flex: 1,
       alignItems: 'center',
@@ -572,17 +575,20 @@ function createStyles(palette: AppPalette) {
       borderRadius: 12,
       borderWidth: 1,
       borderColor: palette.border,
-      marginHorizontal: 20,
+      marginHorizontal: 16,
       marginTop: 16,
     },
     loadingText: {
       color: palette.textSecondary,
     },
     content: {
+      paddingHorizontal: 16,
       paddingBottom: 48,
+      alignItems: 'stretch',
+      gap: 24,
     },
     header: {
-      paddingHorizontal: 20,
+      width: '100%',
       paddingTop: 24,
       paddingBottom: 16,
     },
@@ -597,8 +603,7 @@ function createStyles(palette: AppPalette) {
       lineHeight: 20,
     },
     fieldGroup: {
-      paddingHorizontal: 20,
-      marginTop: 20,
+      width: '100%',
     },
     label: {
       color: palette.textPrimary,
@@ -624,14 +629,12 @@ function createStyles(palette: AppPalette) {
     },
     toggleRow: {
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      paddingHorizontal: 20,
-      marginTop: 24,
+      alignItems: 'flex-start',
+      gap: 16,
+      flexWrap: 'wrap',
     },
     questionCard: {
-      marginHorizontal: 20,
-      marginTop: 24,
+      width: '100%',
       padding: 16,
       borderRadius: 16,
       borderWidth: 1,
@@ -643,6 +646,7 @@ function createStyles(palette: AppPalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      gap: 12,
     },
     questionTitle: {
       color: palette.textPrimary,
@@ -651,7 +655,9 @@ function createStyles(palette: AppPalette) {
     },
     questionActions: {
       flexDirection: 'row',
-      gap: 12,
+      gap: 8,
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
     },
     actionText: {
       color: palette.textPrimary,
@@ -664,21 +670,25 @@ function createStyles(palette: AppPalette) {
       color: palette.danger,
     },
     typeRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: 'column',
+      gap: 12,
     },
     typeButtons: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 8,
     },
     typeButton: {
+      flexGrow: 1,
+      minWidth: '48%',
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 999,
       borderWidth: 1,
       borderColor: palette.border,
       backgroundColor: palette.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     typeButtonActive: {
       backgroundColor: palette.accent,
@@ -697,6 +707,7 @@ function createStyles(palette: AppPalette) {
     optionRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      flexWrap: 'wrap',
       gap: 10,
     },
     optionBadge: {
@@ -729,8 +740,7 @@ function createStyles(palette: AppPalette) {
       fontWeight: '600',
     },
     addQuestionButton: {
-      marginHorizontal: 20,
-      marginTop: 24,
+      width: '100%',
       paddingVertical: 14,
       borderRadius: 14,
       borderWidth: 1,
@@ -743,8 +753,7 @@ function createStyles(palette: AppPalette) {
       fontWeight: '700',
     },
     footerActions: {
-      marginHorizontal: 20,
-      marginTop: 32,
+      width: '100%',
       flexDirection: 'row',
       gap: 12,
     },
@@ -778,7 +787,7 @@ function createStyles(palette: AppPalette) {
       fontWeight: '600',
     },
     footerNote: {
-      marginHorizontal: 20,
+      width: '100%',
       marginTop: 16,
       color: palette.muted,
       textAlign: 'center',

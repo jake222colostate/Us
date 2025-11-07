@@ -31,7 +31,7 @@ const ProfileContext = createContext<ProfileContextValue | null>(null);
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const supabase = getSupabaseClient();
   const { user, loading: authLoading, setAuthUser } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfileState] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -53,20 +53,20 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = useCallback(async () => {
     if (!user) {
-      setProfile(null);
+      setProfileState(null);
       setLoading(false);
       return;
     }
 
     if (!supabase) {
       if (ENABLE_DEMO_DATA) {
-        setProfile(demoProfile);
+        setProfileState(demoProfile);
         syncAuthProfile(demoProfile);
         setError(null);
       } else {
         const unavailable = new ApiError("Supabase client is not configured", 503, null);
         setError(unavailable);
-        setProfile(null);
+        setProfileState(null);
       }
       setLoading(false);
       return;
@@ -76,24 +76,24 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     try {
       const fetched = await fetchProfileApi(user.id);
       if (fetched) {
-        setProfile(fetched);
+        setProfileState(fetched);
         syncAuthProfile(fetched);
         setError(null);
       } else if (ENABLE_DEMO_DATA) {
-        setProfile(demoProfile);
+        setProfileState(demoProfile);
         syncAuthProfile(demoProfile);
       } else {
         const notFound = new ApiError("Profile not found", 404, null);
         setError(notFound);
-        setProfile(null);
+        setProfileState(null);
       }
     } catch (err) {
       const apiErr = normalizeError(err);
       if (ENABLE_DEMO_DATA) {
-        setProfile(demoProfile);
+        setProfileState(demoProfile);
         syncAuthProfile(demoProfile);
       } else {
-        setProfile(null);
+        setProfileState(null);
       }
       setError(apiErr);
     } finally {
@@ -104,7 +104,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      setProfile(null);
+      setProfileState(null);
       setLoading(false);
       return;
     }
@@ -124,7 +124,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             ...payload,
             photos: profile.photos,
           } as Profile;
-          setProfile(merged);
+          setProfileState(merged);
           syncAuthProfile(merged);
           return merged;
         }
@@ -133,7 +133,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
       try {
         const updated = await updateProfileApi(user.id, payload);
-        setProfile(updated);
+        setProfileState(updated);
         syncAuthProfile(updated);
         setError(null);
         return updated;
@@ -146,7 +146,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             ...payload,
             photos: profile.photos,
           } as Profile;
-          setProfile(merged);
+          setProfileState(merged);
           syncAuthProfile(merged);
           return merged;
         }
@@ -156,9 +156,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     [user, supabase, profile, syncAuthProfile]
   );
 
+  const setProfile = useCallback(
+    (next: Profile | null) => {
+      setProfileState(next);
+      syncAuthProfile(next);
+    },
+    [syncAuthProfile]
+  );
+
   const value = useMemo<ProfileContextValue>(
     () => ({ profile, loading, error, refresh: loadProfile, updateProfile, setProfile }),
-    [profile, loading, error, loadProfile, updateProfile]
+    [profile, loading, error, loadProfile, updateProfile, setProfile]
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

@@ -4,6 +4,7 @@ import type { RewardStatus } from "@us/types";
 
 import { useProfile } from "../hooks/useProfile";
 import { formatDate, formatRelativeTime } from "../lib/format";
+import { getGenderLabel, getLookingForLabel } from "../lib/profile";
 import { fetchRewardsStatus, spinRewardsFree, spinRewardsPaid } from "../api/access";
 import { getSupabaseClient } from "../api/supabase";
 import { ENABLE_DEMO_DATA } from "../config";
@@ -142,6 +143,9 @@ export default function Profile() {
     );
   }
 
+  const genderLabel = getGenderLabel(profile.gender);
+  const lookingForLabel = getLookingForLabel(profile.looking_for);
+
   return (
     <div className="page">
       <header className="page-header">
@@ -163,8 +167,8 @@ export default function Profile() {
         <h2>About</h2>
         <p className="text-muted">{profile.bio ?? "Tell others what inspires your photography."}</p>
         <div className="tag-list">
-          {profile.gender ? <span className="tag">{profile.gender}</span> : null}
-          {profile.looking_for ? <span className="tag">Looking for {profile.looking_for}</span> : null}
+          {genderLabel ? <span className="tag">{genderLabel}</span> : null}
+          {lookingForLabel ? <span className="tag">Looking for {lookingForLabel}</span> : null}
           <span className="tag">Radius {profile.radius_km} km</span>
         </div>
       </section>

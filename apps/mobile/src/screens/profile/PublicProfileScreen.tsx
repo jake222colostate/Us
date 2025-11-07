@@ -101,17 +101,17 @@ const createStyles = (palette: AppPalette) =>
       lineHeight: 20,
     },
     actionRow: {
-      flexDirection: 'row',
+      flexDirection: 'column',
+      marginTop: 20,
       gap: 12,
-      marginTop: 16,
-      flexWrap: 'wrap',
     },
     primaryButton: {
-      flex: 1,
       backgroundColor: palette.accent,
       paddingVertical: 14,
       borderRadius: 16,
       alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'stretch',
     },
     primaryButtonPressed: {
       opacity: 0.9,
@@ -120,13 +120,14 @@ const createStyles = (palette: AppPalette) =>
       opacity: 0.6,
     },
     secondaryButton: {
-      flex: 1,
       backgroundColor: palette.card,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: palette.border,
       paddingVertical: 14,
       alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'stretch',
     },
     primaryLabel: {
       color: '#fff',
@@ -328,9 +329,6 @@ const PublicProfileScreen: React.FC = () => {
           disabled={!hasQuiz}
         >
           <Text style={styles.secondaryLabel}>{hasQuiz ? '🧠 Take My Quiz' : 'Quiz coming soon'}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.secondaryLabel}>Close</Text>
         </Pressable>
       </View>
     </ScrollView>

@@ -6,12 +6,14 @@ import LikesScreen from '../../screens/likes/LikesScreen';
 import MatchesScreen from '../../screens/matches/MatchesScreen';
 import ProfileScreen from '../../screens/profile/ProfileScreen';
 import PostScreen from '../../screens/post/PostScreen';
+import MyQuizBuilderScreen from '../../screens/quiz/MyQuizBuilderScreen';
 import { useThemeStore } from '../../state/themeStore';
 
 export type MainTabParamList = {
   Feed: undefined;
   Likes: undefined;
   Post: undefined;
+  Quiz: undefined;
   Matches: undefined;
   Profile: undefined;
 };
@@ -41,6 +43,8 @@ export const MainTabs = () => {
               return <Ionicons name={focused ? 'heart' : 'heart-outline'} size={size} color={color} />;
             case 'Post':
               return <Ionicons name={focused ? 'camera' : 'camera-outline'} size={size} color={color} />;
+            case 'Quiz':
+              return <Ionicons name={focused ? 'help-circle' : 'help-circle-outline'} size={size} color={color} />;
             case 'Matches':
               return <Ionicons name={focused ? 'chatbubble' : 'chatbubble-outline'} size={size} color={color} />;
             case 'Profile':
@@ -54,6 +58,7 @@ export const MainTabs = () => {
       <Tab.Screen name="Feed" component={FeedScreen} />
       <Tab.Screen name="Likes" component={LikesScreen} />
       <Tab.Screen name="Post" component={PostScreen} />
+      <Tab.Screen name="Quiz" component={MyQuizBuilderScreen} options={{ title: 'Take My Quiz' }} />
       <Tab.Screen name="Matches" component={MatchesScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

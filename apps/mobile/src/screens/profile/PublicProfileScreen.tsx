@@ -170,6 +170,7 @@ const PublicProfileScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
+  const [hasQuiz, setHasQuiz] = useState(false);
   const { userId } = route.params;
 
   useEffect(() => {
@@ -195,6 +196,12 @@ const PublicProfileScreen: React.FC = () => {
         const rows = (photosData ?? []) as PhotoRow[];
         const signed = await mapPhotoRows(rows);
         setPhotos(signed.map((photo) => photo.url).filter((url): url is string => Boolean(url)));
+        const { data: quizData } = await client
+          .from('quizzes')
+          .select('id')
+          .eq('owner_id', userId)
+          .maybeSingle();
+        setHasQuiz(Boolean(quizData));
       } catch (err) {
         console.error(err);
         setError('Unable to load this profile.');
@@ -309,6 +316,18 @@ const PublicProfileScreen: React.FC = () => {
           <Text style={styles.primaryLabel}>
             {isMatched ? 'Send a message' : liking ? 'Sending…' : 'Send like'}
           </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            pressed && styles.primaryButtonPressed,
+            !hasQuiz && styles.primaryButtonDisabled,
+          ]}
+          onPress={() => navigation.navigate('Quiz', { ownerId: userId })}
+          disabled={!hasQuiz}
+        >
+          <Text style={styles.secondaryLabel}>{hasQuiz ? '🧠 Take My Quiz' : 'Quiz coming soon'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" style={styles.secondaryButton} onPress={() => navigation.goBack()}>
           <Text style={styles.secondaryLabel}>Close</Text>

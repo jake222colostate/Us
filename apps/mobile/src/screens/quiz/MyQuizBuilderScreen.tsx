@@ -322,7 +322,11 @@ const MyQuizBuilderScreen: React.FC = () => {
           <Text style={styles.loadingText}>Loading your quiz…</Text>
         </View>
       ) : null}
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Design your quiz</Text>
           <Text style={styles.subtitle}>Create up to ten questions that anyone can take for free.</Text>

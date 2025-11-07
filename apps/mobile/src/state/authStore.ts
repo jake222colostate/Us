@@ -241,10 +241,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   setUserPhotos(photos) {
-    set((state) => ({
-      ...state,
-      user: state.user ? { ...state.user, photos } : state.user,
-    }));
+    set((state) => {
+      if (!state.user) {
+        return state;
+      }
+      const firstApproved = photos.find((photo) => photo.status === 'approved' && photo.url);
+      const shouldUseFallback = !state.user.avatarStoragePath;
+      return {
+        ...state,
+        user: {
+          ...state.user,
+          photos,
+          avatar: shouldUseFallback ? firstApproved?.url ?? null : state.user.avatar,
+        },
+      };
+    });
   },
   upsertUserPhoto(photo) {
     set((state) => {
@@ -258,9 +269,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } else {
         nextPhotos.unshift(photo);
       }
+      const firstApproved = nextPhotos.find((item) => item.status === 'approved' && item.url);
+      const shouldUseFallback = !state.user.avatarStoragePath;
       return {
         ...state,
-        user: { ...state.user, photos: nextPhotos },
+        user: {
+          ...state.user,
+          photos: nextPhotos,
+          avatar: shouldUseFallback ? firstApproved?.url ?? null : state.user.avatar,
+        },
       };
     });
   },
@@ -269,11 +286,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!state.user) {
         return state;
       }
+      const remaining = state.user.photos.filter((item) => item.id !== photoId);
+      const firstApproved = remaining.find((item) => item.status === 'approved' && item.url);
+      const shouldUseFallback = !state.user.avatarStoragePath;
       return {
         ...state,
         user: {
           ...state.user,
-          photos: state.user.photos.filter((item) => item.id !== photoId),
+          photos: remaining,
+          avatar: shouldUseFallback ? firstApproved?.url ?? null : state.user.avatar,
         },
       };
     });

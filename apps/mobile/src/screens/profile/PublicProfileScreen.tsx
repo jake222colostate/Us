@@ -18,7 +18,6 @@ type PublicProfile = {
   id: string;
   display_name: string | null;
   bio: string | null;
-  avatar_url: string | null;
   verification_status: string;
 };
 
@@ -260,12 +259,14 @@ const PublicProfileScreen: React.FC = () => {
     );
   }
 
+  const heroPhoto = photos[0] ?? null;
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <View style={styles.topRow}>
-          {profile.avatar_url ? (
-            <Image source={{ uri: photos?.[0]?.url }} style={styles.avatar} />
+          {heroPhoto ? (
+            <Image source={{ uri: heroPhoto }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, styles.gridItem]}>
               <Text style={{ color: palette.muted, textAlign: 'center' }}>No photo</Text>

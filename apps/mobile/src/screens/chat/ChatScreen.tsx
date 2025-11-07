@@ -16,6 +16,11 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
+import {
+  conversationContinuers,
+  conversationOpeners,
+  getRandomPrompts,
+} from '../../data/conversationPrompts';
 
 type ChatRoute = RouteProp<RootStackParamList, 'Chat'>;
 type ChatNavigation = NativeStackNavigationProp<RootStackParamList>;
@@ -46,6 +51,9 @@ export default function ChatScreen() {
       },
     ];
   });
+  const [starterSuggestions, setStarterSuggestions] = useState(() => getRandomPrompts(conversationOpeners, 4));
+  const [followUpSuggestions, setFollowUpSuggestions] = useState(() => getRandomPrompts(conversationContinuers, 4));
+  const matchedDate = useMemo(() => (createdAt ? new Date(createdAt) : new Date()), [createdAt]);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: name ? `Chat with ${name}` : 'Chat' });
@@ -67,6 +75,22 @@ export default function ChatScreen() {
     setInput('');
   };
 
+  const handleInsertSuggestion = (suggestion: string) => {
+    setInput((prev) => {
+      const hasContent = prev.trim().length > 0;
+      const separator = hasContent && !prev.endsWith(' ') ? ' ' : '';
+      return `${hasContent ? prev : ''}${separator}${suggestion}`.trimStart();
+    });
+  };
+
+  const refreshStarterSuggestions = () => {
+    setStarterSuggestions(getRandomPrompts(conversationOpeners, 4));
+  };
+
+  const refreshFollowUpSuggestions = () => {
+    setFollowUpSuggestions(getRandomPrompts(conversationContinuers, 4));
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAvoidingView
@@ -78,24 +102,78 @@ export default function ChatScreen() {
           data={messages}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={
-            <View style={styles.threadHeader}>
-              {avatar ? (
-                <Image source={{ uri: avatar }} style={styles.headerAvatar} />
-              ) : (
-                <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
-                  <Text style={styles.headerAvatarPlaceholderText}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+            <View style={styles.headerContainer}>
+              <View style={styles.threadHeader}>
+                {avatar ? (
+                  <Image source={{ uri: avatar }} style={styles.headerAvatar} />
+                ) : (
+                  <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+                    <Text style={styles.headerAvatarPlaceholderText}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+                  </View>
+                )}
+                <View style={styles.threadHeaderText}>
+                  <Text style={styles.threadTitle}>{name ?? 'Your match'}</Text>
+                  <Text style={styles.threadSubtitle}>
+                    Matched on{' '}
+                    {matchedDate.toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
                 </View>
-              )}
-              <View style={styles.threadHeaderText}>
-                <Text style={styles.threadTitle}>{name ?? 'Your match'}</Text>
-                <Text style={styles.threadSubtitle}>
-                  Matched on{' '}
-                  {new Date(createdAt).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                </Text>
+              </View>
+              <View style={styles.suggestionsSection}>
+                <View style={styles.suggestionsHeader}>
+                  <Text style={styles.suggestionsTitle}>Icebreakers</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Refresh conversation starters"
+                    onPress={refreshStarterSuggestions}
+                    style={({ pressed }) => [styles.refreshButton, pressed && styles.refreshButtonPressed]}
+                  >
+                    <Text style={styles.refreshButtonText}>Shuffle</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.suggestionsList}>
+                  {starterSuggestions.map((suggestion) => (
+                    <Pressable
+                      key={suggestion}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use suggestion: ${suggestion}`}
+                      onPress={() => handleInsertSuggestion(suggestion)}
+                      style={({ pressed }) => [styles.suggestionPill, pressed && styles.suggestionPillPressed]}
+                    >
+                      <Text style={styles.suggestionText}>{suggestion}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.suggestionsSection}>
+                <View style={styles.suggestionsHeader}>
+                  <Text style={styles.suggestionsTitle}>Keep it going</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Refresh follow up ideas"
+                    onPress={refreshFollowUpSuggestions}
+                    style={({ pressed }) => [styles.refreshButton, pressed && styles.refreshButtonPressed]}
+                  >
+                    <Text style={styles.refreshButtonText}>Shuffle</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.suggestionsList}>
+                  {followUpSuggestions.map((suggestion) => (
+                    <Pressable
+                      key={suggestion}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use suggestion: ${suggestion}`}
+                      onPress={() => handleInsertSuggestion(suggestion)}
+                      style={({ pressed }) => [styles.suggestionPill, pressed && styles.suggestionPillPressed]}
+                    >
+                      <Text style={styles.suggestionText}>{suggestion}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             </View>
           }
@@ -170,11 +248,14 @@ const createStyles = (palette: AppPalette) =>
       paddingBottom: 24,
       gap: 12,
     },
+    headerContainer: {
+      gap: 16,
+      marginBottom: 8,
+    },
     threadHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-      marginBottom: 12,
     },
     headerAvatar: {
       width: 48,
@@ -206,6 +287,61 @@ const createStyles = (palette: AppPalette) =>
     threadSubtitle: {
       fontSize: 13,
       color: palette.muted,
+    },
+    suggestionsSection: {
+      gap: 12,
+      padding: 12,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+    },
+    suggestionsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    suggestionsTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: palette.textPrimary,
+    },
+    refreshButton: {
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      backgroundColor: palette.card,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    refreshButtonPressed: {
+      opacity: 0.8,
+    },
+    refreshButtonText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: palette.textPrimary,
+    },
+    suggestionsList: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    suggestionPill: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.card,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+    },
+    suggestionPillPressed: {
+      opacity: 0.85,
+    },
+    suggestionText: {
+      fontSize: 14,
+      lineHeight: 18,
+      color: palette.textPrimary,
     },
     messageRow: {
       flexDirection: 'column',

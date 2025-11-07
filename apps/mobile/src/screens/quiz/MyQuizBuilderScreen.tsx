@@ -274,7 +274,7 @@ const MyQuizBuilderScreen: React.FC = () => {
 
     setSaving(true);
     try {
-      const quizId = await saveQuiz(session.user.id, {
+      const savedQuiz = await saveQuiz(session.user.id, {
         id: draft.id,
         title: draft.title.trim(),
         description: draft.description.trim(),
@@ -288,7 +288,7 @@ const MyQuizBuilderScreen: React.FC = () => {
           })),
         })),
       });
-      setDraft((current) => ({ ...current, id: quizId }));
+      setDraft(mapQuizToDraft(savedQuiz));
       show('Quiz saved! Share it from your profile or feed card.');
     } catch (error) {
       console.error('Failed to save quiz', error);

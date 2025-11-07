@@ -92,7 +92,20 @@ async function loadQuizFromStorageById(quizId: string): Promise<Quiz | null> {
   return readQuizFromStorage(`${ID_STORAGE_PREFIX}${quizId}`);
 }
 
-async function persistQuizToStorage(ownerId: string, draft: QuizDraft): Promise<string> {
+async function cacheQuizRecord(quiz: Quiz) {
+  try {
+    const payload = JSON.stringify(quiz);
+    const storagePairs: [string, string][] = [
+      [`${OWNER_STORAGE_PREFIX}${quiz.owner_id}`, payload],
+      [`${ID_STORAGE_PREFIX}${quiz.id}`, payload],
+    ];
+    await AsyncStorage.multiSet(storagePairs);
+  } catch (error) {
+    console.warn('Failed to cache quiz locally', error);
+  }
+}
+
+async function persistQuizToStorage(ownerId: string, draft: QuizDraft): Promise<Quiz> {
   const existing = await loadQuizFromStorageByOwner(ownerId);
   const quizId = draft.id ?? existing?.id ?? generateId();
   const questions: QuizQuestion[] = draft.questions.map((question, index) => ({
@@ -117,18 +130,12 @@ async function persistQuizToStorage(ownerId: string, draft: QuizDraft): Promise<
     questions,
   };
 
-  const payload = JSON.stringify(record);
-  const storagePairs: [string, string][] = [
-    [`${OWNER_STORAGE_PREFIX}${ownerId}`, payload],
-    [`${ID_STORAGE_PREFIX}${quizId}`, payload],
-  ];
-
   if (existing && existing.id !== quizId) {
     await AsyncStorage.removeItem(`${ID_STORAGE_PREFIX}${existing.id}`);
   }
 
-  await AsyncStorage.multiSet(storagePairs);
-  return quizId;
+  await cacheQuizRecord(record);
+  return record;
 }
 
 export async function fetchQuizByOwner(ownerId: string): Promise<Quiz | null> {
@@ -232,14 +239,17 @@ export async function fetchQuizWithQuestions(quizId: string): Promise<Quiz | nul
     options: (optionMap.get(question.id) ?? []).sort((a, b) => a.position - b.position),
   }));
 
-  return {
+  const quizRecord: Quiz = {
     ...quiz,
     description: quiz.description ?? null,
     questions: questionsWithOptions,
   };
+
+  await cacheQuizRecord(quizRecord);
+  return quizRecord;
 }
 
-export async function saveQuiz(ownerId: string, draft: QuizDraft): Promise<string> {
+export async function saveQuiz(ownerId: string, draft: QuizDraft): Promise<Quiz> {
   const client = getSupabaseClient();
   const payload = {
     owner_id: ownerId,
@@ -275,7 +285,11 @@ export async function saveQuiz(ownerId: string, draft: QuizDraft): Promise<strin
     await client.from('quiz_questions').delete().eq('quiz_id', quizId);
 
     if (!draft.questions.length) {
-      return quizId;
+      const savedQuiz = await fetchQuizWithQuestions(quizId);
+      if (!savedQuiz) {
+        throw new Error('Unable to load saved quiz');
+      }
+      return savedQuiz;
     }
 
     const questionInserts = draft.questions.map((question, index) => ({
@@ -321,7 +335,11 @@ export async function saveQuiz(ownerId: string, draft: QuizDraft): Promise<strin
       }
     }
 
-    return quizId;
+    const savedQuiz = await fetchQuizWithQuestions(quizId);
+    if (!savedQuiz) {
+      throw new Error('Unable to load saved quiz');
+    }
+    return savedQuiz;
   } catch (error) {
     if (
       isTableMissingError(error, 'quizzes') ||

@@ -4,6 +4,7 @@ import {
   Image,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -28,7 +29,8 @@ import { checkLiveGuard, createLivePost } from '../../api/livePosts';
 import type { MainTabParamList } from '../../navigation/tabs/MainTabs';
 import { createPost } from '../../api/posts';
 
-const PREVIEW_SIZE = 320;
+const PREVIEW_ASPECT_RATIO = 3 / 4;
+const PREVIEW_MAX_WIDTH = 360;
 
 const PostScreen: React.FC = () => {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList, 'Post'>>();
@@ -285,83 +287,89 @@ const PostScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.liveCard}>
-        <Text style={styles.liveTitle}>Live Photo</Text>
-        <Text style={styles.liveCopy}>
-          Share a photo of what's happening now to jump to the top of the feed. Available once per day.
-        </Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.liveButton,
-            (isPostingLive || Platform.OS !== 'ios') && styles.liveButtonDisabled,
-            pressed && styles.liveButtonPressed,
-          ]}
-          onPress={handlePostLive}
-          disabled={isPostingLive || Platform.OS !== 'ios'}
-        >
-          {isPostingLive ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.liveButtonLabel}>
-              {Platform.OS === 'ios' ? 'Post Live Photo' : 'Live Photos are iOS-only'}
-            </Text>
-          )}
-        </Pressable>
-      </View>
-
-      <View style={styles.header}>
-        <Text style={styles.title}>Share a new moment</Text>
-        <Text style={styles.subtitle}>Capture something now or pull from your camera roll.</Text>
-        <View style={styles.actions}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.liveCard}>
+          <Text style={styles.liveTitle}>Live Photo</Text>
+          <Text style={styles.liveCopy}>
+            Share a photo of what's happening now to jump to the top of the feed. Available once per day.
+          </Text>
           <Pressable
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-            onPress={() => handleSelect('camera')}
-            disabled={showSpinner}
+            style={({ pressed }) => [
+              styles.liveButton,
+              (isPostingLive || Platform.OS !== 'ios') && styles.liveButtonDisabled,
+              pressed && styles.liveButtonPressed,
+            ]}
+            onPress={handlePostLive}
+            disabled={isPostingLive || Platform.OS !== 'ios'}
           >
-            <Text style={styles.buttonLabel}>Open Camera</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-            onPress={() => handleSelect('library')}
-            disabled={showSpinner}
-          >
-            <Text style={styles.buttonLabel}>Pick from Library</Text>
+            {isPostingLive ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.liveButtonLabel}>
+                {Platform.OS === 'ios' ? 'Post Live Photo' : 'Live Photos are iOS-only'}
+              </Text>
+            )}
           </Pressable>
         </View>
-      </View>
 
-      <View style={styles.previewWrapper}>
-        {currentPreview ? (
-          <Image source={{ uri: currentPreview }} style={styles.previewImage} resizeMode="cover" />
-        ) : (
-          <View style={styles.previewPlaceholder}>
-            <Text style={styles.previewPlaceholderText}>Select a photo to preview it here.</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Share a new moment</Text>
+          <Text style={styles.subtitle}>Capture something now or pull from your camera roll.</Text>
+          <View style={styles.actions}>
+            <Pressable
+              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+              onPress={() => handleSelect('camera')}
+              disabled={showSpinner}
+            >
+              <Text style={styles.buttonLabel}>Open Camera</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+              onPress={() => handleSelect('library')}
+              disabled={showSpinner}
+            >
+              <Text style={styles.buttonLabel}>Pick from Library</Text>
+            </Pressable>
           </View>
-        )}
-        {showSpinner && (
-          <View style={styles.previewSpinner}>
-            <ActivityIndicator size="large" color="#fff" />
-          </View>
-        )}
-        {status && !showSpinner && (
-          <View
-            style={[
-              styles.badge,
-              status === 'approved'
-                ? styles.badgeApproved
-                : status === 'rejected'
-                ? styles.badgeRejected
-                : styles.badgePending,
-            ]}
-          >
-            <Text style={styles.badgeText}>
-              {status === 'approved' ? 'Approved' : status === 'pending' ? 'Pending review' : 'Rejected'}
-            </Text>
-          </View>
-        )}
-      </View>
+        </View>
 
-      
+        <View style={styles.previewWrapper}>
+          <View style={styles.previewFrame}>
+            {currentPreview ? (
+              <Image source={{ uri: currentPreview }} style={styles.previewImage} resizeMode="cover" />
+            ) : (
+              <View style={[styles.previewImage, styles.previewPlaceholder]}>
+                <Text style={styles.previewPlaceholderText}>Select a photo to preview it here.</Text>
+              </View>
+            )}
+            {showSpinner && (
+              <View style={styles.previewSpinner}>
+                <ActivityIndicator size="large" color="#fff" />
+              </View>
+            )}
+            {status && !showSpinner && (
+              <View
+                style={[
+                  styles.badge,
+                  status === 'approved'
+                    ? styles.badgeApproved
+                    : status === 'rejected'
+                    ? styles.badgeRejected
+                    : styles.badgePending,
+                ]}
+              >
+                <Text style={styles.badgeText}>
+                  {status === 'approved' ? 'Approved' : status === 'pending' ? 'Pending review' : 'Rejected'}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -380,9 +388,12 @@ function createStyles(isDarkMode: boolean) {
   return StyleSheet.create({
     container: {
       flex: 1,
+      backgroundColor: background,
+    },
+    scrollContent: {
       paddingHorizontal: 24,
       paddingTop: 16,
-      backgroundColor: background,
+      paddingBottom: 40,
     },
     liveCard: {
       borderWidth: 1,
@@ -436,24 +447,28 @@ function createStyles(isDarkMode: boolean) {
     },
     previewWrapper: {
       alignItems: 'center',
-      justifyContent: 'center',
       marginBottom: 32,
     },
-    previewImage: {
-      width: PREVIEW_SIZE,
-      height: PREVIEW_SIZE,
-      borderRadius: 24,
-    },
-    previewPlaceholder: {
-      width: PREVIEW_SIZE,
-      height: PREVIEW_SIZE,
+    previewFrame: {
+      width: '100%',
+      maxWidth: PREVIEW_MAX_WIDTH,
+      aspectRatio: PREVIEW_ASPECT_RATIO,
       borderRadius: 24,
       borderWidth: 2,
       borderColor: placeholderBorder,
+      backgroundColor: placeholderBackground,
+      overflow: 'hidden',
+      position: 'relative',
+      justifyContent: 'center',
+    },
+    previewImage: {
+      width: '100%',
+      height: '100%',
+    },
+    previewPlaceholder: {
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 24,
-      backgroundColor: placeholderBackground,
     },
     previewPlaceholderText: {
       color: placeholderText,
@@ -461,12 +476,7 @@ function createStyles(isDarkMode: boolean) {
       fontSize: 16,
     },
     previewSpinner: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      top: 0,
-      bottom: 0,
-      borderRadius: 24,
+      ...StyleSheet.absoluteFillObject,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: overlay,

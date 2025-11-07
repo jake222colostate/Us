@@ -21,7 +21,7 @@ import { useAuthStore, selectSession } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { fetchQuizByOwner, saveQuiz, type Quiz } from '../../api/quizzes';
 
-const MIN_QUESTIONS = 3;
+const MIN_QUESTIONS = 1;
 const MAX_QUESTIONS = 10;
 
 function uuid() {
@@ -137,8 +137,16 @@ const MyQuizBuilderScreen: React.FC = () => {
   const removeQuestion = React.useCallback(
     (questionId: string) => {
       setDraft((current) => {
+        const index = current.questions.findIndex((question) => question.id === questionId);
+        if (index === -1) {
+          return current;
+        }
+        if (index === 0) {
+          show('Keep at least one question in your quiz. Update the first question instead of removing it.');
+          return current;
+        }
         if (current.questions.length <= MIN_QUESTIONS) {
-          show(`A quiz needs at least ${MIN_QUESTIONS} questions.`);
+          show('A quiz needs at least one question.');
           return current;
         }
         return {
@@ -184,8 +192,8 @@ const MyQuizBuilderScreen: React.FC = () => {
   const removeOption = React.useCallback(
     (questionId: string, optionId: string) => {
       updateQuestion(questionId, (question) => {
-        if (question.options.length <= 2) {
-          show('Each question needs at least two options.');
+        if (question.options.length <= 1) {
+          show('Each question needs at least one option.');
           return question;
         }
         return {
@@ -229,7 +237,7 @@ const MyQuizBuilderScreen: React.FC = () => {
       errors.push('Add a quiz title.');
     }
     if (draft.questions.length < MIN_QUESTIONS) {
-      errors.push(`Add at least ${MIN_QUESTIONS} questions.`);
+      errors.push('Add at least one question.');
     }
     if (draft.questions.length > MAX_QUESTIONS) {
       errors.push(`You can only have up to ${MAX_QUESTIONS} questions.`);
@@ -239,8 +247,8 @@ const MyQuizBuilderScreen: React.FC = () => {
       if (!question.prompt.trim()) {
         errors.push(`Question ${index + 1} needs a prompt.`);
       }
-      if (question.options.length < 2) {
-        errors.push(`Question ${index + 1} needs at least two options.`);
+      if (question.options.length < 1) {
+        errors.push(`Question ${index + 1} needs at least one option.`);
       }
       question.options.forEach((option, optionIndex) => {
         if (!option.label.trim()) {

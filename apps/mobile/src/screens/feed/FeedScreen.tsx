@@ -24,6 +24,7 @@ import {
   selectSession,
   selectIsAuthenticated,
   selectIsInitialized,
+  selectCurrentUser,
 } from '../../state/authStore';
 import { useMatchesStore } from '../../state/matchesStore';
 import { getSupabaseClient } from '../../api/supabase';
@@ -31,6 +32,8 @@ import { isTableMissingError, logTableMissingWarning } from '../../api/postgrest
 import { useToast } from '../../providers/ToastProvider';
 import { fetchLiveNow, type LiveNowItem } from '../../api/livePosts';
 import LiveCountdown from '../../components/LiveCountdown';
+import type { Gender } from '@us/types';
+import { useFeedPreferencesStore, type GenderFilter } from '../../state/feedPreferencesStore';
 
 type FeedProfile = {
   id: string;
@@ -38,6 +41,7 @@ type FeedProfile = {
   bio: string | null;
   photo: string | null;
   hasQuiz: boolean;
+  gender: Gender | null;
 };
 
 const createStyles = (palette: AppPalette) =>
@@ -62,6 +66,34 @@ const createStyles = (palette: AppPalette) =>
     subtitle: {
       marginTop: 6,
       color: palette.muted,
+    },
+    filterRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginTop: 16,
+    },
+    filterButton: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+    },
+    filterButtonActive: {
+      backgroundColor: palette.accent,
+      borderColor: palette.accent,
+    },
+    filterButtonPressed: {
+      opacity: 0.85,
+    },
+    filterLabel: {
+      color: palette.textPrimary,
+      fontWeight: '600',
+    },
+    filterLabelActive: {
+      color: '#ffffff',
     },
     footerSpacing: {
       height: 32,
@@ -184,6 +216,10 @@ export default function FeedScreen() {
   const [error, setError] = useState<string | null>(null);
   const [liveItems, setLiveItems] = useState<LiveNowItem[]>([]);
   const { show } = useToast();
+  const currentUser = useAuthStore(selectCurrentUser);
+  const genderFilter = useFeedPreferencesStore((state) => state.genderFilter);
+  const setGenderFilter = useFeedPreferencesStore((state) => state.setGenderFilter);
+  const [hasManualFilter, setHasManualFilter] = useState(false);
 
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const isInitialized = useAuthStore(selectIsInitialized);
@@ -209,7 +245,7 @@ export default function FeedScreen() {
       }
       const { data: profileRows, error: profileError } = await client
         .from('profiles')
-        .select('id, display_name, bio')
+        .select('id, display_name, bio, gender')
         .neq('id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(40);
@@ -261,6 +297,7 @@ export default function FeedScreen() {
           bio: row.bio,
           photo: heroPhoto?.url ?? null,
           hasQuiz: quizOwners.has(row.id),
+          gender: (row.gender as Gender | null) ?? null,
         });
       }
       setProfiles(mappedProfiles);
@@ -283,6 +320,59 @@ export default function FeedScreen() {
     }
     load();
   }, [load, isAuthenticated, session, isInitialized]);
+
+  useEffect(() => {
+    const preference = currentUser?.lookingFor ?? 'everyone';
+    if (!hasManualFilter && preference !== genderFilter) {
+      setGenderFilter(preference as GenderFilter);
+    }
+  }, [currentUser?.lookingFor, genderFilter, hasManualFilter, setGenderFilter]);
+
+  useEffect(() => {
+    if (currentUser?.lookingFor && currentUser.lookingFor === genderFilter && hasManualFilter) {
+      setHasManualFilter(false);
+    }
+  }, [currentUser?.lookingFor, genderFilter, hasManualFilter]);
+
+  const genderFilterOptions = useMemo(
+    () =>
+      [
+        { key: 'everyone' as GenderFilter, label: 'Everyone' },
+        { key: 'women' as GenderFilter, label: 'Women' },
+        { key: 'men' as GenderFilter, label: 'Men' },
+        { key: 'nonbinary' as GenderFilter, label: 'Non-binary' },
+      ],
+    [],
+  );
+
+  const filteredProfiles = useMemo(() => {
+    if (genderFilter === 'everyone') {
+      return profiles;
+    }
+    return profiles.filter((profile) => {
+      if (!profile.gender) {
+        return true;
+      }
+      if (genderFilter === 'women') {
+        return profile.gender === 'woman';
+      }
+      if (genderFilter === 'men') {
+        return profile.gender === 'man';
+      }
+      if (genderFilter === 'nonbinary') {
+        return profile.gender === 'nonbinary' || profile.gender === 'other';
+      }
+      return true;
+    });
+  }, [profiles, genderFilter]);
+
+  const handleSelectFilter = useCallback(
+    (value: GenderFilter) => {
+      setGenderFilter(value);
+      setHasManualFilter(value !== (currentUser?.lookingFor ?? 'everyone'));
+    },
+    [currentUser?.lookingFor, setGenderFilter],
+  );
 
   const handleLike = useCallback(
     async (targetId: string) => {
@@ -352,7 +442,7 @@ export default function FeedScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       <FlatList
-        data={profiles}
+        data={filteredProfiles}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <Card
@@ -384,17 +474,53 @@ export default function FeedScreen() {
             <View style={styles.header}>
               <Text style={styles.title}>Explore nearby</Text>
               <Text style={styles.subtitle}>Only approved photos appear here so you can browse safely.</Text>
+              <View style={styles.filterRow}>
+                {genderFilterOptions.map((option) => {
+                  const isActive = genderFilter === option.key;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isActive }}
+                      style={({ pressed }) => [
+                        styles.filterButton,
+                        isActive && styles.filterButtonActive,
+                        pressed && styles.filterButtonPressed,
+                      ]}
+                      onPress={() => handleSelectFilter(option.key)}
+                    >
+                      <Text
+                        style={[
+                          styles.filterLabel,
+                          isActive && styles.filterLabelActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           </>
         }
         ListEmptyComponent={
           !loading ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No profiles yet</Text>
-              <Text style={styles.emptyCopy}>
-                We’ll surface people once they add approved photos. Try again shortly.
-              </Text>
-            </View>
+            profiles.length ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>No profiles match your filter</Text>
+                <Text style={styles.emptyCopy}>
+                  Try expanding your gender filter to discover more people nearby.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>No profiles yet</Text>
+                <Text style={styles.emptyCopy}>
+                  We’ll surface people once they add approved photos. Try again shortly.
+                </Text>
+              </View>
+            )
           ) : null
         }
         ListFooterComponent={<View style={styles.footerSpacing} />}

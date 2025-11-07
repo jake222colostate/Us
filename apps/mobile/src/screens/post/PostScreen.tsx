@@ -13,6 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
 import { Buffer } from 'buffer';
+import { FlipType, SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useQueryClient } from '@tanstack/react-query';
@@ -44,6 +45,29 @@ const PostScreen: React.FC = () => {
 
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
   const styles = useMemo(() => createStyles(isDarkMode), [isDarkMode]);
+
+  const mirrorAsset = useCallback(async (asset: ImagePicker.ImagePickerAsset) => {
+    try {
+      const result = await manipulateAsync(
+        asset.uri,
+        [{ flip: FlipType.Horizontal }],
+        {
+          compress: asset.base64 ? 1 : 0.9,
+          format: SaveFormat.JPEG,
+        },
+      );
+
+      return {
+        ...asset,
+        uri: result.uri,
+        width: result.width ?? asset.width,
+        height: result.height ?? asset.height,
+      };
+    } catch (error) {
+      console.error('Failed to mirror photo', error);
+      return asset;
+    }
+  }, []);
 
   const handleSelect = useCallback(
     async (source: 'camera' | 'library') => {
@@ -79,7 +103,11 @@ const PostScreen: React.FC = () => {
           return;
         }
 
-        const asset = result.assets[0];
+        let asset = result.assets[0];
+        if (source === 'camera') {
+          asset = await mirrorAsset(asset);
+        }
+
         setPreviewUri(asset.uri);
         setHostedUri(null);
         setStatus('pending');
@@ -138,7 +166,7 @@ const PostScreen: React.FC = () => {
         show('Something went wrong while selecting your photo. Please try again.');
       }
     },
-    [uploadPhoto, show, session, queryClient],
+    [uploadPhoto, show, session, queryClient, mirrorAsset],
   );
 
   const ensureUuid = useCallback(() => {
@@ -168,34 +196,15 @@ const PostScreen: React.FC = () => {
     }
 
     if (Platform.OS !== 'ios') {
-      show('Live requires iOS Live Photo; try selecting one from your camera roll.');
+      show('Live Photos require iOS and must be captured with your camera.');
       return;
     }
 
     setIsPostingLive(true);
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        show('Media library access is required to pick a Live Photo.');
-        return;
-      }
-
-      const pickResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'livePhotos',
-        allowsMultipleSelection: false,
-        quality: 0.9,
-      });
-
-      if (pickResult.canceled || !pickResult.assets?.length) {
-        return;
-      }
-
-      const asset = pickResult.assets[0] as ImagePicker.ImagePickerAsset & {
-        mediaSubtypes?: string[];
-      };
-
-      if (!asset.mediaSubtypes?.includes('photoLive')) {
-        show('Live requires iOS Live Photo; try selecting one from your camera roll.');
+        show('Camera access is required to capture a Live Photo.');
         return;
       }
 
@@ -211,6 +220,18 @@ const PostScreen: React.FC = () => {
         );
         return;
       }
+
+      const captureResult = await ImagePicker.launchCameraAsync({
+        quality: 0.9,
+        exif: true,
+      });
+
+      if (captureResult.canceled || !captureResult.assets?.length) {
+        return;
+      }
+
+      let asset = captureResult.assets[0];
+      asset = await mirrorAsset(asset);
 
       let contentType: string = 'image/jpeg';
       let extension: string = 'jpg';
@@ -257,7 +278,7 @@ const PostScreen: React.FC = () => {
     } finally {
       setIsPostingLive(false);
     }
-  }, [session, show, toBytes, ensureUuid, navigation]);
+  }, [session, show, toBytes, ensureUuid, navigation, mirrorAsset]);
 
   const currentPreview = hostedUri ?? previewUri;
   const showSpinner = isUploading || pendingSelection || isPublishingPost;
@@ -265,9 +286,9 @@ const PostScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.liveCard}>
-        <Text style={styles.liveTitle}>Go Live for 60 minutes</Text>
+        <Text style={styles.liveTitle}>Live Photo</Text>
         <Text style={styles.liveCopy}>
-          Share an iOS Live Photo to jump to the top of the feed. Available once per day.
+          Share a photo of what's happening now to jump to the top of the feed. Available once per day.
         </Text>
         <Pressable
           style={({ pressed }) => [

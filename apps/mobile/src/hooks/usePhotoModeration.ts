@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { Buffer } from 'buffer';

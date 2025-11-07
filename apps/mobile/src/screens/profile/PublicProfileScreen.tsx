@@ -223,7 +223,8 @@ const PublicProfileScreen: React.FC = () => {
     loadProfile();
   }, [userId]);
 
-  const isMatched = matches.some((match) => match.userId === userId);
+  const matchedProfile = matches.find((match) => match.userId === userId);
+  const isMatched = Boolean(matchedProfile);
 
   const handleSendLike = async () => {
     if (liking) return;
@@ -250,6 +251,16 @@ const PublicProfileScreen: React.FC = () => {
   };
 
   const handlePrimaryPress = () => {
+    if (matchedProfile) {
+      navigation.navigate('Chat', {
+        matchId: matchedProfile.matchId,
+        userId: matchedProfile.userId,
+        name: matchedProfile.name ?? profile?.display_name ?? 'Member',
+        avatar: matchedProfile.avatar ?? photos[0] ?? null,
+        createdAt: matchedProfile.createdAt,
+      });
+      return;
+    }
     if (isMatched) {
       navigation.navigate('MainTabs', { screen: 'Matches' });
       return;

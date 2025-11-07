@@ -100,7 +100,7 @@ export default function CompareScreen({ route }: Props) {
           })}
         </View>
 
-        <View style={[styles.compareArea, containerStyle]}>
+        <View key={layout} style={[styles.compareArea, containerStyle]}>
           <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
             {left ? (
               <Image source={{ uri: left }} style={styles.photo} resizeMode="cover" />
@@ -228,12 +228,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     aspectRatio: 3 / 4,
     minHeight: 0,
+    minWidth: 0,
   },
   verticalPhotoCard: {
     width: '100%',
   },
   horizontalPhotoCard: {
     flexBasis: 0,
+    minWidth: 0,
   },
   photo: {
     width: '100%',

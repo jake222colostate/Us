@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
+import type { Gender, LookingFor } from '@us/types';
 import { getSupabaseClient } from '../api/supabase';
 import { createSignedPhotoUrl, mapPhotoRows, type PhotoResource, type PhotoRow } from '../lib/photos';
 
@@ -15,6 +16,8 @@ export type AuthenticatedUser = {
   birthday?: string | null;
   age?: number | null;
   location?: string | null;
+  gender?: Gender | null;
+  lookingFor?: LookingFor | null;
   avatar?: string | null;
   avatarStoragePath?: string | null;
   bio?: string | null;
@@ -32,7 +35,14 @@ type AuthState = {
   isPremium: boolean;
   setSession: (session: Session | null) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateUser: (updates: { bio?: string; interests?: string[]; name?: string; location?: string | null }) => Promise<void>;
+  updateUser: (updates: {
+    bio?: string;
+    interests?: string[];
+    name?: string;
+    location?: string | null;
+    gender?: Gender | null;
+    lookingFor?: LookingFor | null;
+  }) => Promise<void>;
   setVerificationStatus: (status: VerificationStatus) => void;
   setUserPhotos: (photos: UserPhoto[]) => void;
   upsertUserPhoto: (photo: UserPhoto) => void;
@@ -59,6 +69,8 @@ async function ensureProfile(userId: string, displayName: string, options?: {
   birthday?: string | null;
   interests?: string[];
   location?: string | null;
+  gender?: Gender | null;
+  lookingFor?: LookingFor | null;
 }) {
   const client = getSupabaseClient();
   const payload: Record<string, unknown> = {
@@ -69,6 +81,8 @@ async function ensureProfile(userId: string, displayName: string, options?: {
   if (options?.birthday !== undefined) payload.birthday = options.birthday;
   if (options?.interests !== undefined) payload.interests = options.interests;
   if (options?.location !== undefined) payload.location = options.location;
+  if (options?.gender !== undefined) payload.gender = options.gender;
+  if (options?.lookingFor !== undefined) payload.looking_for = options.lookingFor;
 
   await client.from('profiles').upsert(payload, { onConflict: 'id' });
 }
@@ -114,6 +128,8 @@ async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
     birthday: profileRow.birthday ?? null,
     age: calculateAge(profileRow.birthday ?? null),
     location: profileRow.location ?? null,
+    gender: (profileRow.gender as Gender | null) ?? null,
+    lookingFor: (profileRow.looking_for as LookingFor | null) ?? null,
     avatar: signedAvatar ?? firstApproved?.url ?? null,
     avatarStoragePath: profileRow.avatar_url ?? firstApproved?.storagePath ?? null,
     bio: profileRow.bio ?? null,
@@ -185,7 +201,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     await hydrateSession(session, set, get);
   },
-  async updateUser({ bio, interests, name, location }) {
+  async updateUser({ bio, interests, name, location, gender, lookingFor }) {
     const session = get().session;
     if (!session) return;
     const client = getSupabaseClient();
@@ -194,6 +210,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (interests !== undefined) payload.interests = interests;
     if (name !== undefined) payload.display_name = name;
     if (location !== undefined) payload.location = location;
+    if (gender !== undefined) payload.gender = gender;
+    if (lookingFor !== undefined) payload.looking_for = lookingFor;
     if (Object.keys(payload).length === 0) {
       return;
     }
@@ -214,6 +232,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             bio: data.bio ?? state.user.bio,
             interests: Array.isArray(data.interests) ? (data.interests as string[]) : state.user.interests,
             location: data.location ?? state.user.location,
+            gender: (data.gender as Gender | null) ?? state.user.gender ?? null,
+            lookingFor: (data.looking_for as LookingFor | null) ?? state.user.lookingFor ?? null,
           }
         : state.user,
     }));

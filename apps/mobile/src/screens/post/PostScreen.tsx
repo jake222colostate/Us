@@ -15,6 +15,7 @@ import * as Crypto from 'expo-crypto';
 import { Buffer } from 'buffer';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
 import type { ModerationStatus } from '../../lib/photos';
 import { PROFILE_PHOTO_BUCKET } from '../../lib/photos';
@@ -24,11 +25,13 @@ import { useAuthStore, selectSession } from '../../state/authStore';
 import { getSupabaseClient } from '../../api/supabase';
 import { checkLiveGuard, createLivePost } from '../../api/livePosts';
 import type { MainTabParamList } from '../../navigation/tabs/MainTabs';
+import { createPost } from '../../api/posts';
 
 const PREVIEW_SIZE = 320;
 
 const PostScreen: React.FC = () => {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList, 'Post'>>();
+  const queryClient = useQueryClient();
   const { uploadPhoto, isUploading } = usePhotoModeration();
   const session = useAuthStore(selectSession);
   const { show } = useToast();
@@ -37,6 +40,7 @@ const PostScreen: React.FC = () => {
   const [status, setStatus] = useState<ModerationStatus | null>(null);
   const [pendingSelection, setPendingSelection] = useState(false);
   const [isPostingLive, setIsPostingLive] = useState(false);
+  const [isPublishingPost, setIsPublishingPost] = useState(false);
 
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
   const styles = useMemo(() => createStyles(isDarkMode), [isDarkMode]);
@@ -91,25 +95,50 @@ const PostScreen: React.FC = () => {
 
         const finalStatus = outcome.status ?? 'pending';
         setStatus(finalStatus);
-        if (outcome.photo?.url) {
-          setHostedUri(outcome.photo.url);
+
+        if (!outcome.photo?.url) {
+          show('Upload succeeded but the photo URL is missing. Please try again.');
+          return;
         }
 
-        if (finalStatus === 'approved') {
-          show('Photo uploaded! It is now live on your profile.');
-        } else if (finalStatus === 'pending') {
-          show('Photo uploaded! We will notify you when it is approved.');
-        } else {
+        if (finalStatus === 'rejected') {
           show('This photo was rejected by moderation. Try another one.');
           setPreviewUri(null);
           setHostedUri(null);
+          return;
+        }
+
+        setHostedUri(outcome.photo.url);
+
+        if (!session) {
+          show('Sign in to share your moments to the feed.');
+          return;
+        }
+
+        try {
+          setIsPublishingPost(true);
+          await createPost({ userId: session.user.id, photoUrl: outcome.photo.url });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['feed'] }),
+            queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
+          ]);
+          if (finalStatus === 'approved') {
+            show('Photo posted! It is now live in the feed and on your profile.');
+          } else {
+            show('Photo submitted! It will appear once it is approved.');
+          }
+        } catch (postError) {
+          console.error('Failed to publish post', postError);
+          show('Photo uploaded, but we could not publish it. Please try again.');
+        } finally {
+          setIsPublishingPost(false);
         }
       } catch (err) {
         console.error('Photo selection failed', err);
         show('Something went wrong while selecting your photo. Please try again.');
       }
     },
-    [uploadPhoto, show],
+    [uploadPhoto, show, session, queryClient],
   );
 
   const ensureUuid = useCallback(() => {
@@ -231,7 +260,7 @@ const PostScreen: React.FC = () => {
   }, [session, show, toBytes, ensureUuid, navigation]);
 
   const currentPreview = hostedUri ?? previewUri;
-  const showSpinner = isUploading || pendingSelection;
+  const showSpinner = isUploading || pendingSelection || isPublishingPost;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -262,6 +291,22 @@ const PostScreen: React.FC = () => {
       <View style={styles.header}>
         <Text style={styles.title}>Share a new moment</Text>
         <Text style={styles.subtitle}>Capture something now or pull from your camera roll.</Text>
+        <View style={styles.actions}>
+          <Pressable
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+            onPress={() => handleSelect('camera')}
+            disabled={showSpinner}
+          >
+            <Text style={styles.buttonLabel}>Open Camera</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+            onPress={() => handleSelect('library')}
+            disabled={showSpinner}
+          >
+            <Text style={styles.buttonLabel}>Pick from Library</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.previewWrapper}>
@@ -295,22 +340,7 @@ const PostScreen: React.FC = () => {
         )}
       </View>
 
-      <View style={styles.actions}>
-        <Pressable
-          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-          onPress={() => handleSelect('camera')}
-          disabled={showSpinner}
-        >
-          <Text style={styles.buttonLabel}>Open Camera</Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-          onPress={() => handleSelect('library')}
-          disabled={showSpinner}
-        >
-          <Text style={styles.buttonLabel}>Pick from Library</Text>
-        </Pressable>
-      </View>
+      
     </SafeAreaView>
   );
 };
@@ -371,12 +401,12 @@ function createStyles(isDarkMode: boolean) {
     },
     header: {
       marginBottom: 24,
+      gap: 16,
     },
     title: {
       fontSize: 24,
       fontWeight: '700',
       color: textPrimary,
-      marginBottom: 8,
     },
     subtitle: {
       fontSize: 16,
@@ -443,9 +473,12 @@ function createStyles(isDarkMode: boolean) {
       backgroundColor: '#ef4444',
     },
     actions: {
-      gap: 16,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
     },
     button: {
+      flex: 1,
       backgroundColor: '#f472b6',
       paddingVertical: 16,
       borderRadius: 14,

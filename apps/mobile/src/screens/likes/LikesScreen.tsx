@@ -244,7 +244,8 @@ const createStyles = (palette: AppPalette) =>
     },
     emptyList: {
       flexGrow: 1,
-      justifyContent: 'center',
+      paddingTop: 48,
+      paddingBottom: 32,
     },
     header: {
       paddingHorizontal: 20,
@@ -389,8 +390,9 @@ const createStyles = (palette: AppPalette) =>
     },
     emptyState: {
       paddingHorizontal: 32,
-      alignItems: 'center',
+      alignItems: 'flex-start',
       gap: 8,
+      width: '100%',
     },
     emptyTitle: {
       color: palette.textPrimary,
@@ -399,7 +401,7 @@ const createStyles = (palette: AppPalette) =>
     },
     emptyCopy: {
       color: palette.muted,
-      textAlign: 'center',
+      textAlign: 'left',
       lineHeight: 20,
     },
   });

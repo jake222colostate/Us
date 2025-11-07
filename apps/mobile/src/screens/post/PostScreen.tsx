@@ -1,21 +1,43 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
+import * as Crypto from 'expo-crypto';
+import { Buffer } from 'buffer';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
 import type { ModerationStatus } from '../../lib/photos';
+import { PROFILE_PHOTO_BUCKET } from '../../lib/photos';
 import { useToast } from '../../providers/ToastProvider';
 import { useThemeStore } from '../../state/themeStore';
+import { useAuthStore, selectSession } from '../../state/authStore';
+import { getSupabaseClient } from '../../api/supabase';
+import { checkLiveGuard, createLivePost } from '../../api/livePosts';
+import type { MainTabParamList } from '../../navigation/tabs/MainTabs';
 
 const PREVIEW_SIZE = 320;
 
 const PostScreen: React.FC = () => {
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList, 'Post'>>();
   const { uploadPhoto, isUploading } = usePhotoModeration();
+  const session = useAuthStore(selectSession);
   const { show } = useToast();
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [hostedUri, setHostedUri] = useState<string | null>(null);
   const [status, setStatus] = useState<ModerationStatus | null>(null);
   const [pendingSelection, setPendingSelection] = useState(false);
+  const [isPostingLive, setIsPostingLive] = useState(false);
 
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
   const styles = useMemo(() => createStyles(isDarkMode), [isDarkMode]);
@@ -29,7 +51,11 @@ const PostScreen: React.FC = () => {
             : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (!permission.granted) {
-          show(source === 'camera' ? 'Camera access is required to take a photo.' : 'Media library access is required to pick a photo.');
+          show(
+            source === 'camera'
+              ? 'Camera access is required to take a photo.'
+              : 'Media library access is required to pick a photo.',
+          );
           return;
         }
 
@@ -87,11 +113,152 @@ const PostScreen: React.FC = () => {
     [uploadPhoto, show],
   );
 
+  const ensureUuid = useCallback(() => {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID();
+    }
+    return Crypto.randomUUID();
+  }, []);
+
+  const toBytes = useCallback((base64: string) => {
+    if (typeof globalThis.atob === 'function') {
+      const binary = globalThis.atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+    const buffer = Buffer.from(base64, 'base64');
+    return new Uint8Array(buffer);
+  }, []);
+
+  const handlePostLive = useCallback(async () => {
+    if (!session) {
+      show('Sign in to post a Live Photo.');
+      return;
+    }
+
+    if (Platform.OS !== 'ios') {
+      show('Live requires iOS Live Photo; try selecting one from your camera roll.');
+      return;
+    }
+
+    setIsPostingLive(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        show('Media library access is required to pick a Live Photo.');
+        return;
+      }
+
+      const pickResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'livePhotos',
+        allowsMultipleSelection: false,
+        quality: 0.9,
+      });
+
+      if (pickResult.canceled || !pickResult.assets?.length) {
+        return;
+      }
+
+      const asset = pickResult.assets[0] as ImagePicker.ImagePickerAsset & {
+        mediaSubtypes?: string[];
+      };
+
+      if (!asset.mediaSubtypes?.includes('photoLive')) {
+        show('Live requires iOS Live Photo; try selecting one from your camera roll.');
+        return;
+      }
+
+      const guard = await checkLiveGuard(session.user.id);
+      if (!guard.allowed) {
+        const nextAt = guard.nextAllowedAt
+          ? new Date(guard.nextAllowedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+          : null;
+        show(
+          nextAt
+            ? `You already shared a Live Photo today. You can post again after ${nextAt}.`
+            : 'You already shared a Live Photo today. Try again tomorrow.',
+        );
+        return;
+      }
+
+      let imageUri = asset.uri;
+      if (asset.uri.toLowerCase().endsWith('.heic') || asset.uri.toLowerCase().endsWith('.heif')) {
+        const manipulated = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [],
+          { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG, base64: false },
+        );
+        imageUri = manipulated.uri;
+      }
+
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const bytes = toBytes(base64);
+      const path = `live/${session.user.id}/${ensureUuid()}.jpg`;
+      const client = getSupabaseClient();
+      const { error: uploadError } = await client.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = client.storage.from(PROFILE_PHOTO_BUCKET).getPublicUrl(path);
+      const publicUrl = publicUrlData?.publicUrl;
+      if (!publicUrl) {
+        throw new Error('Unable to resolve uploaded Live Photo URL.');
+      }
+
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await createLivePost({
+        userId: session.user.id,
+        photoUrl: publicUrl,
+        liveExpiresAt: expiresAt,
+      });
+
+      show('Live Photo posted! You are featured for the next hour.');
+      navigation.navigate('Feed');
+    } catch (error) {
+      console.error('Failed to post Live Photo', error);
+      show('Unable to post Live Photo. Please try again in a moment.');
+    } finally {
+      setIsPostingLive(false);
+    }
+  }, [session, show, toBytes, ensureUuid, navigation]);
+
   const currentPreview = hostedUri ?? previewUri;
   const showSpinner = isUploading || pendingSelection;
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.liveCard}>
+        <Text style={styles.liveTitle}>Go Live for 60 minutes</Text>
+        <Text style={styles.liveCopy}>
+          Share an iOS Live Photo to jump to the top of the feed. Available once per day.
+        </Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.liveButton,
+            (isPostingLive || Platform.OS !== 'ios') && styles.liveButtonDisabled,
+            pressed && styles.liveButtonPressed,
+          ]}
+          onPress={handlePostLive}
+          disabled={isPostingLive || Platform.OS !== 'ios'}
+        >
+          {isPostingLive ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.liveButtonLabel}>
+              {Platform.OS === 'ios' ? 'Post Live Photo' : 'Live Photos are iOS-only'}
+            </Text>
+          )}
+        </Pressable>
+      </View>
+
       <View style={styles.header}>
         <Text style={styles.title}>Share a new moment</Text>
         <Text style={styles.subtitle}>Capture something now or pull from your camera roll.</Text>
@@ -111,8 +278,19 @@ const PostScreen: React.FC = () => {
           </View>
         )}
         {status && !showSpinner && (
-          <View style={[styles.badge, status === 'approved' ? styles.badgeApproved : status === 'rejected' ? styles.badgeRejected : styles.badgePending]}>
-            <Text style={styles.badgeText}>{status === 'approved' ? 'Approved' : status === 'pending' ? 'Pending review' : 'Rejected'}</Text>
+          <View
+            style={[
+              styles.badge,
+              status === 'approved'
+                ? styles.badgeApproved
+                : status === 'rejected'
+                ? styles.badgeRejected
+                : styles.badgePending,
+            ]}
+          >
+            <Text style={styles.badgeText}>
+              {status === 'approved' ? 'Approved' : status === 'pending' ? 'Pending review' : 'Rejected'}
+            </Text>
           </View>
         )}
       </View>
@@ -145,6 +323,8 @@ function createStyles(isDarkMode: boolean) {
   const placeholderBackground = isDarkMode ? '#111b2e' : '#f6ecff';
   const placeholderText = isDarkMode ? '#64748b' : '#7c699b';
   const overlay = isDarkMode ? 'rgba(15, 23, 42, 0.45)' : 'rgba(226, 209, 255, 0.4)';
+  const liveBackground = isDarkMode ? '#111b2e' : '#f2e6ff';
+  const liveBorder = isDarkMode ? '#273552' : '#d8c2f6';
 
   return StyleSheet.create({
     container: {
@@ -152,6 +332,42 @@ function createStyles(isDarkMode: boolean) {
       paddingHorizontal: 24,
       paddingTop: 16,
       backgroundColor: background,
+    },
+    liveCard: {
+      borderWidth: 1,
+      borderColor: liveBorder,
+      backgroundColor: liveBackground,
+      padding: 20,
+      borderRadius: 20,
+      marginBottom: 24,
+      gap: 12,
+    },
+    liveTitle: {
+      color: textPrimary,
+      fontSize: 20,
+      fontWeight: '700',
+    },
+    liveCopy: {
+      color: textSecondary,
+      lineHeight: 20,
+    },
+    liveButton: {
+      backgroundColor: '#f472b6',
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    liveButtonDisabled: {
+      opacity: 0.6,
+    },
+    liveButtonPressed: {
+      opacity: 0.9,
+    },
+    liveButtonLabel: {
+      color: '#fff',
+      fontWeight: '600',
+      fontSize: 16,
     },
     header: {
       marginBottom: 24,

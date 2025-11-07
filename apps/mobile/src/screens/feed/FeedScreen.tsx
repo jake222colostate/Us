@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  FlatList,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -18,12 +28,15 @@ import {
 import { useMatchesStore } from '../../state/matchesStore';
 import { getSupabaseClient } from '../../api/supabase';
 import { useToast } from '../../providers/ToastProvider';
+import { fetchLiveNow, type LiveNowItem } from '../../api/livePosts';
+import LiveCountdown from '../../components/LiveCountdown';
 
 type FeedProfile = {
   id: string;
   name: string | null;
   bio: string | null;
   photo: string | null;
+  hasQuiz: boolean;
 };
 
 const createStyles = (palette: AppPalette) =>
@@ -57,6 +70,85 @@ const createStyles = (palette: AppPalette) =>
       paddingHorizontal: 20,
       paddingBottom: 12,
     },
+    liveSection: {
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 8,
+      gap: 12,
+    },
+    liveHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    liveHeader: {
+      color: palette.textPrimary,
+      fontSize: 20,
+      fontWeight: '700',
+    },
+    liveScroll: {
+      gap: 16,
+    },
+    liveCard: {
+      width: 180,
+      borderRadius: 18,
+      backgroundColor: palette.card,
+      borderWidth: 1,
+      borderColor: palette.border,
+      overflow: 'hidden',
+    },
+    liveImageWrapper: {
+      position: 'relative',
+      width: '100%',
+      aspectRatio: 3 / 4,
+      backgroundColor: palette.surface,
+    },
+    liveImage: {
+      width: '100%',
+      height: '100%',
+    },
+    liveBadge: {
+      position: 'absolute',
+      top: 10,
+      left: 10,
+      backgroundColor: '#ef4444',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    liveBadgeText: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    liveCountdownPill: {
+      position: 'absolute',
+      bottom: 10,
+      right: 10,
+      backgroundColor: 'rgba(15,23,42,0.75)',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    liveCountdownText: {
+      color: '#fff',
+      fontSize: 12,
+    },
+    liveBody: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 6,
+    },
+    liveName: {
+      color: palette.textPrimary,
+      fontWeight: '700',
+      fontSize: 16,
+    },
+    liveBio: {
+      color: palette.muted,
+      fontSize: 13,
+      lineHeight: 18,
+    },
     emptyState: {
       paddingHorizontal: 20,
       paddingTop: 40,
@@ -89,6 +181,7 @@ export default function FeedScreen() {
   const [profiles, setProfiles] = useState<FeedProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [liveItems, setLiveItems] = useState<LiveNowItem[]>([]);
   const { show } = useToast();
 
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
@@ -98,6 +191,7 @@ export default function FeedScreen() {
     if (!session || !isAuthenticated || !isInitialized) {
       setProfiles([]);
       setError(null);
+      setLiveItems([]);
       setLoading(false);
       return;
     }
@@ -105,6 +199,13 @@ export default function FeedScreen() {
     setError(null);
     try {
       const client = getSupabaseClient();
+      try {
+        const liveNow = await fetchLiveNow();
+        setLiveItems(liveNow);
+      } catch (liveError) {
+        console.error('Failed to load live posts', liveError);
+        setLiveItems([]);
+      }
       const { data: profileRows, error: profileError } = await client
         .from('profiles')
         .select('id, display_name, bio')
@@ -117,6 +218,8 @@ export default function FeedScreen() {
         setProfiles([]);
         return;
       }
+      const { data: quizRows } = await client.from('quizzes').select('owner_id').in('owner_id', ids);
+      const quizOwners = new Set<string>((quizRows ?? []).map((row) => row.owner_id as string));
       const { data: photosData, error: photosError } = await client
         .from('photos')
         .select('*')
@@ -143,6 +246,7 @@ export default function FeedScreen() {
           name: row.display_name,
           bio: row.bio,
           photo: heroPhoto.url,
+          hasQuiz: quizOwners.has(row.id),
         });
       }
       setProfiles(mappedProfiles);
@@ -194,6 +298,42 @@ export default function FeedScreen() {
     />
   );
 
+  const liveSection = liveItems.length ? (
+    <View style={styles.liveSection}>
+      <View style={styles.liveHeaderRow}>
+        <Text style={styles.liveHeader}>Live now</Text>
+        <Text style={styles.subtitle}>{liveItems.length === 1 ? '1 person is live' : `${liveItems.length} people are live`}</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveScroll}>
+        {liveItems.map((item) => (
+          <Pressable
+            key={item.id}
+            style={styles.liveCard}
+            onPress={() => navigation.navigate('ProfileDetail', { userId: item.user_id })}
+          >
+            <View style={styles.liveImageWrapper}>
+              <Image source={{ uri: item.photo_url }} style={styles.liveImage} resizeMode="cover" />
+              <View style={styles.liveBadge}>
+                <Text style={styles.liveBadgeText}>Live</Text>
+              </View>
+              <View style={styles.liveCountdownPill}>
+                <LiveCountdown expiresAt={item.live_expires_at} style={styles.liveCountdownText} />
+              </View>
+            </View>
+            <View style={styles.liveBody}>
+              <Text style={styles.liveName}>{item.profile?.name ?? 'Member'}</Text>
+              {item.profile?.bio ? (
+                <Text style={styles.liveBio} numberOfLines={2}>
+                  {item.profile.bio}
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  ) : null;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -217,16 +357,21 @@ export default function FeedScreen() {
               })
             }
             onOpenProfile={() => navigation.navigate('ProfileDetail', { userId: item.id })}
+            onQuiz={() => navigation.navigate('Quiz', { ownerId: item.id, ownerName: item.name ?? undefined })}
+            hasQuiz={item.hasQuiz}
           />
         )}
         refreshControl={refreshControl}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>Explore nearby</Text>
-            <Text style={styles.subtitle}>Only approved photos appear here so you can browse safely.</Text>
-          </View>
+          <>
+            {liveSection}
+            <View style={styles.header}>
+              <Text style={styles.title}>Explore nearby</Text>
+              <Text style={styles.subtitle}>Only approved photos appear here so you can browse safely.</Text>
+            </View>
+          </>
         }
         ListEmptyComponent={
           !loading ? (

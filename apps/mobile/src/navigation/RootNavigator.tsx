@@ -13,6 +13,8 @@ import VerifyIdentityScreen from '../screens/verification/VerifyIdentityScreen';
 import CompareScreen from '../screens/compare/CompareScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
+import QuizScreen from '../screens/quiz/QuizScreen';
+import QuizResultsScreen from '../screens/quiz/QuizResultsScreen';
 import {
   selectIsAuthenticated,
   selectVerificationStatus,
@@ -66,6 +68,20 @@ export type RootStackParamList = {
     avatar: string | null;
     createdAt: string;
   };
+  Quiz:
+    | {
+        quizId?: string;
+        ownerId?: string;
+        ownerName?: string;
+      }
+    | undefined;
+  QuizResults:
+    | {
+        quizId: string;
+        mode: 'owner' | 'taker';
+        summary?: { score: number | null; maxScore: number | null; title: string };
+      }
+    | undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -201,6 +217,20 @@ export default function RootNavigator() {
             component={PublicProfileScreen}
             options={{
               title: 'Profile',
+            }}
+          />
+          <RootStack.Screen
+            name="Quiz"
+            component={QuizScreen}
+            options={{
+              title: 'Take My Quiz',
+            }}
+          />
+          <RootStack.Screen
+            name="QuizResults"
+            component={QuizResultsScreen}
+            options={{
+              title: 'Quiz results',
             }}
           />
           <RootStack.Screen

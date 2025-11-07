@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  Platform,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +20,8 @@ import { selectCurrentUser, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
+import { fetchCurrentLivePost, type LivePostRow } from '../../api/livePosts';
+import LiveCountdown from '../../components/LiveCountdown';
 
 const PLACEHOLDER_BIO = 'Share a short bio so matches know a little about you.';
 
@@ -30,11 +33,22 @@ const ProfileScreen: React.FC = () => {
   const { uploadPhoto, isUploading, loadPhotos, removePhoto, error } = usePhotoModeration();
   const { show } = useToast();
   const handledRejections = useRef<Set<string>>(new Set());
+  const [livePost, setLivePost] = React.useState<LivePostRow | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       loadPhotos().catch((err) => console.warn('Failed to load profile photos', err));
-    }, [loadPhotos]),
+      if (user?.id) {
+        fetchCurrentLivePost(user.id)
+          .then((post) => setLivePost(post))
+          .catch((err) => {
+            console.warn('Failed to load live post', err);
+            setLivePost(null);
+          });
+      } else {
+        setLivePost(null);
+      }
+    }, [loadPhotos, user?.id]),
   );
 
   React.useEffect(() => {
@@ -146,13 +160,21 @@ const ProfileScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarPlaceholderText}>{initials || '😊'}</Text>
-            </View>
-          )}
+          <View style={styles.avatarWrapper}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarPlaceholderText}>{initials || '😊'}</Text>
+              </View>
+            )}
+            {livePost ? (
+              <View style={styles.liveBadge}>
+                <Text style={styles.liveBadgeLabel}>Live</Text>
+                <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveBadgeCountdown} />
+              </View>
+            ) : null}
+          </View>
           <View style={styles.headerText}>
             <Text style={styles.displayName}>{displayName}</Text>
             {user.email ? <Text style={styles.email}>{user.email}</Text> : null}
@@ -179,6 +201,34 @@ const ProfileScreen: React.FC = () => {
               <Text style={styles.secondaryButtonLabel}>Add Photo</Text>
             )}
           </Pressable>
+        </View>
+
+        <View style={styles.liveCard}>
+          <Text style={styles.liveCardTitle}>Live spotlight</Text>
+          <Text style={styles.liveCardCopy}>
+            Share an iOS Live Photo once per day to jump to the top of the feed.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.liveActionButton,
+              (Platform.OS !== 'ios' || isUploading) && styles.liveActionDisabled,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Post' })}
+            disabled={Platform.OS !== 'ios' || isUploading}
+          >
+            <Text style={styles.liveActionLabel}>
+              {Platform.OS === 'ios' ? 'Post Live Photo' : 'Live Photos are iOS-only'}
+            </Text>
+          </Pressable>
+          {livePost ? (
+            <View style={styles.liveStatusRow}>
+              <Text style={styles.liveStatusLabel}>Currently live</Text>
+              <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveStatusCountdown} />
+            </View>
+          ) : (
+            <Text style={styles.liveStatusInactive}>You are not live right now.</Text>
+          )}
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -250,6 +300,9 @@ function createStyles(palette: AppPalette) {
       gap: 16,
       marginBottom: 24,
     },
+    avatarWrapper: {
+      position: 'relative',
+    },
     avatar: {
       width: 96,
       height: 96,
@@ -269,6 +322,28 @@ function createStyles(palette: AppPalette) {
       color: palette.muted,
       fontSize: 24,
       fontWeight: '700',
+    },
+    liveBadge: {
+      position: 'absolute',
+      bottom: -4,
+      right: -10,
+      backgroundColor: '#ef4444',
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 6,
+    },
+    liveBadgeLabel: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    liveBadgeCountdown: {
+      color: '#fff',
+      fontSize: 12,
+      fontVariant: ['tabular-nums'],
     },
     headerText: {
       flex: 1,
@@ -314,6 +389,55 @@ function createStyles(palette: AppPalette) {
     },
     buttonPressed: {
       opacity: 0.85,
+    },
+    liveCard: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.card,
+      borderRadius: 16,
+      padding: 16,
+      gap: 12,
+      marginBottom: 24,
+    },
+    liveCardTitle: {
+      color: palette.textPrimary,
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    liveCardCopy: {
+      color: palette.textSecondary,
+      lineHeight: 20,
+    },
+    liveActionButton: {
+      backgroundColor: palette.accent,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    liveActionDisabled: {
+      opacity: 0.6,
+    },
+    liveActionLabel: {
+      color: '#fff',
+      fontWeight: '700',
+    },
+    liveStatusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    liveStatusLabel: {
+      color: palette.textSecondary,
+      fontWeight: '600',
+    },
+    liveStatusCountdown: {
+      color: palette.textPrimary,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+    },
+    liveStatusInactive: {
+      color: palette.textSecondary,
+      fontStyle: 'italic',
     },
     errorText: {
       color: palette.danger,

@@ -14,6 +14,8 @@ type Props = {
   onCompare?: () => void;
   onOpenProfile?: () => void;
   onLike?: () => void;
+  onQuiz?: () => void;
+  hasQuiz?: boolean;
 };
 
 const createStyles = (palette: AppPalette) =>
@@ -90,6 +92,22 @@ const createStyles = (palette: AppPalette) =>
     bioName: {
       fontWeight: '600',
     },
+    quizButton: {
+      borderWidth: 1,
+      borderColor: palette.accent,
+      paddingVertical: 10,
+      borderRadius: 999,
+      alignItems: 'center',
+      marginBottom: 12,
+      backgroundColor: palette.surface,
+    },
+    quizButtonDisabled: {
+      opacity: 0.6,
+    },
+    quizLabel: {
+      color: palette.accent,
+      fontWeight: '600',
+    },
     compareButton: {
       backgroundColor: palette.accent,
       paddingVertical: 14,
@@ -113,6 +131,8 @@ export default function Card({
   onCompare,
   onOpenProfile,
   onLike,
+  onQuiz,
+  hasQuiz = true,
 }: Props) {
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -157,6 +177,15 @@ export default function Card({
 
         <TouchableOpacity
           accessibilityRole="button"
+          onPress={hasQuiz ? onQuiz : undefined}
+          disabled={!hasQuiz}
+          style={[styles.quizButton, !hasQuiz && styles.quizButtonDisabled]}
+        >
+          <Text style={styles.quizLabel}>{hasQuiz ? '🧠 Take my quiz' : 'Quiz coming soon'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityRole="button"
           onPress={onCompare}
           style={styles.compareButton}
         >
@@ -166,4 +195,3 @@ export default function Card({
     </View>
   );
 }
-

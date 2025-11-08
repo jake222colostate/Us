@@ -6,9 +6,9 @@ export type PhotoRow = {
   id: string;
   user_id: string;
   url: string;
-  content_type: string | null;
-  width: number | null;
-  height: number | null;
+  content_type?: string | null;
+  width?: number | null;
+  height?: number | null;
   status: ModerationStatus;
 };
 

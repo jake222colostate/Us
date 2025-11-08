@@ -7,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableWithoutFeedback,
@@ -20,7 +21,6 @@ import type { RootStackParamList } from '../../navigation/RootNavigator';
 import type { Gender, LookingFor } from '@us/types';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
-import { useFeedPreferencesStore } from '../../state/feedPreferencesStore';
 
 const BIO_LIMIT = 280;
 
@@ -31,7 +31,6 @@ const EditProfileScreen: React.FC = () => {
   const user = useAuthStore(selectCurrentUser);
   const updateUser = useAuthStore((state) => state.updateUser);
   const { show } = useToast();
-  const setGenderFilter = useFeedPreferencesStore((state) => state.setGenderFilter);
 
   const [displayName, setDisplayName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
@@ -126,7 +125,6 @@ const EditProfileScreen: React.FC = () => {
         gender,
         lookingFor,
       });
-      setGenderFilter(lookingFor);
       show('Profile updated.');
       navigation.goBack();
     } catch (err) {
@@ -143,7 +141,6 @@ const EditProfileScreen: React.FC = () => {
     lookingFor,
     navigation,
     normalizedInterests,
-    setGenderFilter,
     show,
     updateUser,
     user,
@@ -246,29 +243,25 @@ const EditProfileScreen: React.FC = () => {
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Show me</Text>
               <Text style={styles.helper}>Choose whose posts appear in your feed.</Text>
-              <View style={styles.toggleGroup}>
+              <View style={styles.switchList}>
                 {lookingForOptions.map((option) => {
                   const isActive = lookingFor === option.key;
                   return (
-                    <Pressable
-                      key={option.key}
-                      accessibilityRole="button"
-                      style={({ pressed }) => [
-                        styles.toggleOption,
-                        isActive && styles.toggleOptionActive,
-                        pressed && styles.toggleOptionPressed,
-                      ]}
-                      onPress={() => setLookingFor(option.key)}
-                    >
-                      <Text
-                        style={[
-                          styles.toggleOptionLabel,
-                          isActive && styles.toggleOptionLabelActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
+                    <View key={option.key} style={styles.switchRow}>
+                      <Text style={styles.switchLabel}>{option.label}</Text>
+                      <Switch
+                        value={isActive}
+                        onValueChange={(value) => {
+                          if (value) {
+                            setLookingFor(option.key);
+                          } else if (lookingFor === option.key) {
+                            setLookingFor('everyone');
+                          }
+                        }}
+                        trackColor={{ true: palette.accent, false: palette.border }}
+                        thumbColor={isActive ? '#f8fafc' : palette.muted}
+                      />
+                    </View>
                   );
                 })}
               </View>
@@ -379,6 +372,20 @@ function createStyles(palette: AppPalette) {
       fontSize: 13,
       lineHeight: 18,
       marginTop: 8,
+    },
+    switchList: {
+      marginTop: 12,
+      gap: 16,
+    },
+    switchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    switchLabel: {
+      color: palette.textPrimary,
+      fontSize: 16,
+      fontWeight: '600',
     },
     toggleGroup: {
       flexDirection: 'row',

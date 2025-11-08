@@ -368,6 +368,17 @@ const PostScreen: React.FC = () => {
               </View>
             )}
           </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.uploadButton,
+              showSpinner && styles.uploadButtonDisabled,
+              pressed && !showSpinner && styles.uploadButtonPressed,
+            ]}
+            onPress={() => handleSelect('library')}
+            disabled={showSpinner}
+          >
+            <Text style={styles.uploadButtonLabel}>Upload Photo</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -399,24 +410,25 @@ function createStyles(isDarkMode: boolean) {
       borderWidth: 1,
       borderColor: liveBorder,
       backgroundColor: liveBackground,
-      padding: 20,
-      borderRadius: 20,
+      padding: 16,
+      borderRadius: 16,
       marginBottom: 24,
-      gap: 12,
+      gap: 8,
     },
     liveTitle: {
       color: textPrimary,
-      fontSize: 20,
+      fontSize: 18,
       fontWeight: '700',
     },
     liveCopy: {
       color: textSecondary,
-      lineHeight: 20,
+      lineHeight: 18,
+      fontSize: 14,
     },
     liveButton: {
       backgroundColor: '#f472b6',
-      borderRadius: 14,
-      paddingVertical: 14,
+      borderRadius: 12,
+      paddingVertical: 12,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -429,7 +441,7 @@ function createStyles(isDarkMode: boolean) {
     liveButtonLabel: {
       color: '#fff',
       fontWeight: '600',
-      fontSize: 16,
+      fontSize: 15,
     },
     header: {
       marginBottom: 24,
@@ -480,6 +492,26 @@ function createStyles(isDarkMode: boolean) {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: overlay,
+    },
+    uploadButton: {
+      marginTop: 16,
+      width: '100%',
+      maxWidth: PREVIEW_MAX_WIDTH,
+      backgroundColor: '#f472b6',
+      paddingVertical: 14,
+      borderRadius: 14,
+      alignItems: 'center',
+    },
+    uploadButtonDisabled: {
+      opacity: 0.6,
+    },
+    uploadButtonPressed: {
+      opacity: 0.85,
+    },
+    uploadButtonLabel: {
+      color: '#fff',
+      fontWeight: '600',
+      fontSize: 16,
     },
     badge: {
       position: 'absolute',

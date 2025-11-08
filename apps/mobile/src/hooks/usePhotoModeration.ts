@@ -188,18 +188,34 @@ export function usePhotoModeration() {
           throw new Error('Unable to resolve uploaded photo URL');
         }
 
-        const { data: inserted, error: insertError } = await client
-          .from('photos')
-          .insert({
-            user_id: session.user.id,
-            url: publicUrl,
-            content_type: contentType,
-            width: asset.width ?? null,
-            height: asset.height ?? null,
-            status: 'pending',
-          })
-          .select('*')
-          .single();
+        const basePayload: Record<string, unknown> = {
+          user_id: session.user.id,
+          url: publicUrl,
+          content_type: contentType,
+          status: 'pending',
+        };
+
+        if (typeof asset.width === 'number') {
+          basePayload.width = asset.width;
+        }
+        if (typeof asset.height === 'number') {
+          basePayload.height = asset.height;
+        }
+
+        const attemptInsert = (payload: Record<string, unknown>) =>
+          client.from('photos').insert(payload).select('*').single();
+
+        let { data: inserted, error: insertError } = await attemptInsert(basePayload);
+
+        if (insertError && (insertError.code === 'PGRST204' || insertError.code === '42703')) {
+          console.warn('Photos table missing dimension columns, retrying insert without width/height');
+          const fallbackPayload = { ...basePayload };
+          delete fallbackPayload.width;
+          delete fallbackPayload.height;
+          const fallbackResult = await attemptInsert(fallbackPayload);
+          inserted = fallbackResult.data;
+          insertError = fallbackResult.error;
+        }
 
         if (insertError || !inserted) {
           await client.storage.from(PROFILE_PHOTO_BUCKET).remove([path]).catch(() => undefined);

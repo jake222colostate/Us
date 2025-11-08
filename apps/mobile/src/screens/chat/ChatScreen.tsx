@@ -51,8 +51,9 @@ export default function ChatScreen() {
       },
     ];
   });
-  const [starterSuggestions, setStarterSuggestions] = useState(() => getRandomPrompts(conversationOpeners, 4));
-  const [followUpSuggestions, setFollowUpSuggestions] = useState(() => getRandomPrompts(conversationContinuers, 4));
+  const [starterSuggestions, setStarterSuggestions] = useState(() => getRandomPrompts(conversationOpeners, 3));
+  const [followUpSuggestions, setFollowUpSuggestions] = useState(() => getRandomPrompts(conversationContinuers, 3));
+  const [activeSuggestions, setActiveSuggestions] = useState<'openers' | 'continuers' | null>(null);
   const matchedDate = useMemo(() => (createdAt ? new Date(createdAt) : new Date()), [createdAt]);
 
   useLayoutEffect(() => {
@@ -81,15 +82,39 @@ export default function ChatScreen() {
       const separator = hasContent && !prev.endsWith(' ') ? ' ' : '';
       return `${hasContent ? prev : ''}${separator}${suggestion}`.trimStart();
     });
+    setActiveSuggestions(null);
   };
 
   const refreshStarterSuggestions = () => {
-    setStarterSuggestions(getRandomPrompts(conversationOpeners, 4));
+    setStarterSuggestions(getRandomPrompts(conversationOpeners, 3));
   };
 
   const refreshFollowUpSuggestions = () => {
-    setFollowUpSuggestions(getRandomPrompts(conversationContinuers, 4));
+    setFollowUpSuggestions(getRandomPrompts(conversationContinuers, 3));
   };
+
+  const toggleSuggestions = (type: 'openers' | 'continuers') => {
+    setActiveSuggestions((prev) => {
+      if (prev === type) {
+        return null;
+      }
+
+      if (type === 'openers') {
+        setStarterSuggestions(getRandomPrompts(conversationOpeners, 3));
+      } else {
+        setFollowUpSuggestions(getRandomPrompts(conversationContinuers, 3));
+      }
+
+      return type;
+    });
+  };
+
+  const activeList =
+    activeSuggestions === 'openers'
+      ? starterSuggestions
+      : activeSuggestions === 'continuers'
+        ? followUpSuggestions
+        : [];
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -123,58 +148,99 @@ export default function ChatScreen() {
                   </Text>
                 </View>
               </View>
-              <View style={styles.suggestionsSection}>
-                <View style={styles.suggestionsHeader}>
-                  <Text style={styles.suggestionsTitle}>Icebreakers</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Refresh conversation starters"
-                    onPress={refreshStarterSuggestions}
-                    style={({ pressed }) => [styles.refreshButton, pressed && styles.refreshButtonPressed]}
+              <View style={styles.quickActionsRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open icebreaker suggestions"
+                  onPress={() => toggleSuggestions('openers')}
+                  style={({ pressed }) => [
+                    styles.quickActionButton,
+                    activeSuggestions === 'openers' && styles.quickActionButtonActive,
+                    pressed && styles.quickActionButtonPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.quickActionText,
+                      activeSuggestions === 'openers' && styles.quickActionTextActive,
+                    ]}
                   >
-                    <Text style={styles.refreshButtonText}>Shuffle</Text>
-                  </Pressable>
-                </View>
-                <View style={styles.suggestionsList}>
-                  {starterSuggestions.map((suggestion) => (
-                    <Pressable
-                      key={suggestion}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Use suggestion: ${suggestion}`}
-                      onPress={() => handleInsertSuggestion(suggestion)}
-                      style={({ pressed }) => [styles.suggestionPill, pressed && styles.suggestionPillPressed]}
-                    >
-                      <Text style={styles.suggestionText}>{suggestion}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              <View style={styles.suggestionsSection}>
-                <View style={styles.suggestionsHeader}>
-                  <Text style={styles.suggestionsTitle}>Keep it going</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Refresh follow up ideas"
-                    onPress={refreshFollowUpSuggestions}
-                    style={({ pressed }) => [styles.refreshButton, pressed && styles.refreshButtonPressed]}
+                    Icebreakers
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open follow up suggestions"
+                  onPress={() => toggleSuggestions('continuers')}
+                  style={({ pressed }) => [
+                    styles.quickActionButton,
+                    activeSuggestions === 'continuers' && styles.quickActionButtonActive,
+                    pressed && styles.quickActionButtonPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.quickActionText,
+                      activeSuggestions === 'continuers' && styles.quickActionTextActive,
+                    ]}
                   >
-                    <Text style={styles.refreshButtonText}>Shuffle</Text>
-                  </Pressable>
-                </View>
-                <View style={styles.suggestionsList}>
-                  {followUpSuggestions.map((suggestion) => (
-                    <Pressable
-                      key={suggestion}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Use suggestion: ${suggestion}`}
-                      onPress={() => handleInsertSuggestion(suggestion)}
-                      style={({ pressed }) => [styles.suggestionPill, pressed && styles.suggestionPillPressed]}
-                    >
-                      <Text style={styles.suggestionText}>{suggestion}</Text>
-                    </Pressable>
-                  ))}
-                </View>
+                    Keep it going
+                  </Text>
+                </Pressable>
               </View>
+              {activeSuggestions && (
+                <View style={styles.suggestionMenu}>
+                  <View style={styles.suggestionMenuHeader}>
+                    <Text style={styles.suggestionMenuTitle}>
+                      {activeSuggestions === 'openers' ? 'Icebreakers' : 'Keep it going'}
+                    </Text>
+                    <View style={styles.suggestionMenuActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Shuffle suggestions"
+                        onPress={
+                          activeSuggestions === 'openers'
+                            ? refreshStarterSuggestions
+                            : refreshFollowUpSuggestions
+                        }
+                        style={({ pressed }) => [
+                          styles.menuActionButton,
+                          pressed && styles.menuActionButtonPressed,
+                        ]}
+                      >
+                        <Text style={styles.menuActionText}>Shuffle</Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Close suggestions menu"
+                        onPress={() => setActiveSuggestions(null)}
+                        style={({ pressed }) => [
+                          styles.menuActionButton,
+                          pressed && styles.menuActionButtonPressed,
+                        ]}
+                      >
+                        <Text style={styles.menuActionText}>Close</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <View style={styles.suggestionMenuList}>
+                    {activeList.map((suggestion) => (
+                      <Pressable
+                        key={suggestion}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Use suggestion: ${suggestion}`}
+                        onPress={() => handleInsertSuggestion(suggestion)}
+                        style={({ pressed }) => [
+                          styles.suggestionMenuItem,
+                          pressed && styles.suggestionMenuItemPressed,
+                        ]}
+                      >
+                        <Text style={styles.suggestionMenuItemText}>{suggestion}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           }
           renderItem={({ item }) => (
@@ -288,59 +354,91 @@ const createStyles = (palette: AppPalette) =>
       fontSize: 13,
       color: palette.muted,
     },
-    suggestionsSection: {
+    quickActionsRow: {
+      flexDirection: 'row',
       gap: 12,
-      padding: 12,
-      borderRadius: 16,
+    },
+    quickActionButton: {
+      flex: 1,
+      borderRadius: 14,
       borderWidth: 1,
       borderColor: palette.border,
       backgroundColor: palette.surface,
-    },
-    suggestionsHeader: {
-      flexDirection: 'row',
+      paddingVertical: 12,
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'center',
     },
-    suggestionsTitle: {
+    quickActionButtonActive: {
+      backgroundColor: palette.accent,
+      borderColor: palette.accent,
+    },
+    quickActionButtonPressed: {
+      opacity: 0.85,
+    },
+    quickActionText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: palette.textPrimary,
+    },
+    quickActionTextActive: {
+      color: palette.onAccent,
+    },
+    suggestionMenu: {
+      marginTop: 12,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+      padding: 16,
+      gap: 12,
+    },
+    suggestionMenuHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    suggestionMenuTitle: {
       fontSize: 16,
       fontWeight: '700',
       color: palette.textPrimary,
     },
-    refreshButton: {
+    suggestionMenuActions: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    menuActionButton: {
       borderRadius: 999,
+      borderWidth: 1,
+      borderColor: palette.border,
       paddingHorizontal: 12,
       paddingVertical: 6,
       backgroundColor: palette.card,
-      borderWidth: 1,
-      borderColor: palette.border,
     },
-    refreshButtonPressed: {
-      opacity: 0.8,
+    menuActionButtonPressed: {
+      opacity: 0.85,
     },
-    refreshButtonText: {
+    menuActionText: {
       fontSize: 13,
       fontWeight: '600',
       color: palette.textPrimary,
     },
-    suggestionsList: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+    suggestionMenuList: {
       gap: 8,
     },
-    suggestionPill: {
-      borderRadius: 999,
+    suggestionMenuItem: {
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: palette.border,
       backgroundColor: palette.card,
       paddingHorizontal: 14,
-      paddingVertical: 8,
+      paddingVertical: 12,
     },
-    suggestionPillPressed: {
+    suggestionMenuItemPressed: {
       opacity: 0.85,
     },
-    suggestionText: {
+    suggestionMenuItemText: {
       fontSize: 14,
-      lineHeight: 18,
+      lineHeight: 20,
       color: palette.textPrimary,
     },
     messageRow: {

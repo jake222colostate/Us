@@ -58,10 +58,9 @@ export function useLocationSync() {
         .eq('user_id', session.user.id)
         .single<SupabaseProfileRow>();
       if (data) {
-        setProfile({
-          ...data,
-          location: normalizeLocation(data.location),
-        });
+        const normalizedProfile = data as unknown as Profile;
+        normalizedProfile.location = normalizeLocation(data.location);
+        setProfile(normalizedProfile);
       }
     })();
   }, [session, setProfile]);

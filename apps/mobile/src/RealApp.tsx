@@ -9,7 +9,7 @@ import { ToastProvider } from './providers/ToastProvider';
 
 export default function RealApp() {
   console.log('🚢 RealApp mounting');
-  const queryClientRef = React.useRef<QueryClient>();
+  const queryClientRef = React.useRef<QueryClient | null>(null);
 
   if (!queryClientRef.current) {
     queryClientRef.current = new QueryClient();
@@ -23,7 +23,7 @@ export default function RealApp() {
     return () => subscription.remove();
   }, []);
 
-  const queryClient = queryClientRef.current;
+  const queryClient = queryClientRef.current!;
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClient}>

@@ -49,6 +49,8 @@ export type RootStackParamList = {
     | {
         leftPhoto?: string | null;
         rightPhoto?: string | null;
+        leftUri?: string | null;
+        rightUri?: string | null;
         profile?: {
           id?: string;
           name?: string;

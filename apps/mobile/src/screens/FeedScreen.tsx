@@ -1,12 +1,17 @@
 import React from 'react';
-import { View, Text, Image, Pressable, ScrollView } from 'react-native';
+import { View, Text, Image, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/RootNavigator';
 import { theme } from '../ui/theme';
 import { Card, HStack, VStack, Pill, Avatar, ButtonPrimary } from '../components/UI';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Tabs'>;
+type FeedScreenNavigation = {
+  navigate: (
+    screen: 'Compare',
+    params: { leftUri: string; rightUri: string }
+  ) => void;
+};
+
+type Props = { navigation: FeedScreenNavigation };
 
 const profiles = [
   {
@@ -51,7 +56,11 @@ export default function FeedScreen({ navigation }: Props) {
           </View>
 
           {/* photo */}
-          <Image source={{ uri: p.photo }} style={{ width: '100%', height: 360, backgroundColor: '#111827' }} resizeMode="cover" />
+          <Image
+            source={{ uri: p.photo ?? '' }}
+            style={{ width: '100%', height: 360, backgroundColor: '#111827' }}
+            resizeMode="cover"
+          />
 
           {/* footer */}
           <View style={{ padding: 14, gap: 12 }}>

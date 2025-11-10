@@ -21,7 +21,9 @@ function notifyFatalSubscribers(payload: FatalPayload) {
 
 function subscribeToFatalErrors(listener: (payload: FatalPayload) => void) {
   fatalSubscribers.add(listener);
-  return () => fatalSubscribers.delete(listener);
+  return () => {
+    fatalSubscribers.delete(listener);
+  };
 }
 
 function getFatalState() {

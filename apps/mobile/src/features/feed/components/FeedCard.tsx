@@ -63,13 +63,14 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, distanceText, onOpenPr
     setComposerVisible(true);
   };
 
-  const heartMutation = useMutation<
-    void,
-    unknown,
+  type HeartPayload =
     | { kind: 'normal'; message?: string; selfie?: HeartSelfieUpload }
-    | { kind: 'big'; purchaseId?: string; message?: string; selfie?: HeartSelfieUpload }
-  >({
-    mutationFn: async ({ kind, purchaseId, message, selfie }) => {
+    | { kind: 'big'; purchaseId?: string; message?: string; selfie?: HeartSelfieUpload };
+
+  const heartMutation = useMutation<void, unknown, HeartPayload>({
+    mutationFn: async (payload) => {
+      const { kind, message, selfie } = payload;
+      const purchaseId = payload.kind === 'big' ? payload.purchaseId : undefined;
       if (!session) throw new Error('Sign in required');
       let selfieUrl: string | undefined;
       if (selfie) {
@@ -160,7 +161,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, distanceText, onOpenPr
     <View style={[styles.wrapper, layout.wrapper]}>
       <View style={[styles.container, layout.card]}>
       <Image
-        source={{ uri: post.photo_url }}
+        source={{ uri: post.photo_url ?? '' }}
         style={styles.image}
         contentFit="cover"
         cachePolicy="memory-disk"

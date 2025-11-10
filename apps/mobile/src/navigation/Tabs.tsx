@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { type ComponentType } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { FeedScreen } from '../screens/FeedScreen';
-import { MatchesScreen } from '../screens/MatchesScreen';
-import { ProfileScreen } from '../screens/ProfileScreen';
+import FeedScreen from '../screens/FeedScreen';
+import MatchesScreen from '../screens/MatchesScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import { colors } from '../theme/colors';
 
 export type TabParamList = {
@@ -14,8 +14,13 @@ export type TabParamList = {
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
+const FeedScreenComponent = FeedScreen as ComponentType<any>;
+const MatchesScreenComponent = MatchesScreen as ComponentType<any>;
+const ProfileScreenComponent = ProfileScreen as ComponentType<any>;
+
 export const Tabs: React.FC = () => (
   <Tab.Navigator
+    // @ts-ignore - background color style supported at runtime but missing in types
     sceneContainerStyle={{ backgroundColor: colors.background }}
     screenOptions={({ route }) => ({
       headerShown: false,
@@ -46,8 +51,8 @@ export const Tabs: React.FC = () => (
       },
     })}
   >
-    <Tab.Screen name="Feed" component={FeedScreen} />
-    <Tab.Screen name="Matches" component={MatchesScreen} />
-    <Tab.Screen name="Profile" component={ProfileScreen} />
+    <Tab.Screen name="Feed" component={FeedScreenComponent} />
+    <Tab.Screen name="Matches" component={MatchesScreenComponent} />
+    <Tab.Screen name="Profile" component={ProfileScreenComponent} />
   </Tab.Navigator>
 );

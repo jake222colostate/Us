@@ -1,4 +1,5 @@
 /* eslint-disable */
+import React from 'react';
 import { Platform } from 'react-native';
 
 // --- Print versions (helps spot mismatches) ---
@@ -25,7 +26,8 @@ try {
   const react2 = require('react');
   console.log('🧭 React identity equal:', react === react2);
 } catch (e) {
-  console.warn('🧭 React identity check failed:', e?.message);
+  const message = e instanceof Error ? e.message : String(e);
+  console.warn('🧭 React identity check failed:', message);
 }
 
 // --- Global error + unhandled promise rejection handlers with big stacks ---
@@ -73,7 +75,8 @@ try {
     }
   }
 } catch (e) {
-  console.error('🧨 Reanimated probe threw:', e?.stack || e);
+  const detail = e instanceof Error ? e.stack ?? e.message : String(e);
+  console.error('🧨 Reanimated probe threw:', detail);
 }
 
 // --- Wrap the app root with ErrorBoundary to capture render stacks ---
@@ -106,5 +109,6 @@ try {
   };
   installBoundary();
 } catch (e) {
-  console.warn('🧭 Failed to install ErrorBoundary wrapper:', e?.message);
+  const message = e instanceof Error ? e.message : String(e);
+  console.warn('🧭 Failed to install ErrorBoundary wrapper:', message);
 }

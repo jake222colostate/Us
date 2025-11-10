@@ -1,8 +1,8 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { WelcomeScreen } from '../../screens/auth/WelcomeScreen';
-import { SignInScreen } from '../../screens/auth/SignInScreen';
-import { SignUpScreen } from '../../screens/auth/SignUpScreen';
+import SignInScreen from '../../screens/auth/SignInScreen';
+import SignUpScreen from '../../screens/auth/SignUpScreen';
 import { AgeGateScreen } from '../../screens/auth/AgeGateScreen';
 
 export type AuthStackParamList = {

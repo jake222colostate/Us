@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -16,13 +18,56 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Crypto from 'expo-crypto';
+import { Buffer } from 'buffer';
 import { selectCurrentUser, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import type { Gender, LookingFor } from '@us/types';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
+import { getSupabaseClient } from '../../api/supabase';
+import { PROFILE_PHOTO_BUCKET } from '../../lib/photos';
 
 const BIO_LIMIT = 280;
+const FALLBACK_CONTENT_TYPE = Platform.OS === 'ios' ? 'image/jpeg' : 'image/jpg';
+
+function toBytes(base64: string): Uint8Array {
+  if (typeof globalThis.atob === 'function') {
+    const binary = globalThis.atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  const buffer = Buffer.from(base64, 'base64');
+  return new Uint8Array(buffer);
+}
+
+function guessContentType(uri: string, mimeType?: string | null): { contentType: string; extension: string } {
+  if (mimeType) {
+    const extension = mimeType.split('/')[1] || 'jpg';
+    return { contentType: mimeType, extension };
+  }
+  const fileName = uri.split('/').pop() ?? '';
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  if (!extension) {
+    return { contentType: FALLBACK_CONTENT_TYPE, extension: 'jpg' };
+  }
+  if (extension === 'png') {
+    return { contentType: 'image/png', extension: 'png' };
+  }
+  if (extension === 'webp') {
+    return { contentType: 'image/webp', extension: 'webp' };
+  }
+  if (extension === 'heic' || extension === 'heif') {
+    return { contentType: 'image/heic', extension };
+  }
+  return { contentType: `image/${extension}`, extension };
+}
 
 const EditProfileScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -30,6 +75,7 @@ const EditProfileScreen: React.FC = () => {
   const styles = useMemo(() => createStyles(palette), [palette]);
   const user = useAuthStore(selectCurrentUser);
   const updateUser = useAuthStore((state) => state.updateUser);
+  const setAvatar = useAuthStore((state) => state.setAvatar);
   const { show } = useToast();
 
   const [displayName, setDisplayName] = useState(user?.name ?? '');
@@ -39,6 +85,7 @@ const EditProfileScreen: React.FC = () => {
   const [gender, setGender] = useState<Gender | null>(user?.gender ?? null);
   const [lookingFor, setLookingFor] = useState<LookingFor>(user?.lookingFor ?? 'everyone');
   const [saving, setSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   useEffect(() => {
     setDisplayName(user?.name ?? '');
@@ -75,6 +122,110 @@ const EditProfileScreen: React.FC = () => {
   );
 
   const currentInterestsKey = useMemo(() => normalizedInterests.join('|'), [normalizedInterests]);
+
+  const displayInitials = useMemo(() => {
+    const trimmed = displayName.trim();
+    if (!trimmed) {
+      return '';
+    }
+    return trimmed
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('')
+      .slice(0, 2);
+  }, [displayName]);
+
+  const avatarUri = user?.avatar ?? null;
+
+  const uploadAvatar = useCallback(
+    async (asset: ImagePicker.ImagePickerAsset) => {
+      if (!user) {
+        return;
+      }
+      const client = getSupabaseClient();
+      const previousPath = user.avatarStoragePath ?? null;
+      const { contentType, extension } = guessContentType(asset.uri, asset.mimeType ?? null);
+      const path = `${user.id}/avatar-${Crypto.randomUUID()}.${extension}`;
+      setIsUploadingAvatar(true);
+      try {
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const bytes = toBytes(base64);
+        const { error: uploadError } = await client.storage
+          .from(PROFILE_PHOTO_BUCKET)
+          .upload(path, bytes, { contentType, upsert: true });
+        if (uploadError) {
+          throw uploadError;
+        }
+        await setAvatar(path);
+        if (previousPath && previousPath !== path) {
+          await client.storage.from(PROFILE_PHOTO_BUCKET).remove([previousPath]).catch(() => undefined);
+        }
+        show('Profile photo updated.');
+      } catch (err) {
+        console.error('Failed to upload avatar', err);
+        show('Unable to update your profile photo. Please try again.');
+      } finally {
+        setIsUploadingAvatar(false);
+      }
+    },
+    [setAvatar, show, user],
+  );
+
+  const handleAvatarSelection = useCallback(
+    async (source: 'camera' | 'library') => {
+      try {
+        const permission =
+          source === 'camera'
+            ? await ImagePicker.requestCameraPermissionsAsync()
+            : await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          show(
+            source === 'camera'
+              ? 'Camera access is required to take a new profile photo.'
+              : 'Media library access is required to choose a profile photo.',
+          );
+          return;
+        }
+
+        const result =
+          source === 'camera'
+            ? await ImagePicker.launchCameraAsync({
+                quality: 0.9,
+                allowsEditing: true,
+                aspect: [3, 4],
+              })
+            : await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: false,
+                quality: 0.9,
+                allowsEditing: true,
+                aspect: [3, 4],
+              });
+
+        if (result.canceled || !result.assets?.length) {
+          return;
+        }
+
+        const asset = result.assets[0];
+        await uploadAvatar(asset);
+      } catch (err) {
+        console.error('Avatar selection failed', err);
+        show('We could not open your camera roll. Please try again.');
+      }
+    },
+    [show, uploadAvatar],
+  );
+
+  const handleAvatarPress = useCallback(() => {
+    Alert.alert('Update profile photo', 'Choose how you would like to add a new profile picture.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open camera', onPress: () => handleAvatarSelection('camera') },
+      { text: 'Choose from library', onPress: () => handleAvatarSelection('library') },
+    ]);
+  }, [handleAvatarSelection]);
 
   const hasChanges = useMemo(() => {
     const trimmedName = displayName.trim();
@@ -183,6 +334,35 @@ const EditProfileScreen: React.FC = () => {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarWrapper}>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarInitials}>{displayInitials || '😊'}</Text>
+                  </View>
+                )}
+                <Pressable
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.avatarAddButton,
+                    pressed && styles.avatarAddButtonPressed,
+                    isUploadingAvatar && styles.avatarAddButtonDisabled,
+                  ]}
+                  onPress={handleAvatarPress}
+                  disabled={isUploadingAvatar}
+                >
+                  {isUploadingAvatar ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Ionicons name="add" size={20} color="#fff" />
+                  )}
+                </Pressable>
+              </View>
+              <Text style={styles.avatarHint}>Add a clear photo of you to help matches recognise you.</Text>
+            </View>
+
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Display name</Text>
               <TextInput
@@ -335,6 +515,63 @@ function createStyles(palette: AppPalette) {
       paddingHorizontal: 20,
       paddingTop: 24,
       paddingBottom: 120,
+    },
+    avatarSection: {
+      alignItems: 'center',
+      marginBottom: 32,
+      gap: 12,
+    },
+    avatarWrapper: {
+      position: 'relative',
+    },
+    avatarImage: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+    },
+    avatarPlaceholder: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    avatarInitials: {
+      fontSize: 32,
+      fontWeight: '700',
+      color: palette.muted,
+    },
+    avatarAddButton: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: '#f472b6',
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 4,
+    },
+    avatarAddButtonPressed: {
+      opacity: 0.85,
+    },
+    avatarAddButtonDisabled: {
+      opacity: 0.7,
+    },
+    avatarHint: {
+      color: palette.muted,
+      fontSize: 13,
+      textAlign: 'center',
+      paddingHorizontal: 12,
+      lineHeight: 18,
     },
     fieldGroup: {
       marginBottom: 24,

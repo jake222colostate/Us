@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -49,6 +49,7 @@ const ProfileScreen: React.FC = () => {
   const handledRejections = useRef<Set<string>>(new Set());
   const [livePost, setLivePost] = React.useState<LivePostRow | null>(null);
   const [isDeletingLive, setIsDeletingLive] = React.useState(false);
+  const [removingPhotoIds, setRemovingPhotoIds] = useState<Set<string>>(new Set());
 
   useFocusEffect(
     useCallback(() => {
@@ -259,12 +260,60 @@ const ProfileScreen: React.FC = () => {
               numColumns={3}
               scrollEnabled={false}
               columnWrapperStyle={styles.photoRow}
-              renderItem={({ item }) => (
-                <Image
-                  source={{ uri: item.url ?? item.localUri ?? '' }}
-                  style={styles.photo}
-                />
-              )}
+              renderItem={({ item }) => {
+                const isRemoving = removingPhotoIds.has(item.id);
+                const handleRemove = () => {
+                  Alert.alert('Remove photo?', 'This will delete the photo from your profile.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Remove',
+                      style: 'destructive',
+                      onPress: () => {
+                        setRemovingPhotoIds((prev) => {
+                          const next = new Set(prev);
+                          next.add(item.id);
+                          return next;
+                        });
+                        removePhoto(item.id)
+                          .then(() => {
+                            show('Photo removed.');
+                          })
+                          .catch((err) => {
+                            console.error('Failed to remove photo', err);
+                            show('Unable to remove this photo. Please try again.');
+                          })
+                          .finally(() => {
+                            setRemovingPhotoIds((prev) => {
+                              const next = new Set(prev);
+                              next.delete(item.id);
+                              return next;
+                            });
+                          });
+                      },
+                    },
+                  ]);
+                };
+                return (
+                  <View style={[styles.photoItem, isRemoving && styles.photoItemRemoving]}>
+                    <Image source={{ uri: item.url ?? item.localUri ?? '' }} style={styles.photo} />
+                    <Pressable
+                      accessibilityRole="button"
+                      style={({ pressed }) => [
+                        styles.photoDeleteButton,
+                        pressed && styles.photoDeleteButtonPressed,
+                      ]}
+                      onPress={handleRemove}
+                      disabled={isRemoving}
+                    >
+                      {isRemoving ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.photoDeleteIcon}>×</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                );
+              }}
               ListFooterComponent={<View style={styles.photoFooterSpacer} />}
             />
           ) : (
@@ -501,10 +550,39 @@ function createStyles(palette: AppPalette) {
       justifyContent: 'space-between',
       marginBottom: 12,
     },
-    photo: {
+    photoItem: {
       width: '31%',
       aspectRatio: 1,
       borderRadius: 16,
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    photoItemRemoving: {
+      opacity: 0.6,
+    },
+    photo: {
+      width: '100%',
+      height: '100%',
+    },
+    photoDeleteButton: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: 'rgba(15,23,42,0.85)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    photoDeleteButtonPressed: {
+      opacity: 0.8,
+    },
+    photoDeleteIcon: {
+      color: '#ffffff',
+      fontSize: 16,
+      fontWeight: '700',
+      lineHeight: 16,
     },
     photoFooterSpacer: {
       height: 8,

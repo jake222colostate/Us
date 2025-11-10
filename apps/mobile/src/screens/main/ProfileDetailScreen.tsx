@@ -40,7 +40,7 @@ export const ProfileDetailScreen: React.FC = () => {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Avatar uri={profile?.photo_urls?.[0]} label={profile?.display_name} size={92} />
+        <Avatar uri={profile?.avatar_url ?? null} label={profile?.display_name} size={92} />
         <Text weight="bold" style={styles.name}>
           {profile?.display_name ?? 'Profile'}
         </Text>

@@ -146,7 +146,7 @@ export default function LikesScreen() {
           const key = `${item.kind}-${item.fromUser}`;
           const isExpanded = expanded.has(key);
           const name = item.profile?.display_name ?? 'Member';
-          const avatarUri = item.profile?.photo_urls?.[0] ?? null;
+          const avatarUri = item.profile?.avatar_url ?? null ?? null;
           const countText = item.count === 1 ? 'liked your post' : `liked ${item.count} of your posts`;
           const thumbnails = item.hearts.slice(0, MAX_INLINE_THUMBS);
 

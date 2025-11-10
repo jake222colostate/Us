@@ -74,7 +74,7 @@ export const LikesScreen: React.FC = () => {
               onPress={() => toggleGroup(key)}
               style={styles.groupRow}
             >
-              <Avatar uri={item.profile?.photo_urls?.[0]} label={name} size={56} />
+              <Avatar uri={item.profile?.avatar_url ?? null} label={name} size={56} />
               <View style={styles.groupContent}>
                 <Text weight="semibold">{name}</Text>
                 <Text muted>{countText}</Text>

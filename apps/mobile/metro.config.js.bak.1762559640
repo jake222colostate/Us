@@ -1,0 +1,35 @@
+const path = require('path');
+const { getDefaultConfig } = require('expo/metro-config');
+
+// IMPORTANT: this file is generated; update PNPM_STORE literal below if your store path changes.
+const PNPM_STORE = '/workspace/.pnpm-store/v3';
+
+const projectRoot = __dirname;
+const workspaceRoot = path.resolve(projectRoot, '..', '..');
+
+const config = getDefaultConfig(projectRoot);
+
+// Watch the monorepo root and PNPM store so Metro can compute SHA-1 for files resolved there
+config.watchFolders = Array.from(new Set([
+  workspaceRoot,
+  PNPM_STORE,
+]));
+
+// Make module resolution monorepo-friendly (pnpm)
+config.resolver.unstable_enableSymlinks = true;
+config.resolver.nodeModulesPaths = [
+  path.join(projectRoot, 'node_modules'),
+  path.join(workspaceRoot, 'node_modules'),
+];
+
+// Be safe about ignoring giant folders that can confuse Metro
+const exclusionList = require('metro-config/src/defaults/exclusionList');
+config.resolver.blockList = exclusionList([
+  // Common build/cache dirs to ignore; keep PNPM store INCLUDED (do not block it)
+  /.*\/dist\/.*/,
+  /.*\/build\/.*/,
+  /.*\/\.next\/.*/,
+  /.*\/\.git\/.*/,
+]);
+
+module.exports = config;

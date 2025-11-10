@@ -42,6 +42,18 @@ export type AuthStackParamList = {
   ForgotPassword: undefined;
 };
 
+type CompareRouteContext =
+  | {
+      type: 'feed';
+      index: number;
+      items: { userId: string }[];
+    }
+  | {
+      type: 'live';
+      index: number;
+      items: { userId: string; livePhotoUrl?: string | null }[];
+    };
+
 export type RootStackParamList = {
   VerifyIdentity: undefined;
   MainTabs: { screen?: keyof MainTabParamList; params?: Record<string, unknown> } | undefined;
@@ -59,6 +71,7 @@ export type RootStackParamList = {
           verification?: { status?: string | null } | null;
           photos?: { url?: string | null; status?: string }[] | null;
         } | null;
+        context?: CompareRouteContext;
       }
     | undefined;
   Settings: undefined;

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useComparePreferences, type CompareLayout } from '../../state/comparePreferences';
@@ -14,10 +14,11 @@ const layoutOptions: { key: CompareLayout; label: string }[] = [
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Compare'>;
 
-export default function CompareScreen({ route }: Props) {
+export default function CompareScreen({ route, navigation }: Props) {
   const { layout, setLayout } = useComparePreferences();
   const params = route.params ?? {};
   const [approvedPhotos, setApprovedPhotos] = useState<string[]>([]);
+  const [isLoadingNext, setIsLoadingNext] = useState(false);
 
   useEffect(() => {
     const loadPhotos = async () => {
@@ -44,6 +45,76 @@ export default function CompareScreen({ route }: Props) {
     };
     loadPhotos();
   }, [params.profile?.id]);
+
+  const handleNextProfile = useCallback(async () => {
+    const context = params.context;
+    if (!context || !context.items?.length) {
+      navigation.goBack();
+      return;
+    }
+
+    const nextIndex = (context.index + 1) % context.items.length;
+    const target = context.items[nextIndex];
+    if (!target) {
+      navigation.goBack();
+      return;
+    }
+
+    setIsLoadingNext(true);
+    try {
+      const client = getSupabaseClient();
+      const { data, error } = await client
+        .from('profiles')
+        .select('id, display_name, bio, verification_status')
+        .eq('id', target.userId)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      const row = data ?? null;
+      const nextProfile = row
+        ? {
+            id: (row.id as string) ?? target.userId,
+            name: (row.display_name as string | null) ?? undefined,
+            bio: (row.bio as string | null) ?? undefined,
+            verification: {
+              status: (row.verification_status as string | null) ?? null,
+            },
+          }
+        : { id: target.userId };
+
+      let nextLeftPhoto: string | null = null;
+      if (context.type === 'live') {
+        nextLeftPhoto = target.livePhotoUrl ?? null;
+        if (!nextLeftPhoto) {
+          const { data: liveData, error: liveError } = await client
+            .from('live_posts')
+            .select('photo_url')
+            .eq('user_id', target.userId)
+            .order('live_started_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!liveError) {
+            nextLeftPhoto = (liveData?.photo_url as string | null) ?? null;
+          }
+        }
+      }
+
+      setApprovedPhotos([]);
+      navigation.setParams({
+        profile: nextProfile,
+        leftPhoto: nextLeftPhoto ?? null,
+        rightPhoto: null,
+        context: { ...context, index: nextIndex },
+      });
+    } catch (err) {
+      console.error('Failed to load next profile for comparison', err);
+      Alert.alert('Unable to load profile', 'Please try again in a moment.');
+    } finally {
+      setIsLoadingNext(false);
+    }
+  }, [navigation, params.context]);
 
   const providedPhotos = useMemo(() => {
     const items = params.profile?.photos;
@@ -130,9 +201,19 @@ export default function CompareScreen({ route }: Props) {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              pressed && styles.secondaryButtonPressed,
+              (isLoadingNext || !params.context?.items?.length) && styles.secondaryButtonDisabled,
+            ]}
+            onPress={handleNextProfile}
+            disabled={isLoadingNext || !params.context?.items?.length}
           >
-            <Text style={styles.secondaryButtonLabel}>Next profile</Text>
+            {isLoadingNext ? (
+              <ActivityIndicator color="#94a3b8" />
+            ) : (
+              <Text style={styles.secondaryButtonLabel}>Next profile</Text>
+            )}
           </Pressable>
         </View>
       </ScrollView>
@@ -284,6 +365,9 @@ const styles = StyleSheet.create({
   },
   secondaryButtonPressed: {
     opacity: 0.85,
+  },
+  secondaryButtonDisabled: {
+    opacity: 0.6,
   },
   secondaryButtonLabel: {
     color: '#cbd5f5',

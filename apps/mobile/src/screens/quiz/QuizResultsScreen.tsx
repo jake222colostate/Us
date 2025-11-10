@@ -22,12 +22,13 @@ const QuizResultsScreen: React.FC = () => {
   const palette = useAppTheme();
   const styles = React.useMemo(() => createStyles(palette), [palette]);
   const route = useRoute<QuizResultsRoute>();
+  const params = route.params ?? { quizId: '', mode: 'owner' as const };
 
   const [quiz, setQuiz] = React.useState<Quiz | null>(null);
   const [stats, setStats] = React.useState<OwnerStats | null>(null);
   const [loading, setLoading] = React.useState(true);
 
-  const mode = route.params.mode;
+  const mode = params.mode;
 
   React.useEffect(() => {
     const load = async () => {
@@ -35,8 +36,8 @@ const QuizResultsScreen: React.FC = () => {
       try {
         if (mode === 'owner') {
           const [quizRecord, quizStats] = await Promise.all([
-            fetchQuizWithQuestions(route.params.quizId),
-            fetchQuizStats(route.params.quizId),
+            fetchQuizWithQuestions(params.quizId),
+            fetchQuizStats(params.quizId),
           ]);
           if (quizRecord) {
             setQuiz(quizRecord);
@@ -68,7 +69,7 @@ const QuizResultsScreen: React.FC = () => {
             setStats({ totalAttempts, averageScore, questionBreakdown });
           }
         } else if (mode === 'taker') {
-          const quizRecord = await fetchQuizWithQuestions(route.params.quizId);
+          const quizRecord = await fetchQuizWithQuestions(params.quizId);
           if (quizRecord) {
             setQuiz(quizRecord);
           }
@@ -80,7 +81,7 @@ const QuizResultsScreen: React.FC = () => {
       }
     };
     load().catch((err) => console.warn('results load failed', err));
-  }, [mode, route.params.quizId]);
+  }, [mode, params.quizId]);
 
   if (loading) {
     return (
@@ -92,7 +93,7 @@ const QuizResultsScreen: React.FC = () => {
   }
 
   if (mode === 'taker') {
-    const summary = route.params.summary;
+    const summary = params.summary;
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScrollView contentContainerStyle={styles.content}>

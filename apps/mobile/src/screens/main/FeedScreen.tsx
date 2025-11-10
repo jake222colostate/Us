@@ -71,6 +71,7 @@ export const FeedScreen: React.FC = () => {
             onOpenProfile={() => navigation.navigate('Profile', { screen: 'ProfileDetail', params: { userId: item.user_id } })}
           />
         )}
+        // @ts-expect-error - property available on FlashList but not in current type definitions
         estimatedItemSize={560}
         ListHeaderComponent={header}
         ListHeaderComponentStyle={[styles.headerContainer, isDesktop && styles.headerContainerDesktop]}

@@ -147,10 +147,10 @@ const PostScreen: React.FC = () => {
 
         try {
           setIsPublishingPost(true);
-          await createPost({ userId: session.user.id, photoUrl: outcome.photo.url });
+          await createPost({ userId: session!.user.id, photoUrl: outcome.photo?.url ?? '' });
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ['feed'] }),
-            queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
+            queryClient.invalidateQueries({ queryKey: ['profile-posts', session!.user.id] }),
           ]);
           if (finalStatus === 'approved') {
             show('Photo posted! It is now live in the feed and on your profile.');
@@ -210,7 +210,7 @@ const PostScreen: React.FC = () => {
         return;
       }
 
-      const guard = await checkLiveGuard(session.user.id);
+      const guard = await checkLiveGuard(session!.user.id);
       if (!guard.allowed) {
         const nextAt = guard.nextAllowedAt
           ? new Date(guard.nextAllowedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -247,10 +247,10 @@ const PostScreen: React.FC = () => {
       }
 
       const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64',
       });
       const bytes = toBytes(base64);
-      const path = `live/${session.user.id}/${ensureUuid()}.${extension}`;
+      const path = `live/${session!.user.id}/${ensureUuid()}.${extension}`;
       const client = getSupabaseClient();
       const { error: uploadError } = await client.storage
         .from(PROFILE_PHOTO_BUCKET)
@@ -267,7 +267,7 @@ const PostScreen: React.FC = () => {
 
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       await createLivePost({
-        userId: session.user.id,
+        userId: session!.user.id,
         photoUrl: publicUrl,
         liveExpiresAt: expiresAt,
       });

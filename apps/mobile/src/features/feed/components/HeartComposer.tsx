@@ -66,7 +66,7 @@ export const HeartComposer: React.FC<HeartComposerProps> = ({
       setSelfie({
         uri: asset.uri,
         mimeType: asset.mimeType ?? 'image/jpeg',
-        fileName: asset.fileName,
+        fileName: asset.fileName ?? undefined,
       });
       setError(null);
     } catch (err) {
@@ -86,7 +86,7 @@ export const HeartComposer: React.FC<HeartComposerProps> = ({
       setSelfie({
         uri: asset.uri,
         mimeType: asset.mimeType ?? 'image/jpeg',
-        fileName: asset.fileName,
+        fileName: asset.fileName ?? undefined,
       });
       setError(null);
     } catch (err) {
@@ -119,7 +119,7 @@ export const HeartComposer: React.FC<HeartComposerProps> = ({
       onRequestClose={onClose}
       presentationStyle="overFullScreen"
     >
-      <View style={styles.overlay} accessibilityRole="dialog" accessibilityLabel="Share a moment with your heart">
+      <View style={styles.overlay} accessibilityRole="none" accessibilityLabel="Share a moment with your heart">
         <View style={[styles.sheet, { width: sheetWidth }]}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text weight="bold" style={styles.title}>
@@ -133,7 +133,7 @@ export const HeartComposer: React.FC<HeartComposerProps> = ({
                 <Text weight="semibold" style={styles.previewLabel}>
                   Their photo
                 </Text>
-                <Image source={{ uri: post.photo_url }} style={styles.previewImage} contentFit="cover" />
+                <Image source={{ uri: post.photo_url ?? '' }} style={styles.previewImage} contentFit="cover" />
               </View>
               <View style={styles.previewCard}>
                 <Text weight="semibold" style={styles.previewLabel}>

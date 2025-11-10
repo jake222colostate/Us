@@ -2,8 +2,33 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "types": ["vitest/globals", "jest", "react", "react-native"]
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "types": ["jest", "react", "react-native"],
+    "baseUrl": ".",
+    "paths": {
+      "@us/ui": ["src/types/modules/us-ui.d.ts"],
+      "@us/api-client": ["src/types/modules/us-api-client.d.ts"],
+      "@us/types": ["src/types/modules/us-types.d.ts"],
+      "@us/config": ["src/types/modules/us-config.d.ts"],
+      "@hookform/resolvers": ["src/types/modules/hookform-resolvers.d.ts"],
+      "@hookform/resolvers/zod": ["src/types/modules/hookform-resolvers-zod.d.ts"],
+      "@react-native-community/datetimepicker": ["src/types/modules/datetimepicker.d.ts"],
+      "expo-location": ["src/types/modules/expo-location.d.ts"],
+      "expo-media-library": ["src/types/modules/expo-media-library.d.ts"],
+      "expo-image-manipulator": ["src/types/modules/expo-image-manipulator.d.ts"],
+      "react-hook-form": ["src/types/modules/react-hook-form.d.ts"],
+      "vitest": ["src/types/modules/vitest.d.ts"]
+    }
   },
-  "include": ["src/**/*", "vitest.setup.ts"],
-  "exclude": ["node_modules"]
+  "include": ["app/**/*", "src/**/*"],
+  "exclude": [
+    "node_modules",
+    "src/tests/**/*",
+    "../../packages/**/*",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
 }

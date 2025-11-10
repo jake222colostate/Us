@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import AppDefault from './App.default';
+import AppRoot from './AppRoot';
 
 class ErrorBoundary extends React.Component<{children:React.ReactNode},{err?:any}>{
   constructor(p:any){ super(p); this.state={}; }
@@ -23,7 +23,7 @@ class ErrorBoundary extends React.Component<{children:React.ReactNode},{err?:any
 export default function Root(){
   return (
     <ErrorBoundary>
-      <AppDefault />
+      <AppRoot />
     </ErrorBoundary>
   );
 }

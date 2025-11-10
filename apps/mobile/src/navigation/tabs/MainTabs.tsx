@@ -63,17 +63,36 @@ export const MainTabs = () => {
     [borderColor, isDarkMode, tabBackground],
   );
 
-  const renderPostButton = useCallback(
-    ({ children, style, ...props }: BottomTabBarButtonProps) => (
-      <Pressable
-        {...props}
-        style={({ pressed }) => [style, styles.postButtonContainer, pressed && styles.postButtonPressed]}
-        accessibilityRole="button"
-      >
-        {children}
-      </Pressable>
-    ),
+  const PostTabBarButton = useMemo(
+    () =>
+      React.forwardRef<View, BottomTabBarButtonProps>(
+        ({ children, style, ...props }, ref) => (
+          <Pressable
+            {...props}
+            ref={ref}
+            style={({ pressed }) =>
+              StyleSheet.flatten([
+                styles.postButtonContainer,
+                style,
+                pressed && styles.postButtonPressed,
+              ])
+            }
+            accessibilityRole="button"
+          >
+            {children}
+          </Pressable>
+        ),
+      ),
     [styles],
+  );
+  PostTabBarButton.displayName = 'PostTabBarButton';
+
+  const renderPostButton = useCallback(
+    (props: BottomTabBarButtonProps) => (
+      // @ts-expect-error React Navigation mixes legacy refs that don't match Pressable's ref type
+      <PostTabBarButton {...props} />
+    ),
+    [PostTabBarButton],
   );
 
   return (

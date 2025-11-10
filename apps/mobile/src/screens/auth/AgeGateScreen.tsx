@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Header } from '../../components/Header';
-import { Card } from '../../components/Card';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 
@@ -49,9 +48,9 @@ export const AgeGateScreen: React.FC = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Header title="Age Check" subtitle="We ask everyone to confirm they are 18 or older" />
-      <Card style={styles.formCard}>
+      <View style={[styles.cardContainer, styles.formCard]}>
         <Text style={styles.label}>Date of birth</Text>
-        <Controller
+        <Controller<AgeGateFormValues>
           control={control}
           name="birthdate"
           render={({ field: { value, onChange } }) => (
@@ -100,7 +99,7 @@ export const AgeGateScreen: React.FC = () => {
         >
           <Text style={styles.submitText}>Continue</Text>
         </Pressable>
-      </Card>
+      </View>
     </ScrollView>
   );
 };
@@ -113,6 +112,16 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
+  },
+  cardContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: spacing.lg,
+    shadowColor: '#00000033',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   formCard: {
     marginTop: spacing.lg,

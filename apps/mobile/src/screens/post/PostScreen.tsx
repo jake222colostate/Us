@@ -41,6 +41,7 @@ const PostScreen: React.FC = () => {
   const { show } = useToast();
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [hostedUri, setHostedUri] = useState<string | null>(null);
+  const [hostedPath, setHostedPath] = useState<string | null>(null);
   const [status, setStatus] = useState<ModerationStatus | null>(null);
   const [pendingSelection, setPendingSelection] = useState(false);
   const [isPostingLive, setIsPostingLive] = useState(false);
@@ -130,6 +131,7 @@ const PostScreen: React.FC = () => {
 
         setPreviewUri(asset.uri);
         setHostedUri(null);
+        setHostedPath(null);
         setStatus('pending');
         setPendingSelection(true);
 
@@ -146,6 +148,7 @@ const PostScreen: React.FC = () => {
 
         if (!outcome.photo?.url) {
           show('Upload succeeded but the photo URL is missing. Please try again.');
+          setHostedPath(null);
           return;
         }
 
@@ -153,10 +156,12 @@ const PostScreen: React.FC = () => {
           show('This photo was rejected by moderation. Try another one.');
           setPreviewUri(null);
           setHostedUri(null);
+          setHostedPath(null);
           return;
         }
 
         setHostedUri(outcome.photo.url);
+        setHostedPath(outcome.photo.storagePath ?? null);
 
         
         show('Ready to upload. Tap Upload Photo.');
@@ -181,7 +186,7 @@ const PostScreen: React.FC = () => {
         return;
       }
       setIsPublishingPost(true);
-      await createPost({ userId: session.user.id, photoUrl: hostedUri });
+      await createPost({ userId: session.user.id, photoUrl: hostedUri, storagePath: hostedPath ?? undefined });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['feed'] }),
         queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
@@ -189,6 +194,7 @@ const PostScreen: React.FC = () => {
       show('Photo posted!');
       setPreviewUri(null);
       setHostedUri(null);
+      setHostedPath(null);
       setStatus(null);
       // optional: jump back to feed
       try { navigation.navigate('Feed' as never); } catch {}
@@ -198,7 +204,7 @@ const PostScreen: React.FC = () => {
     } finally {
       setIsPublishingPost(false);
     }
-  }, [hostedUri, session, queryClient, navigation, show]);
+  }, [hostedUri, hostedPath, session, queryClient, navigation, show]);
 
 
   const ensureUuid = useCallback(() => {

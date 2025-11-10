@@ -10,7 +10,7 @@ export type CreatePostArgs = {
 export async function createPost({ userId, photoUrl, caption }: CreatePostArgs): Promise<Post> {
   const client = getSupabaseClient();
   const { data, error } = await client
-    .from('posts')
+    .from('live_posts')
     .insert({ user_id: userId, photo_url: photoUrl, caption: caption ?? null })
     .select('*')
     .single();

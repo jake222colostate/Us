@@ -311,6 +311,11 @@ export default function FeedScreen() {
     });
   }, [profiles, genderPreference]);
 
+  const feedCompareItems = useMemo(
+    () => filteredProfiles.map((profile) => ({ userId: profile.id })),
+    [filteredProfiles],
+  );
+
   const handleLike = useCallback(
     async (targetId: string) => {
       if (!session) {
@@ -339,6 +344,15 @@ export default function FeedScreen() {
     />
   );
 
+  const liveCompareItems = useMemo(
+    () =>
+      liveItems.map((item) => ({
+        userId: item.user_id,
+        livePhotoUrl: item.photo_url ?? null,
+      })),
+    [liveItems],
+  );
+
   const liveSection = liveItems.length ? (
     <View style={styles.liveSection}>
       <View style={styles.liveHeaderRow}>
@@ -346,16 +360,30 @@ export default function FeedScreen() {
         <Text style={styles.subtitle}>{liveItems.length === 1 ? '1 person is live' : `${liveItems.length} people are live`}</Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveScroll}>
-        {liveItems.map((item) => (
+        {liveItems.map((item, index) => (
           <Pressable
             key={item.id}
             style={styles.liveCard}
-            onPress={() => navigation.navigate('ProfileDetail', { userId: item.user_id })}
+            onPress={() =>
+              navigation.navigate('Compare', {
+                profile: {
+                  id: item.user_id,
+                  name: item.profile?.name ?? undefined,
+                  bio: item.profile?.bio ?? undefined,
+                },
+                leftPhoto: item.photo_url ?? undefined,
+                context: {
+                  type: 'live',
+                  index,
+                  items: liveCompareItems,
+                },
+              })
+            }
           >
             <View style={styles.liveImageWrapper}>
               <Image source={{ uri: item.photo_url }} style={styles.liveImage} resizeMode="cover" />
               <View style={styles.liveBadge}>
-                <Text style={styles.liveBadgeText}>Live</Text>
+                <Text style={styles.liveBadgeText}>1 hr</Text>
               </View>
               <View style={styles.liveCountdownPill}>
                 <LiveCountdown expiresAt={item.live_expires_at} style={styles.liveCountdownText} />
@@ -381,7 +409,7 @@ export default function FeedScreen() {
       <FlatList
         data={filteredProfiles}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <Card
             name={item.name ?? 'Member'}
             bio={item.bio}
@@ -394,6 +422,11 @@ export default function FeedScreen() {
                   id: item.id,
                   name: item.name ?? undefined,
                   bio: item.bio ?? undefined,
+                },
+                context: {
+                  type: 'feed',
+                  index,
+                  items: feedCompareItems,
                 },
               })
             }

@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
@@ -20,7 +19,7 @@ import { selectCurrentUser, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
-import { fetchCurrentLivePost, type LivePostRow } from '../../api/livePosts';
+import { deleteLivePost, fetchCurrentLivePost, type LivePostRow } from '../../api/livePosts';
 import LiveCountdown from '../../components/LiveCountdown';
 
 const PLACEHOLDER_BIO = 'Share a short bio so matches know a little about you.';
@@ -30,10 +29,11 @@ const ProfileScreen: React.FC = () => {
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const user = useAuthStore(selectCurrentUser);
-  const { uploadPhoto, isUploading, loadPhotos, removePhoto, error } = usePhotoModeration();
+  const { isUploading, loadPhotos, removePhoto, error } = usePhotoModeration();
   const { show } = useToast();
   const handledRejections = useRef<Set<string>>(new Set());
   const [livePost, setLivePost] = React.useState<LivePostRow | null>(null);
+  const [isDeletingLive, setIsDeletingLive] = React.useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -88,64 +88,34 @@ const ProfileScreen: React.FC = () => {
   const avatarUri = user?.avatar ?? approvedPhotos[0]?.url ?? approvedPhotos[0]?.localUri ?? null;
   const bioCopy = user?.bio?.trim().length ? user.bio.trim() : PLACEHOLDER_BIO;
 
-  const handleSelection = useCallback(
-    async (source: 'camera' | 'library') => {
-      try {
-        const permission =
-          source === 'camera'
-            ? await ImagePicker.requestCameraPermissionsAsync()
-            : await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
-          show(
-            source === 'camera'
-              ? 'Camera access is required to take a photo.'
-              : 'Media library access is required to pick a photo.',
-          );
-          return;
-        }
+  const handleDeleteLive = useCallback(() => {
+    if (!livePost) {
+      return;
+    }
 
-        const result =
-          source === 'camera'
-            ? await ImagePicker.launchCameraAsync({ quality: 0.8, exif: true })
-            : await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: 'images',
-                allowsMultipleSelection: false,
-                quality: 0.8,
-                exif: true,
-              });
-
-        if (result.canceled || !result.assets?.length) {
-          return;
-        }
-
-        const outcome = await uploadPhoto({ asset: result.assets[0] });
-        if (!outcome.success) {
-          show('Upload failed. Please try again when you have a stable connection.');
-          return;
-        }
-
-        if (outcome.status === 'approved') {
-          show('Photo uploaded! It is now live on your profile.');
-        } else if (outcome.status === 'pending') {
-          show('Photo uploaded! We will notify you when it is approved.');
-        } else {
-          show('This photo was rejected by moderation. Try another one.');
-        }
-      } catch (err) {
-        console.error('Photo selection failed', err);
-        show('We could not access your photo. Please try again.');
-      }
-    },
-    [show, uploadPhoto],
-  );
-
-  const handleAddPhoto = useCallback(() => {
-    Alert.alert('Add a photo', 'Choose where to pick your photo from.', [
-      { text: 'Camera', onPress: () => handleSelection('camera') },
-      { text: 'Library', onPress: () => handleSelection('library') },
+    Alert.alert('Remove 1-hour post?', 'This will immediately remove your current spotlight.', [
       { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          setIsDeletingLive(true);
+          void deleteLivePost(livePost.id)
+            .then(() => {
+              setLivePost(null);
+              show('Your 1-hour post was removed.');
+            })
+            .catch((err) => {
+              console.error('Failed to delete 1-hour post', err);
+              show('Unable to remove your 1-hour post. Please try again.');
+            })
+            .finally(() => {
+              setIsDeletingLive(false);
+            });
+        },
+      },
     ]);
-  }, [handleSelection]);
+  }, [livePost, show]);
 
   if (!user) {
     return (
@@ -170,7 +140,7 @@ const ProfileScreen: React.FC = () => {
             )}
             {livePost ? (
               <View style={styles.liveBadge}>
-                <Text style={styles.liveBadgeLabel}>Live</Text>
+                <Text style={styles.liveBadgeLabel}>1 hr</Text>
                 <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveBadgeCountdown} />
               </View>
             ) : null}
@@ -198,25 +168,10 @@ const ProfileScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        <View style={styles.buttonRowSingle}>
-          <Pressable
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-            onPress={handleAddPhoto}
-            disabled={isUploading}
-          >
-            {isUploading ? (
-              <ActivityIndicator color={palette.accent} />
-            ) : (
-              <Text style={styles.secondaryButtonLabel}>Add Photo</Text>
-            )}
-          </Pressable>
-        </View>
-
         <View style={styles.liveCard}>
-          <Text style={styles.liveCardTitle}>Live spotlight</Text>
+          <Text style={styles.liveCardTitle}>1-hour spotlight</Text>
           <Text style={styles.liveCardCopy}>
-            Share an iOS Live Photo once per day to jump to the top of the feed.
+            Capture what you’re doing right now to stay featured for the next 60 minutes. Available once per day.
           </Text>
           <Pressable
             style={({ pressed }) => [
@@ -228,16 +183,34 @@ const ProfileScreen: React.FC = () => {
             disabled={Platform.OS !== 'ios' || isUploading}
           >
             <Text style={styles.liveActionLabel}>
-              {Platform.OS === 'ios' ? 'Post Live Photo' : 'Live Photos are iOS-only'}
+              {Platform.OS === 'ios' ? 'Post for 1 hour' : '1-hour posts are iOS-only'}
             </Text>
           </Pressable>
           {livePost ? (
-            <View style={styles.liveStatusRow}>
-              <Text style={styles.liveStatusLabel}>Currently live</Text>
-              <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveStatusCountdown} />
-            </View>
+            <>
+              <View style={styles.liveStatusRow}>
+                <Text style={styles.liveStatusLabel}>Live for another</Text>
+                <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveStatusCountdown} />
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.liveRemoveButton,
+                  pressed && styles.buttonPressed,
+                  isDeletingLive && styles.liveActionDisabled,
+                ]}
+                onPress={handleDeleteLive}
+                disabled={isDeletingLive}
+              >
+                {isDeletingLive ? (
+                  <ActivityIndicator color={palette.accent} />
+                ) : (
+                  <Text style={styles.liveRemoveLabel}>Remove 1-hour post</Text>
+                )}
+              </Pressable>
+            </>
           ) : (
-            <Text style={styles.liveStatusInactive}>You are not live right now.</Text>
+            <Text style={styles.liveStatusInactive}>You are not featured right now.</Text>
           )}
         </View>
 
@@ -372,10 +345,6 @@ function createStyles(palette: AppPalette) {
       gap: 12,
       marginBottom: 12,
     },
-    buttonRowSingle: {
-      flexDirection: 'row',
-      marginBottom: 24,
-    },
     primaryButton: {
       flex: 1,
       backgroundColor: palette.accent,
@@ -433,6 +402,18 @@ function createStyles(palette: AppPalette) {
     },
     liveActionLabel: {
       color: '#fff',
+      fontWeight: '700',
+    },
+    liveRemoveButton: {
+      marginTop: 12,
+      borderWidth: 1,
+      borderColor: palette.accent,
+      borderRadius: 12,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    liveRemoveLabel: {
+      color: palette.accent,
       fontWeight: '700',
     },
     liveStatusRow: {

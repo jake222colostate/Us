@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -43,6 +44,8 @@ const PostScreen: React.FC = () => {
   const [status, setStatus] = useState<ModerationStatus | null>(null);
   const [pendingSelection, setPendingSelection] = useState(false);
   const [isPostingLive, setIsPostingLive] = useState(false);
+  const [liveAsset, setLiveAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [isLivePreviewVisible, setIsLivePreviewVisible] = useState(false);
   const [isPublishingPost, setIsPublishingPost] = useState(false);
 
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
@@ -70,6 +73,21 @@ const PostScreen: React.FC = () => {
       return asset;
     }
   }, []);
+
+  const openLiveCamera = useCallback(async () => {
+    const captureResult = await ImagePicker.launchCameraAsync({
+      quality: 0.9,
+      exif: true,
+    });
+
+    if (captureResult.canceled || !captureResult.assets?.length) {
+      return null;
+    }
+
+    let asset = captureResult.assets[0];
+    asset = await mirrorAsset(asset);
+    return asset;
+  }, [mirrorAsset]);
 
   const handleSelect = useCallback(
     async (source: 'camera' | 'library') => {
@@ -228,12 +246,12 @@ if (!session) {
 
   const handlePostLive = useCallback(async () => {
     if (!session) {
-      show('Sign in to post a Live Photo.');
+      show('Sign in to post for 1 hour.');
       return;
     }
 
     if (Platform.OS !== 'ios') {
-      show('Live Photos require iOS and must be captured with your camera.');
+      show('1-hour posts are only available on iOS.');
       return;
     }
 
@@ -241,38 +259,73 @@ if (!session) {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        show('Camera access is required to capture a Live Photo.');
+        show('Camera access is required to capture your 1-hour post.');
         return;
       }
 
-      const guard = await checkLiveGuard(session!.user.id);
+      const guard = await checkLiveGuard(session.user.id);
       if (!guard.allowed) {
         const nextAt = guard.nextAllowedAt
           ? new Date(guard.nextAllowedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
           : null;
         show(
           nextAt
-            ? `You already shared a Live Photo today. You can post again after ${nextAt}.`
-            : 'You already shared a Live Photo today. Try again tomorrow.',
+            ? `You already shared a 1-hour post today. You can post again after ${nextAt}.`
+            : 'You already shared a 1-hour post today. Try again tomorrow.',
         );
         return;
       }
 
-      const captureResult = await ImagePicker.launchCameraAsync({
-        quality: 0.9,
-        exif: true,
-      });
-
-      if (captureResult.canceled || !captureResult.assets?.length) {
+      const asset = await openLiveCamera();
+      if (!asset) {
         return;
       }
 
-      let asset = captureResult.assets[0];
-      asset = await mirrorAsset(asset);
+      setLiveAsset(asset);
+      setIsLivePreviewVisible(true);
+    } catch (error) {
+      console.error('Failed to capture 1-hour post', error);
+      show('Unable to open the camera. Please try again.');
+    } finally {
+      setIsPostingLive(false);
+    }
+  }, [session, show, openLiveCamera]);
 
+  const handleRetakeLive = useCallback(async () => {
+    try {
+      setIsPostingLive(true);
+      const asset = await openLiveCamera();
+      if (asset) {
+        setLiveAsset(asset);
+      }
+    } catch (error) {
+      console.error('Failed to retake 1-hour post', error);
+      show('Unable to capture a new photo right now.');
+    } finally {
+      setIsPostingLive(false);
+    }
+  }, [openLiveCamera, show]);
+
+  const handleCancelLive = useCallback(() => {
+    setLiveAsset(null);
+    setIsLivePreviewVisible(false);
+  }, []);
+
+  const handleConfirmLiveUpload = useCallback(async () => {
+    if (!session) {
+      show('Sign in to post for 1 hour.');
+      return;
+    }
+    if (!liveAsset) {
+      show('Capture a photo before posting.');
+      return;
+    }
+
+    setIsPostingLive(true);
+    try {
       let contentType: string = 'image/jpeg';
       let extension: string = 'jpg';
-      const lowerUri = asset.uri.toLowerCase();
+      const lowerUri = liveAsset.uri.toLowerCase();
       if (lowerUri.endsWith('.heic')) {
         contentType = 'image/heic';
         extension = 'heic';
@@ -281,11 +334,11 @@ if (!session) {
         extension = 'heif';
       }
 
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+      const base64 = await FileSystem.readAsStringAsync(liveAsset.uri, {
         encoding: 'base64',
       });
       const bytes = toBytes(base64);
-      const path = `live/${session!.user.id}/${ensureUuid()}.${extension}`;
+      const path = `live/${session.user.id}/${ensureUuid()}.${extension}`;
       const client = getSupabaseClient();
       const { error: uploadError } = await client.storage
         .from(POST_PHOTO_BUCKET)
@@ -297,27 +350,33 @@ if (!session) {
       const { data: publicUrlData } = client.storage.from(POST_PHOTO_BUCKET).getPublicUrl(path);
       const publicUrl = publicUrlData?.publicUrl;
       if (!publicUrl) {
-        throw new Error('Unable to resolve uploaded Live Photo URL.');
+        throw new Error('Unable to resolve uploaded 1-hour post URL.');
       }
 
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      await createPost({
-        userId: session.user.id,
       await createLivePost({
-        userId: session!.user.id,
+        userId: session.user.id,
         photoUrl: publicUrl,
         liveExpiresAt: expiresAt,
       });
 
-      show('Live Photo posted! You are featured for the next hour.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['feed'] }),
+        queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
+        queryClient.invalidateQueries({ queryKey: ['live-now'] }),
+      ]).catch((err) => console.warn('Failed to invalidate queries after 1-hour post', err));
+
+      show('Your 1-hour post is live for the next 60 minutes.');
+      setLiveAsset(null);
+      setIsLivePreviewVisible(false);
       navigation.navigate('Feed');
     } catch (error) {
-      console.error('Failed to post Live Photo', error);
-      show('Unable to post Live Photo. Please try again in a moment.');
+      console.error('Failed to publish 1-hour post', error);
+      show('Unable to post right now. Please try again in a moment.');
     } finally {
       setIsPostingLive(false);
     }
-  }, [session, show, toBytes, ensureUuid, navigation, mirrorAsset]);
+  }, [session, liveAsset, toBytes, ensureUuid, show, queryClient, navigation]);
 
   const currentPreview = hostedUri ?? previewUri;
   const showSpinner = isUploading || pendingSelection || isPublishingPost;
@@ -351,9 +410,10 @@ if (!session) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.liveCard}>
-          <Text style={styles.liveTitle}>Live Photo</Text>
+          <Text style={styles.liveTitle}>Post for 1 hour</Text>
           <Text style={styles.liveCopy}>
-            Share a photo of what's happening now to jump to the top of the feed. Available once per day.
+            Share what’s happening right now to jump to the top of the feed for the next 60 minutes. Capture only
+            from your camera—no uploads from the library.
           </Text>
           <Pressable
             style={({ pressed }) => [
@@ -368,7 +428,7 @@ if (!session) {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.liveButtonLabel}>
-                {Platform.OS === 'ios' ? 'Post Live Photo' : 'Live Photos are iOS-only'}
+                {Platform.OS === 'ios' ? 'Post for 1 hour' : '1-hour posts are iOS-only'}
               </Text>
             )}
           </Pressable>
@@ -439,6 +499,66 @@ if (!session) {
           </Pressable>
         </View>
       </ScrollView>
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={isLivePreviewVisible && Boolean(liveAsset)}
+        onRequestClose={handleCancelLive}
+      >
+        <View style={styles.liveModalBackdrop}>
+          <View style={styles.liveModalContainer}>
+            {liveAsset ? (
+              <Image source={{ uri: liveAsset.uri }} style={styles.liveModalImage} resizeMode="cover" />
+            ) : null}
+            <View style={styles.liveModalActions}>
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.liveModalButton,
+                  pressed && styles.liveModalButtonPressed,
+                  styles.liveModalButtonSecondary,
+                  isPostingLive && styles.liveModalButtonDisabled,
+                ]}
+                onPress={handleCancelLive}
+                disabled={isPostingLive}
+              >
+                <Text style={styles.liveModalButtonLabel}>Exit</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.liveModalButton,
+                  pressed && styles.liveModalButtonPressed,
+                  styles.liveModalButtonSecondary,
+                  isPostingLive && styles.liveModalButtonDisabled,
+                ]}
+                onPress={handleRetakeLive}
+                disabled={isPostingLive}
+              >
+                <Text style={styles.liveModalButtonLabel}>Retake</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.liveModalButton,
+                  styles.liveModalButtonPrimary,
+                  pressed && styles.liveModalButtonPressed,
+                  isPostingLive && styles.liveModalButtonDisabled,
+                ]}
+                onPress={handleConfirmLiveUpload}
+                disabled={isPostingLive}
+              >
+                {isPostingLive ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.liveModalPrimaryLabel}>Post for 1 hour</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -500,6 +620,61 @@ function createStyles(isDarkMode: boolean) {
       color: '#fff',
       fontWeight: '600',
       fontSize: 15,
+    },
+    liveModalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(10,16,28,0.85)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    liveModalContainer: {
+      width: '100%',
+      maxWidth: 420,
+      borderRadius: 24,
+      overflow: 'hidden',
+      backgroundColor: background,
+      borderWidth: 1,
+      borderColor: liveBorder,
+    },
+    liveModalImage: {
+      width: '100%',
+      aspectRatio: PREVIEW_ASPECT_RATIO,
+      backgroundColor: placeholderBackground,
+    },
+    liveModalActions: {
+      flexDirection: 'row',
+      gap: 12,
+      padding: 16,
+    },
+    liveModalButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    liveModalButtonSecondary: {
+      backgroundColor: isDarkMode ? '#1e293b' : '#eadeff',
+    },
+    liveModalButtonPrimary: {
+      backgroundColor: '#f472b6',
+    },
+    liveModalButtonLabel: {
+      color: textPrimary,
+      fontWeight: '600',
+      fontSize: 15,
+    },
+    liveModalPrimaryLabel: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: 15,
+    },
+    liveModalButtonPressed: {
+      opacity: 0.85,
+    },
+    liveModalButtonDisabled: {
+      opacity: 0.6,
     },
     header: {
       marginBottom: 24,

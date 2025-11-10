@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Us",
+    "slug": "us-mobile",
+    "sdkVersion": "54.0.0",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "jsEngine": "jsc",
+      "bundleIdentifier": "com.jakeypoov.us",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "icon": "./assets/frontimage.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3ea68b38-55da-42b5-b8b3-605c9fdb9332"
+      }
+    },
+    "owner": "jakeypoov",
+    "icon": "./assets/frontimage.png"
+  }
+}

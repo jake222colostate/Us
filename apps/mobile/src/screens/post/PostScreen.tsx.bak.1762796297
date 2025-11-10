@@ -301,7 +301,7 @@ if (!session) {
       }
 
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      await createPost({
+      await createLivePost({
         userId: session.user.id,
         photoUrl: publicUrl,
         liveExpiresAt: expiresAt,

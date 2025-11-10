@@ -2,12 +2,10 @@ import { getSupabaseClient } from './supabase';
 
 type CreateLivePostArgs = { userId: string; photoUrl: string };
 
-/** Always allow in dev; you can reintroduce guards later */
 export async function checkLiveGuard(_userId: string) {
   return { ok: true as const };
 }
 
-/** Insert a Live Post directly into DB (bypasses Edge Function) */
 export async function createLivePost({ userId, photoUrl }: CreateLivePostArgs) {
   const client = getSupabaseClient();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -20,17 +18,4 @@ export async function createLivePost({ userId, photoUrl }: CreateLivePostArgs) {
 
   if (error) throw error;
   return data;
-}
-
-/** Fetch currently-live posts for the feed */
-export async function fetchLiveNow() {
-  const client = getSupabaseClient();
-  const { data, error } = await client
-    .from('live_posts')
-    .select('*')
-    .gt('live_expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data ?? [];
 }

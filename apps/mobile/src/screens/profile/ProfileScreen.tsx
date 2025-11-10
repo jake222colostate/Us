@@ -12,7 +12,21 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { getSupabaseClient } from '../../api/supabase';
+import { const [myPosts, setMyPosts] = useState<Array<{ id: string; photo_url: string; created_at: string }>>([]);
+
+/** Load this user's post photos for profile grid */
+const loadMyPosts = React.useCallback(async (uid: string) => {
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from('posts')
+    .select('id, photo_url, created_at')
+    .eq('user_id', uid)
+    .order('created_at', { ascending: false });
+  if (!error && Array.isArray(data)) setMyPosts(data);
+}, []);
+
+useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
 import { selectCurrentUser, useAuthStore } from '../../state/authStore';
@@ -132,7 +146,7 @@ const ProfileScreen: React.FC = () => {
         <View style={styles.headerRow}>
           <View style={styles.avatarWrapper}>
             {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+              <Image source={{ uri: p.photo_url }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarPlaceholderText}>{initials || '😊'}</Text>

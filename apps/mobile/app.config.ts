@@ -1,14 +1,24 @@
-import { ExpoConfig } from 'expo/config';
+import { defineConfig, ConfigContext, ExpoConfig } from 'expo/config';
+import baseConfigDefault from './app.config.base';
 
-const config: ExpoConfig = {
-  name: 'Us Mobile',
-  slug: 'us-mobile',
-  scheme: 'us',
-  sdkVersion: '54.0.0',
-  plugins: [
-    'expo-secure-store',
-    'expo-web-browser',
-  ],
-};
+const PROJECT_ID = '3ea68b38-55da-42b5-b8b3-605c9fdb9332';
 
-export default config;
+function withEasProjectId(config: ExpoConfig): ExpoConfig {
+  const currentExtra = config.extra ?? {};
+  const currentEas = (currentExtra as any).eas ?? {};
+  return {
+    ...config,
+    extra: {
+      ...currentExtra,
+      eas: {
+        ...currentEas,
+        projectId: PROJECT_ID,
+      },
+    },
+  };
+}
+
+export default defineConfig((...args: Parameters<(config: ConfigContext) => ExpoConfig>) => {
+  const base = typeof baseConfigDefault === 'function' ? baseConfigDefault(...args) : (baseConfigDefault as ExpoConfig);
+  return withEasProjectId(base);
+});

@@ -139,6 +139,25 @@ const ProfileScreen: React.FC = () => {
               </View>
             )}
             {livePost ? (
+              <Pressable
+                accessibilityLabel="Remove 1-hour post"
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.liveRemoveChip,
+                  pressed && styles.buttonPressed,
+                  isDeletingLive && styles.liveActionDisabled,
+                ]}
+                onPress={handleDeleteLive}
+                disabled={isDeletingLive}
+              >
+                {isDeletingLive ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={styles.liveRemoveIcon}>×</Text>
+                )}
+              </Pressable>
+            ) : null}
+            {livePost ? (
               <View style={styles.liveBadge}>
                 <Text style={styles.liveBadgeLabel}>1 hr</Text>
                 <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveBadgeCountdown} />
@@ -186,32 +205,17 @@ const ProfileScreen: React.FC = () => {
               {Platform.OS === 'ios' ? 'Post for 1 hour' : '1-hour posts are iOS-only'}
             </Text>
           </Pressable>
-          {livePost ? (
-            <>
-              <View style={styles.liveStatusRow}>
-                <Text style={styles.liveStatusLabel}>Live for another</Text>
-                <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveStatusCountdown} />
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.liveRemoveButton,
-                  pressed && styles.buttonPressed,
-                  isDeletingLive && styles.liveActionDisabled,
-                ]}
-                onPress={handleDeleteLive}
-                disabled={isDeletingLive}
-              >
-                {isDeletingLive ? (
-                  <ActivityIndicator color={palette.accent} />
-                ) : (
-                  <Text style={styles.liveRemoveLabel}>Remove 1-hour post</Text>
-                )}
-              </Pressable>
-            </>
-          ) : (
-            <Text style={styles.liveStatusInactive}>You are not featured right now.</Text>
-          )}
+            {livePost ? (
+              <>
+                <View style={styles.liveStatusRow}>
+                  <Text style={styles.liveStatusLabel}>Live for another</Text>
+                  <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveStatusCountdown} />
+                </View>
+                <Text style={styles.liveStatusHint}>Tap the × on your photo to remove it early.</Text>
+              </>
+            ) : (
+              <Text style={styles.liveStatusInactive}>You are not featured right now.</Text>
+            )}
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -323,11 +327,33 @@ function createStyles(palette: AppPalette) {
       fontWeight: '700',
       fontSize: 12,
     },
-    liveBadgeCountdown: {
-      color: '#fff',
-      fontSize: 12,
-      fontVariant: ['tabular-nums'],
-    },
+      liveBadgeCountdown: {
+        color: '#fff',
+        fontSize: 12,
+        fontVariant: ['tabular-nums'],
+      },
+      liveRemoveChip: {
+        position: 'absolute',
+        top: -10,
+        right: -10,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#111827',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 4,
+      },
+      liveRemoveIcon: {
+        color: '#ffffff',
+        fontSize: 20,
+        fontWeight: '700',
+        lineHeight: 20,
+      },
     headerText: {
       flex: 1,
       gap: 4,
@@ -400,40 +426,34 @@ function createStyles(palette: AppPalette) {
     liveActionDisabled: {
       opacity: 0.6,
     },
-    liveActionLabel: {
-      color: '#fff',
-      fontWeight: '700',
-    },
-    liveRemoveButton: {
-      marginTop: 12,
-      borderWidth: 1,
-      borderColor: palette.accent,
-      borderRadius: 12,
-      paddingVertical: 10,
-      alignItems: 'center',
-    },
-    liveRemoveLabel: {
-      color: palette.accent,
-      fontWeight: '700',
-    },
-    liveStatusRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    liveStatusLabel: {
-      color: palette.textSecondary,
-      fontWeight: '600',
-    },
-    liveStatusCountdown: {
-      color: palette.textPrimary,
-      fontWeight: '700',
-      fontVariant: ['tabular-nums'],
-    },
-    liveStatusInactive: {
-      color: palette.textSecondary,
-      fontStyle: 'italic',
-    },
+      liveActionLabel: {
+        color: '#fff',
+        fontWeight: '700',
+      },
+      liveStatusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 12,
+      },
+      liveStatusLabel: {
+        color: palette.textSecondary,
+        fontWeight: '600',
+      },
+      liveStatusCountdown: {
+        color: palette.textPrimary,
+        fontWeight: '700',
+        fontVariant: ['tabular-nums'],
+      },
+      liveStatusHint: {
+        marginTop: 12,
+        color: palette.textSecondary,
+        fontSize: 13,
+      },
+      liveStatusInactive: {
+        color: palette.textSecondary,
+        fontStyle: 'italic',
+      },
     errorText: {
       color: palette.danger,
       marginBottom: 16,

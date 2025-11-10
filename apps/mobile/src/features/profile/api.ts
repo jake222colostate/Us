@@ -2,6 +2,7 @@ import { supabase } from '../../api/supabase';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { Profile, Post, Heart } from '@us/types';
 import { loadDevManifest } from '../../lib/devAssets';
+import type { PhotoRow } from '../../lib/photos';
 
 export async function fetchProfile(userId: string) {
   const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).single();
@@ -15,20 +16,42 @@ export async function fetchProfile(userId: string) {
 }
 
 export async function fetchProfilePosts(userId: string) {
-  const { data, error } = await supabase.from('posts').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('photos')
+    .select('id, user_id, url, status, created_at')
+    .eq('user_id', userId)
+    .eq('status', 'approved')
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  const posts = (data as Post[]) ?? [];
+
+  const rows = ((data ?? []) as PhotoRow[]).filter((row) => row.status === 'approved');
   const manifest = await loadDevManifest();
-  if (!manifest.length) {
-    return posts;
-  }
   let index = 0;
-  return posts.map((post) => {
-    if (post.photo_url) return post;
-    const fallback = manifest[index % manifest.length];
-    index += 1;
-    return { ...post, photo_url: fallback };
+
+  const mapped: Post[] = rows.map((row) => {
+    const photoUrl = row.url ?? (manifest.length ? manifest[index++ % manifest.length] : null);
+    return {
+      id: row.id,
+      user_id: row.user_id,
+      photo_url: photoUrl ?? '',
+      caption: null,
+      location: null,
+      created_at: row.created_at ?? new Date().toISOString(),
+    };
   });
+
+  if (!mapped.length && manifest.length) {
+    return manifest.map((uri, i) => ({
+      id: `${userId}-fallback-${i}`,
+      user_id: userId,
+      photo_url: uri,
+      caption: null,
+      location: null,
+      created_at: new Date(Date.now() - i * 1000).toISOString(),
+    }));
+  }
+
+  return mapped;
 }
 
 export async function fetchLikes(userId: string) {

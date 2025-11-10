@@ -1,4 +1,3 @@
-console.log('🟢 MOUNT: screens/main/FeedScreen.tsx is ACTIVE');
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, RefreshControl, Platform, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';

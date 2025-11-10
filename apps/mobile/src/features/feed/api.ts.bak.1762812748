@@ -41,6 +41,7 @@ export async function fetchFeed(opts?: { limit?: number; before?: string }) {
   }
 
   const { data, error } = await query;
+  console.log('🟢 feed rows from posts:', Array.isArray(data) ? data.length : 'nil');
   if (error) throw error;
   return (data ?? []) as FeedPost[];
 }

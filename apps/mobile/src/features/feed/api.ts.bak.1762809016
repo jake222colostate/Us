@@ -3,8 +3,7 @@ import { getSupabaseClient } from '../../api/supabase';
 export type FeedPost = {
   id: string;
   user_id: string;
-  photo_url: string;     // canonical
-  image_url?: string;    // legacy/readers that expect image_url
+  photo_url: string;
   created_at: string;
   profile?: {
     id: string;
@@ -18,21 +17,21 @@ export async function fetchFeed(opts?: { limit?: number; before?: string }) {
   const before = opts?.before;
   const client = getSupabaseClient();
 
-  // Return both `photo_url` and an alias `image_url` to satisfy any UI that reads either key.
   let query = client
     .from('posts')
-    .select(`
+    .select(
+      `
       id,
       user_id,
       photo_url,
-      image_url:photo_url,
       created_at,
       profile:profiles (
         id,
         display_name,
         avatar_url
       )
-    `)
+    `
+    )
     .order('created_at', { ascending: false })
     .limit(limit);
 

@@ -19,6 +19,11 @@ export function useFeedQuery() {
         viewerId: session.user.id,
         radiusKm,
       });
+      
+      
+      console.log('🟢 FEED HOOK posts length=', Array.isArray(posts) ? posts.length : posts, posts?.slice?.(0,3));
+console.log('🟢 FEED HOOK posts length=', Array.isArray(posts) ? posts.length : posts, posts?.slice?.(0,3));
+console.log("🧵 feed posts → count, first", Array.isArray(posts)?posts.length:-1, posts?.[0]);
 
       const filtered = posts.filter((post, index, arr) => {
         const prev = arr[index - 1];

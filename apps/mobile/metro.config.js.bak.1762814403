@@ -1,0 +1,23 @@
+const path = require('path');
+const { getDefaultConfig } = require('expo/metro-config');
+const { withExpoRouter } = require('expo-router/metro');
+
+module.exports = (async () => {
+  const projectRoot = __dirname;
+  const workspaceRoot = path.resolve(projectRoot, '../..');
+
+  const config = await getDefaultConfig(projectRoot);
+
+  // Make pnpm monorepo + @us/ui resolvable
+  config.watchFolders = [workspaceRoot];
+  config.resolver.nodeModulesPaths = [
+    path.resolve(projectRoot, 'node_modules'),
+    path.resolve(workspaceRoot, 'node_modules'),
+  ];
+  config.resolver.extraNodeModules = {
+    ...(config.resolver.extraNodeModules || {}),
+    '@us/ui': path.resolve(workspaceRoot, 'packages/ui'),
+  };
+
+  return withExpoRouter(config);
+})();

@@ -11,7 +11,7 @@ export async function createPost({ userId, photoUrl, caption }: CreatePostArgs):
   const client = getSupabaseClient();
   const { data, error } = await client
     .from('live_posts')
-    .insert({ user_id: userId, photo_url: photoUrl, live_expires_at: new Date(Date.now() + 24*60*60*1000).toISOString() })
+    .insert({ user_id: userId, photo_url: photoUrl })
     .select('*')
     .single();
 

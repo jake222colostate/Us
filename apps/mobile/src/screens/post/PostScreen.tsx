@@ -354,13 +354,7 @@ if (!session) {
       }
 
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      await createLivePost({
-        userId: session.user.id,
-        photoUrl: publicUrl,
-        liveExpiresAt: expiresAt,
-      });
-
-      await Promise.all([
+      await await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['feed'] }),
         queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
         queryClient.invalidateQueries({ queryKey: ['live-now'] }),

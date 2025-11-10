@@ -186,6 +186,8 @@ export default function FeedScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [liveItems, setLiveItems] = useState<LiveNowItem[]>([]);
+  const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
+  const [likingUserIds, setLikingUserIds] = useState<Set<string>>(new Set());
   const { show } = useToast();
   const currentUser = useAuthStore(selectCurrentUser);
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
@@ -322,18 +324,39 @@ export default function FeedScreen() {
         Alert.alert('Sign in required', 'Create an account to like profiles.');
         return;
       }
+      if (likedUserIds.has(targetId) || likingUserIds.has(targetId)) {
+        return;
+      }
+      setLikingUserIds((prev) => {
+        const next = new Set(prev);
+        next.add(targetId);
+        return next;
+      });
       try {
         const result = await likeUser(session.user.id, targetId);
+        setLikedUserIds((prev) => {
+          const next = new Set(prev);
+          next.add(targetId);
+          return next;
+        });
         if (result.matchCreated) {
           await fetchMatches(session.user.id);
           Alert.alert('It’s a match!', 'You both liked each other. Check your matches tab.');
+        } else {
+          show('Like sent!');
         }
       } catch (err) {
         console.error(err);
         Alert.alert('Unable to like', 'Please try again in a moment.');
+      } finally {
+        setLikingUserIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetId);
+          return next;
+        });
       }
     },
-    [session, fetchMatches],
+    [session, fetchMatches, likedUserIds, likingUserIds, show],
   );
 
   const refreshControl = (
@@ -416,6 +439,8 @@ export default function FeedScreen() {
             avatar={item.photo}
             photo={item.photo}
             onLike={() => handleLike(item.id)}
+            liked={likedUserIds.has(item.id)}
+            liking={likingUserIds.has(item.id)}
             onCompare={() =>
               navigation.navigate('Compare', {
                 profile: {

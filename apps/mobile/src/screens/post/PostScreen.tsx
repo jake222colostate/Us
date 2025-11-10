@@ -161,29 +161,6 @@ const PostScreen: React.FC = () => {
         
         show('Ready to upload. Tap Upload Photo.');
         return;
-if (!session) {
-          show('Sign in to share your moments to the feed.');
-          return;
-        }
-
-        try {
-          setIsPublishingPost(true);
-          await createPost({ userId: session!.user.id, photoUrl: outcome.photo?.url ?? '' });
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['feed'] }),
-            queryClient.invalidateQueries({ queryKey: ['profile-posts', session!.user.id] }),
-          ]);
-          if (finalStatus === 'approved') {
-            show('Photo posted! It is now live in the feed and on your profile.');
-          } else {
-            show('Photo submitted! It will appear once it is approved.');
-          }
-        } catch (postError) {
-          console.error('Failed to publish post', postError);
-          show('Photo uploaded, but we could not publish it. Please try again.');
-        } finally {
-          setIsPublishingPost(false);
-        }
       } catch (err) {
         console.error('Photo selection failed', err);
         show('Something went wrong while selecting your photo. Please try again.');
@@ -374,28 +351,6 @@ if (!session) {
 
   const currentPreview = hostedUri ?? previewUri;
   const showSpinner = isUploading || pendingSelection || isPublishingPost;
-  const handleUploadNow = useCallback(async () => {
-    if (!hostedUri) { show("Select a photo first."); return; }
-    if (!session) { show("Sign in to upload."); return; }
-    try {
-      setIsPublishingPost(true);
-      await createPost({ userId: session.user.id, photoUrl: hostedUri });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["feed"] }),
-        queryClient.invalidateQueries({ queryKey: ["profile-posts", session.user.id] }),
-      ]);
-      if (status === "approved") { show("Photo posted!"); } else { show("Photo submitted! It will appear once approved."); }
-      setPreviewUri(null); setHostedUri(null);
-      navigation.navigate("Feed" as never);
-    } catch (e) {
-      show("Could not publish post. Please try again.");
-    } finally {
-      setIsPublishingPost(false);
-    }
-  }, [hostedUri, session, status, queryClient, show, navigation]);
-
-
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -439,13 +394,13 @@ if (!session) {
             >
               <Text style={styles.buttonLabel}>Open Camera</Text>
             </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-              onPress={handleUploadNow}
-              disabled={showSpinner}
-            >
-              <Text style={styles.buttonLabel}>Pick from Library</Text>
-            </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+                onPress={() => handleSelect('library')}
+                disabled={showSpinner}
+              >
+                <Text style={styles.buttonLabel}>Pick from Library</Text>
+              </Pressable>
           </View>
         </View>
 

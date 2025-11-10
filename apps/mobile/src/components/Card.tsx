@@ -1,8 +1,9 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Pill from './Pill';
 import { useMemo } from 'react';
 import { useAppTheme, type AppPalette } from '../theme/palette';
+import { Ionicons } from '@expo/vector-icons';
 
 type Props = {
   name: string;
@@ -16,6 +17,8 @@ type Props = {
   onLike?: () => void;
   onQuiz?: () => void;
   hasQuiz?: boolean;
+  liked?: boolean;
+  liking?: boolean;
 };
 
 const createStyles = (palette: AppPalette) =>
@@ -80,9 +83,10 @@ const createStyles = (palette: AppPalette) =>
     },
     heartButton: {
       marginRight: 8,
-    },
-    heartIcon: {
-      fontSize: 22,
+      width: 32,
+      height: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     bio: {
       color: palette.textPrimary,
@@ -133,6 +137,8 @@ export default function Card({
   onLike,
   onQuiz,
   hasQuiz = true,
+  liked = false,
+  liking = false,
 }: Props) {
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -162,8 +168,21 @@ export default function Card({
 
       <View style={styles.body}>
         <View style={styles.metaRow}>
-          <TouchableOpacity accessibilityRole="button" style={styles.heartButton} onPress={onLike}>
-            <Text style={styles.heartIcon}>🤍</Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.heartButton}
+            onPress={onLike}
+            disabled={liking}
+          >
+            {liking ? (
+              <ActivityIndicator size="small" color="#f472b6" />
+            ) : (
+              <Ionicons
+                name={liked ? 'heart' : 'heart-outline'}
+                size={24}
+                color={liked ? '#f472b6' : palette.muted}
+              />
+            )}
           </TouchableOpacity>
           <Pill>{distanceMi ? `${distanceMi} mi` : 'New'}</Pill>
         </View>

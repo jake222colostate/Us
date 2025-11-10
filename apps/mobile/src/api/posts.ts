@@ -10,7 +10,13 @@ export type Post = {
 export async function createPost({ userId, photoUrl }: { userId: string; photoUrl: string }) {
   const client = getSupabaseClient();
   const { error } = await client.from('posts').insert({ user_id: userId, photo_url: photoUrl });
-  if (error) throw error;
+  if (error) {
+    if (error.code === '42P01' || /relation "posts" does not exist/i.test(error.message)) {
+      console.warn('posts table missing; skipping legacy insert');
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function listRecentPosts(limit = 50): Promise<Post[]> {

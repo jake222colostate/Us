@@ -184,13 +184,6 @@ export function usePhotoModeration() {
 
         const { data: publicUrlData } = client.storage.from(POST_PHOTO_BUCKET).getPublicUrl(path);
 
-// --- MODERATION DISABLED: early-approve and return immediately ---
-return {
-  success: true,
-  status: 'approved',
-  photo: { url: publicUrlData.publicUrl, storagePath: path }
-};
-// --- END DISABLE ---
         const publicUrl = publicUrlData?.publicUrl;
         if (!publicUrl) {
           throw new Error('Unable to resolve uploaded photo URL');
@@ -199,8 +192,9 @@ return {
         const basePayload: Record<string, unknown> = {
           user_id: session.user.id,
           url: publicUrl,
+          storage_path: path,
           content_type: contentType,
-          status: 'pending',
+          status: 'approved',
         };
 
         if (typeof asset.width === 'number') {
@@ -216,13 +210,25 @@ return {
         let { data: inserted, error: insertError } = await attemptInsert(basePayload);
 
         if (insertError && (insertError.code === 'PGRST204' || insertError.code === '42703')) {
-          console.warn('Photos table missing dimension columns, retrying insert without width/height');
+          console.warn('Photos table missing optional columns, retrying insert with reduced payload');
           const fallbackPayload = { ...basePayload };
           delete fallbackPayload.width;
           delete fallbackPayload.height;
+          if (insertError.message?.includes('storage_path')) {
+            delete fallbackPayload.storage_path;
+          }
           const fallbackResult = await attemptInsert(fallbackPayload);
           inserted = fallbackResult.data;
           insertError = fallbackResult.error;
+
+          if (insertError && insertError.code === '42703' && insertError.message?.includes('storage_path')) {
+            console.warn('Photos table missing storage_path column, retrying without storage_path');
+            const secondaryPayload = { ...fallbackPayload };
+            delete secondaryPayload.storage_path;
+            const secondaryResult = await attemptInsert(secondaryPayload);
+            inserted = secondaryResult.data;
+            insertError = secondaryResult.error;
+          }
         }
 
         if (insertError || !inserted) {

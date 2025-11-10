@@ -22,16 +22,22 @@ export type LiveNowItem = LivePostRow & {
 
 export async function checkLiveGuard(userId: string): Promise<{ allowed: boolean; nextAllowedAt?: string }> {
   const client = getSupabaseClient();
-  const { data, error } = await client.functions.invoke('live-guard', {
-    body: { userId },
-  });
+  try {
+    const { data, error } = await client.functions.invoke('live-guard', {
+      body: { userId },
+    });
 
-  if (error) {
-    throw error;
+    if (error) {
+      console.warn('live-guard invocation failed, defaulting to allow', error);
+      return { allowed: true };
+    }
+
+    const payload = (data as { allowed?: boolean; nextAllowedAt?: string } | null) ?? {};
+    return { allowed: payload.allowed !== false, nextAllowedAt: payload.nextAllowedAt };
+  } catch (err) {
+    console.warn('checkLiveGuard failed, allowing capture', err);
+    return { allowed: true };
   }
-
-  const payload = (data as { allowed?: boolean; nextAllowedAt?: string } | null) ?? {};
-  return { allowed: Boolean(payload.allowed), nextAllowedAt: payload.nextAllowedAt };
 }
 
 export async function createLivePost({

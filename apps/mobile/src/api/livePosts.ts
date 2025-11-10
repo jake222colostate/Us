@@ -1,36 +1,44 @@
-import { getSupabaseClient } from './supabase';
+import { getSupabaseClient } from '../api/supabase';
 
-type CreateLivePostArgs = { userId: string; photoUrl: string };
+export type LivePost = {
+  id: string;
+  user_id: string;
+  photo_url: string | null;
+  caption: string | null;
+  created_at: string;
+  live_expires_at: string | null;
+};
 
-/** Always allow in dev; you can reintroduce guards later */
-export async function checkLiveGuard(_userId: string) {
-  return { ok: true as const };
+export async function fetchCurrentLivePost(userId: string): Promise<LivePost | null> {
+  try {
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('live_posts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data ?? null;
+  } catch {
+    // If table/edge function isn't ready, don't crash the UI
+    return null;
+  }
 }
 
-/** Insert a Live Post directly into DB (bypasses Edge Function) */
-export async function createLivePost({ userId, photoUrl }: CreateLivePostArgs) {
-  const client = getSupabaseClient();
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-  const { data, error } = await client
-    .from('live_posts')
-    .insert({ user_id: userId, photo_url: photoUrl, live_expires_at: expiresAt })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-/** Fetch currently-live posts for the feed */
-export async function fetchLiveNow() {
-  const client = getSupabaseClient();
-  const { data, error } = await client
-    .from('live_posts')
-    .select('*')
-    .gt('live_expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data ?? [];
+export async function fetchLiveNow(): Promise<LivePost[]> {
+  try {
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('live_posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(25);
+    if (error) throw error;
+    return data ?? [];
+  } catch {
+    // Soft-fail: show no live items instead of throwing
+    return [];
+  }
 }

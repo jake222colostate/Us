@@ -30,10 +30,37 @@ create index if not exists photos_status_idx   on public.photos(status);
 create index if not exists matches_users_idx   on public.matches(user_a, user_b);
 create index if not exists profiles_verif_idx  on public.profiles(verification_status);
 
+create table if not exists public.posts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  photo_url text not null,
+  storage_path text,
+  caption text,
+  created_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+create table if not exists public.likes (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid references public.posts(id) on delete cascade,
+  from_user uuid not null references auth.users(id) on delete cascade,
+  to_user uuid not null references auth.users(id) on delete cascade,
+  kind text not null default 'post',
+  created_at timestamptz not null default now(),
+  constraint likes_unique_post unique (post_id, from_user, kind)
+);
+
+create index if not exists posts_user_id_idx on public.posts(user_id);
+create index if not exists posts_created_at_idx on public.posts(created_at desc);
+create index if not exists likes_post_id_idx on public.likes(post_id);
+create index if not exists likes_from_user_idx on public.likes(from_user);
+
 -- === RLS ===
 alter table public.profiles enable row level security;
 alter table public.photos   enable row level security;
 alter table public.matches  enable row level security;
+alter table public.posts    enable row level security;
+alter table public.likes    enable row level security;
 
 -- PROFILES: read all, update own
 do $$ begin
@@ -48,6 +75,48 @@ do $$ begin
   ) then
     create policy profiles_update_own on public.profiles
       for update using (auth.uid() = id) with check (auth.uid() = id);
+  end if;
+end $$;
+
+-- POSTS: anyone can read, owners can insert/delete
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='posts' and policyname='posts_select_all'
+  ) then
+    create policy posts_select_all on public.posts for select using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='posts' and policyname='posts_insert_own'
+  ) then
+    create policy posts_insert_own on public.posts for insert with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='posts' and policyname='posts_delete_own'
+  ) then
+    create policy posts_delete_own on public.posts for delete using (auth.uid() = user_id);
+  end if;
+end $$;
+
+-- LIKES: users can manage their own likes
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='likes' and policyname='likes_select_all'
+  ) then
+    create policy likes_select_all on public.likes for select using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='likes' and policyname='likes_insert_own'
+  ) then
+    create policy likes_insert_own on public.likes for insert with check (auth.uid() = from_user);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies where schemaname='public' and tablename='likes' and policyname='likes_delete_own'
+  ) then
+    create policy likes_delete_own on public.likes for delete using (auth.uid() = from_user);
   end if;
 end $$;
 

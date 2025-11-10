@@ -1,32 +1,19 @@
 import { useCallback, useState } from 'react';
-import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { Buffer } from 'buffer';
 import { getSupabaseClient } from '../api/supabase';
-import {
-  mapPhotoRow,
-  type PhotoRow,
-  POST_PHOTO_BUCKET,
-  type PhotoResource,
-  type ModerationStatus,
-} from '../lib/photos';
-import {
-  useAuthStore,
-  selectCurrentUser,
-  selectIsPremium,
-  selectSession,
-} from '../state/authStore';
-import { usePostQuotaStore } from '../state/postQuotaStore';
+import { POST_PHOTO_BUCKET, type PhotoResource, type ModerationStatus } from '../lib/photos';
+import { useAuthStore, selectSession, selectCurrentUser } from '../state/authStore';
 
-const FALLBACK_TYPE = Platform.OS === 'ios' ? 'image/jpeg' : 'image/jpg';
+const FALLBACK_TYPE = 'image/jpeg';
 
-type UploadPhotoArgs =
+export type UploadPhotoArgs =
   | { asset: ImagePickerAsset }
   | { uri: string; mimeType?: string | null; width?: number | null; height?: number | null };
 
-type UploadResult = {
+export type UploadResult = {
   success: boolean;
   status?: ModerationStatus;
   photo?: PhotoResource;
@@ -93,49 +80,13 @@ function ensureUuid(): string {
 export function usePhotoModeration() {
   const session = useAuthStore(selectSession);
   const user = useAuthStore(selectCurrentUser);
-  const upsertPhoto = useAuthStore((state) => state.upsertUserPhoto);
-  const removePhotoFromState = useAuthStore((state) => state.removeUserPhoto);
-  const setPhotos = useAuthStore((state) => state.setUserPhotos);
-  const isPremium = useAuthStore(selectIsPremium);
-  const { canPost, markPosted } = usePostQuotaStore((state) => ({
-    canPost: state.canPost,
-    markPosted: state.markPosted,
-  }));
   const [isUploading, setIsUploading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const loadPhotos = useCallback(async () => {
-    if (!session) return;
-    setIsRefreshing(true);
-    try {
-      const client = getSupabaseClient();
-      const { data, error: listError } = await client
-        .from('photos')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
-      if (listError) throw listError;
-      const mapped = await Promise.all(((data ?? []) as PhotoRow[]).map((row) => mapPhotoRow(row)));
-      setPhotos(mapped);
-    } catch (err) {
-      console.error(err);
-      setError('Unable to load photos from Supabase.');
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [session, setPhotos]);
 
   const uploadPhoto = useCallback(
     async (input: UploadPhotoArgs): Promise<UploadResult> => {
       if (!session) {
         setError('Sign in to upload photos.');
-        return { success: false };
-      }
-
-      const dailyLimit = isPremium ? 20 : 3;
-      if (!canPost(dailyLimit)) {
-        setError(`You reached your daily limit of ${dailyLimit} uploads. Upgrade to share more.`);
         return { success: false };
       }
 
@@ -148,214 +99,73 @@ export function usePhotoModeration() {
       setIsUploading(true);
       setError(null);
 
-      const contentType = guessContentType(asset);
-      const extension = contentType.split('/')[1] || 'jpg';
-      const path = `${session.user.id}/${ensureUuid()}.${extension}`;
-      const optimisticId = ensureUuid();
-
-      const optimisticPhoto: PhotoResource = {
-        id: optimisticId,
-        storagePath: path,
-        status: 'pending',
-        url: asset.uri,
-        contentType,
-        width: asset.width ?? null,
-        height: asset.height ?? null,
-        rejectionReason: null,
-        localUri: asset.uri,
-      };
-
-      upsertPhoto(optimisticPhoto);
-      let optimisticActive = true;
-
       try {
         const client = getSupabaseClient();
         const base64 = await FileSystem.readAsStringAsync(asset.uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
         const bytes = toBytes(base64);
+        const contentType = guessContentType(asset);
+        const extension = contentType.split('/')[1] || 'jpg';
+        const storagePath = `${session.user.id}/${ensureUuid()}.${extension}`;
 
         const { error: uploadError } = await client.storage
           .from(POST_PHOTO_BUCKET)
-          .upload(path, bytes, { contentType, upsert: false });
+          .upload(storagePath, bytes, { contentType, upsert: false });
         if (uploadError) {
           throw uploadError;
         }
 
-        const { data: publicUrlData } = client.storage.from(POST_PHOTO_BUCKET).getPublicUrl(path);
-
+        const { data: publicUrlData } = client.storage.from(POST_PHOTO_BUCKET).getPublicUrl(storagePath);
         const publicUrl = publicUrlData?.publicUrl;
         if (!publicUrl) {
           throw new Error('Unable to resolve uploaded photo URL');
         }
 
-        const basePayload: Record<string, unknown> = {
-          user_id: session.user.id,
-          url: publicUrl,
-          storage_path: path,
-          content_type: contentType,
+        const photo: PhotoResource = {
+          id: storagePath,
+          storagePath,
           status: 'approved',
+          url: publicUrl,
+          contentType,
+          width: asset.width ?? null,
+          height: asset.height ?? null,
+          rejectionReason: null,
+          localUri: asset.uri,
         };
-
-        if (typeof asset.width === 'number') {
-          basePayload.width = asset.width;
-        }
-        if (typeof asset.height === 'number') {
-          basePayload.height = asset.height;
-        }
-
-        const attemptInsert = (payload: Record<string, unknown>) =>
-          client.from('photos').insert(payload).select('*').single();
-
-        let { data: inserted, error: insertError } = await attemptInsert(basePayload);
-
-        if (insertError && (insertError.code === 'PGRST204' || insertError.code === '42703')) {
-          console.warn('Photos table missing optional columns, retrying insert with reduced payload');
-          const fallbackPayload = { ...basePayload };
-          delete fallbackPayload.width;
-          delete fallbackPayload.height;
-          if (insertError.message?.includes('storage_path')) {
-            delete fallbackPayload.storage_path;
-          }
-          const fallbackResult = await attemptInsert(fallbackPayload);
-          inserted = fallbackResult.data;
-          insertError = fallbackResult.error;
-
-          if (insertError && insertError.code === '42703' && insertError.message?.includes('storage_path')) {
-            console.warn('Photos table missing storage_path column, retrying without storage_path');
-            const secondaryPayload = { ...fallbackPayload };
-            delete secondaryPayload.storage_path;
-            const secondaryResult = await attemptInsert(secondaryPayload);
-            inserted = secondaryResult.data;
-            insertError = secondaryResult.error;
-          }
-        }
-
-        if (insertError || !inserted) {
-          await client.storage.from(POST_PHOTO_BUCKET).remove([path]).catch(() => undefined);
-          throw insertError ?? new Error('Unable to insert uploaded photo record');
-        }
-
-        if (optimisticActive) {
-          removePhotoFromState(optimisticId);
-          optimisticActive = false;
-        }
-
-        const mapped = await mapPhotoRow(inserted as PhotoRow);
-        const nextPhoto: PhotoResource = { ...mapped, localUri: asset.uri };
-        upsertPhoto(nextPhoto);
-        markPosted();
-
-        let finalStatus: ModerationStatus | undefined = nextPhoto.status;
-        try {
-          const { data: moderationData, error: moderationError } = await client.functions.invoke('moderate-photo', {
-            body: { photoId: inserted.id, userId: session.user.id, publicUrl },
-          });
-          if (moderationError) {
-            console.warn('moderate-photo invocation failed', moderationError);
-          } else if (moderationData?.status) {
-            finalStatus = moderationData.status as ModerationStatus;
-            if (finalStatus && finalStatus !== nextPhoto.status) {
-              upsertPhoto({ ...nextPhoto, status: finalStatus });
-            }
-          }
-        } catch (invokeError) {
-          console.warn('Failed to invoke moderation function', invokeError);
-        }
 
         return {
           success: true,
-          status: finalStatus ?? nextPhoto.status,
-          photo: { ...nextPhoto, status: finalStatus ?? nextPhoto.status },
+          status: 'approved',
+          photo,
         };
       } catch (err) {
         console.error(err);
-        if (optimisticActive) {
-          removePhotoFromState(optimisticId);
-        }
         setError('Upload failed. Try again when you are back online.');
-        try {
-          const client = getSupabaseClient();
-          await client.storage.from(POST_PHOTO_BUCKET).remove([path]);
-        } catch (cleanupError) {
-          console.warn('Failed to clean up storage upload', cleanupError);
-        }
         return { success: false };
       } finally {
         setIsUploading(false);
       }
     },
-    [session, isPremium, canPost, upsertPhoto, removePhotoFromState, markPosted],
+    [session],
   );
 
-  const refreshPhoto = useCallback(
-    async (photoId: string) => {
-      if (!session) return;
-      setIsRefreshing(true);
-      try {
-        const client = getSupabaseClient();
-        const { data, error: refreshError } = await client
-          .from('photos')
-          .select('*')
-          .eq('id', photoId)
-          .single();
-        if (refreshError || !data) throw refreshError ?? new Error('Missing photo');
-        const mapped = await mapPhotoRow(data as PhotoRow);
-        upsertPhoto(mapped);
-      } catch (err) {
-        console.error(err);
-        setError('Could not refresh moderation status.');
-      } finally {
-        setIsRefreshing(false);
-      }
-    },
-    [session, upsertPhoto],
-  );
-
-  const removePhoto = useCallback(
-    async (photoId: string) => {
-      if (!session) return;
-      const client = getSupabaseClient();
-      const photo = user?.photos.find((item) => item.id === photoId);
-      removePhotoFromState(photoId);
-      try {
-        if (photo?.storagePath) {
-          await client.storage.from(POST_PHOTO_BUCKET).remove([photo.storagePath]);
-        }
-        await client.from('photos').delete().eq('id', photoId);
-      } catch (err) {
-        console.error(err);
-        setError('Photo removed locally. It will sync once back online.');
-      }
-    },
-    [session, user?.photos, removePhotoFromState],
-  );
-
-  const retryModeration = useCallback(
-    async (photoId: string) => {
-      console.warn('Manual moderation retry is not supported. Refreshing photo instead.');
-      await refreshPhoto(photoId);
-    },
-    [refreshPhoto],
-  );
-
-  const approvePhoto = useCallback(async () => {
-    setError('Manual approval is no longer supported.');
-  }, []);
+  const noopAsync = useCallback(async () => undefined, []);
+  const noop = useCallback(() => undefined, []);
 
   const clearError = useCallback(() => setError(null), []);
 
   return {
     user,
     isUploading,
-    isRefreshing,
+    isRefreshing: false,
     error,
     uploadPhoto,
-    refreshPhoto,
-    retryModeration,
-    approvePhoto,
-    removePhoto,
-    loadPhotos,
+    refreshPhoto: noopAsync,
+    retryModeration: noopAsync,
+    approvePhoto: noopAsync,
+    removePhoto: noopAsync,
+    loadPhotos: noopAsync,
     clearError,
   };
 }

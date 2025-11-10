@@ -17,13 +17,7 @@ export const FeedScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
 
-  const posts = useMemo(() => {
-    const items = data?.pages.flatMap((page) => page.posts) ?? [];
-    return items.filter((post, index) => {
-      const prev = items[index - 1];
-      return !prev || prev.user_id !== post.user_id;
-    });
-  }, [data]);
+  const posts = useMemo(() => data?.pages.flatMap((page) => page.posts) ?? [], [data]);
 
   const onEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -68,7 +62,7 @@ export const FeedScreen: React.FC = () => {
         renderItem={({ item }) => (
           <FeedCard
             post={item}
-            distanceText={item.profile?.radius_km ? `${item.profile?.radius_km} km away` : undefined}
+            distanceText={undefined}
             onOpenProfile={() => navigation.navigate('Profile', { screen: 'ProfileDetail', params: { userId: item.user_id } })}
           />
         )}

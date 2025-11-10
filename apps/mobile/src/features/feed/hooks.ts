@@ -21,18 +21,8 @@ export function useFeedQuery() {
       });
       
       
-      console.log('🟢 FEED HOOK posts length=', Array.isArray(posts) ? posts.length : posts, posts?.slice?.(0,3));
-console.log('🟢 FEED HOOK posts length=', Array.isArray(posts) ? posts.length : posts, posts?.slice?.(0,3));
-console.log("🧵 feed posts → count, first", Array.isArray(posts)?posts.length:-1, posts?.[0]);
-
-      const filtered = posts.filter((post, index, arr) => {
-        const prev = arr[index - 1];
-        if (!prev) return true;
-        return prev.user_id !== post.user_id;
-      });
-
       return {
-        posts: filtered,
+        posts,
         nextOffset: posts.length === PAGE_SIZE ? pageParam + PAGE_SIZE : null,
       };
     },

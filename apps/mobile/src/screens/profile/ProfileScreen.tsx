@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,92 +8,92 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  Platform,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getSupabaseClient } from '../../api/supabase';
-
-/** Load this user's post photos for profile grid */
-const loadMyPosts = React.useCallback(async (uid: string) => {
-  const client = getSupabaseClient();
-  const { data, error } = await client
-    .from('posts')
-    .select('id, photo_url, created_at')
-    .eq('user_id', uid)
-    .order('created_at', { ascending: false });
-  if (!error && Array.isArray(data)) setMyPosts(data);
-}, []);
-
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { usePhotoModeration } from '../../hooks/usePhotoModeration';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { listUserPosts, deletePost, type Post } from '../../api/posts';
 import { selectCurrentUser, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
-import { deleteLivePost, fetchCurrentLivePost, type LivePostRow } from '../../api/livePosts';
-import LiveCountdown from '../../components/LiveCountdown';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 const PLACEHOLDER_BIO = 'Share a short bio so matches know a little about you.';
 
-const ProfileScreen: React.FC = () => {
-  const [myPosts, setMyPosts] = React.useState<Array<{ id: string; photo_url: string; created_at: string }>>([]);
+export type ProfilePost = Post;
 
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
+
+type DeletePayload = { postId: string; photoUrl?: string | null };
+
+const keyExtractor = (item: ProfilePost) => item.id;
+
+const ProfileScreen: React.FC = () => {
+  const user = useAuthStore(selectCurrentUser);
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const user = useAuthStore(selectCurrentUser);
-  const { isUploading, loadPhotos, removePhoto, error } = usePhotoModeration();
+  const navigation = useNavigation<Navigation>();
   const { show } = useToast();
-  const handledRejections = useRef<Set<string>>(new Set());
-  const [livePost, setLivePost] = React.useState<LivePostRow | null>(null);
-  const [isDeletingLive, setIsDeletingLive] = React.useState(false);
-  const [removingPhotoIds, setRemovingPhotoIds] = useState<Set<string>>(new Set());
+  const queryClient = useQueryClient();
+  const [removingPostIds, setRemovingPostIds] = useState<Set<string>>(new Set());
+
+  const {
+    data: postsData,
+    isLoading: isLoadingPosts,
+    refetch,
+  } = useQuery({
+    queryKey: ['profile-posts', user?.id],
+    enabled: Boolean(user?.id),
+    queryFn: async () => {
+      if (!user?.id) return [] as Post[];
+      return listUserPosts(user.id);
+    },
+  });
 
   useFocusEffect(
     useCallback(() => {
-      loadPhotos().catch((err) => console.warn('Failed to load profile photos', err));
-      if (user?.id) {
-        fetchCurrentLivePost(user.id)
-          .then((post) => setLivePost(post))
-          .catch((err) => {
-            console.warn('Failed to load live post', err);
-            setLivePost(null);
-          });
-      } else {
-        setLivePost(null);
-      }
-    }, [loadPhotos, user?.id]),
+      if (!user?.id) return;
+      refetch().catch(() => undefined);
+    }, [refetch, user?.id]),
   );
 
-  React.useEffect(() => {
-    if (!user?.photos?.length) {
-      return;
-    }
-    user.photos
-      .filter((photo) => photo.status === 'rejected')
-      .forEach((photo) => {
-        if (!handledRejections.current.has(photo.id)) {
-          handledRejections.current.add(photo.id);
-          show('A photo was rejected by moderation. Please choose another.');
-          removePhoto(photo.id).catch((err) => console.warn('Failed to delete rejected photo', err));
-        }
+  const posts = postsData ?? [];
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({ postId, photoUrl }: DeletePayload) => {
+      await deletePost({ postId, photoUrl });
+    },
+    onMutate: async ({ postId }) => {
+      setRemovingPostIds((prev) => {
+        const next = new Set(prev);
+        next.add(postId);
+        return next;
       });
-  }, [user?.photos, removePhoto, show]);
+    },
+    onError: () => {
+      show('Unable to remove this photo. Please try again.');
+    },
+    onSuccess: (_data, variables) => {
+      const ownerId = user?.id;
+      queryClient.setQueryData<Post[] | undefined>(['profile-posts', ownerId], (current) => {
+        if (!current) return current;
+        return current.filter((post) => post.id !== variables.postId);
+      });
+      queryClient.invalidateQueries({ queryKey: ['feed'] }).catch(() => undefined);
+      show('Photo removed.');
+    },
+    onSettled: (_data, _error, variables) => {
+      setRemovingPostIds((prev) => {
+        const next = new Set(prev);
+        next.delete(variables.postId);
+        return next;
+      });
+    },
+  });
 
-  const approvedPhotos = React.useMemo(
-    () =>
-      (user?.photos ?? []).filter((photo) => photo.status === 'approved' && (photo.url || photo.localUri)),
-    [user?.photos],
-  );
-
-  const pendingCount = React.useMemo(
-    () => (user?.photos ?? []).filter((photo) => photo.status === 'pending').length,
-    [user?.photos],
-  );
-
-  const displayName = user?.name?.trim().length ? user.name.trim() : 'Your profile';
+  const displayName = user?.name?.trim() ? user.name.trim() : 'Your profile';
   const initials = displayName
     .split(' ')
     .filter(Boolean)
@@ -101,37 +101,22 @@ const ProfileScreen: React.FC = () => {
     .join('')
     .slice(0, 2);
 
-  const avatarUri = user?.avatar ?? approvedPhotos[0]?.url ?? approvedPhotos[0]?.localUri ?? null;
+  const avatarUri = user?.avatar ?? posts[0]?.photo_url ?? null;
   const bioCopy = user?.bio?.trim().length ? user.bio.trim() : PLACEHOLDER_BIO;
 
-  const handleDeleteLive = useCallback(() => {
-    if (!livePost) {
-      return;
-    }
-
-    Alert.alert('Remove 1-hour post?', 'This will immediately remove your current spotlight.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          setIsDeletingLive(true);
-          void deleteLivePost(livePost.id)
-            .then(() => {
-              setLivePost(null);
-              show('Your 1-hour post was removed.');
-            })
-            .catch((err) => {
-              console.error('Failed to delete 1-hour post', err);
-              show('Unable to remove your 1-hour post. Please try again.');
-            })
-            .finally(() => {
-              setIsDeletingLive(false);
-            });
+  const handleDeletePost = useCallback(
+    (post: ProfilePost) => {
+      Alert.alert('Remove photo?', 'This will delete the photo from your profile and feed.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => deleteMutation.mutate({ postId: post.id, photoUrl: post.photo_url }),
         },
-      },
-    ]);
-  }, [livePost, show]);
+      ]);
+    },
+    [deleteMutation],
+  );
 
   if (!user) {
     return (
@@ -142,9 +127,27 @@ const ProfileScreen: React.FC = () => {
     );
   }
 
+  const renderPost = ({ item }: { item: ProfilePost }) => {
+    const isRemoving = removingPostIds.has(item.id);
+    return (
+      <View style={[styles.photoItem, isRemoving && styles.photoItemRemoving]}>
+        <Image source={{ uri: item.photo_url }} style={styles.photo} />
+        <Pressable
+          accessibilityLabel="Delete photo"
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.photoDeleteButton, pressed && styles.photoDeleteButtonPressed]}
+          onPress={() => handleDeletePost(item)}
+          disabled={isRemoving}
+        >
+          {isRemoving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.photoDeleteIcon}>×</Text>}
+        </Pressable>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <View style={styles.avatarWrapper}>
             {avatarUri ? (
@@ -154,37 +157,14 @@ const ProfileScreen: React.FC = () => {
                 <Text style={styles.avatarPlaceholderText}>{initials || '😊'}</Text>
               </View>
             )}
-            {livePost ? (
-              <Pressable
-                accessibilityLabel="Remove 1-hour post"
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.liveRemoveChip,
-                  pressed && styles.buttonPressed,
-                  isDeletingLive && styles.liveActionDisabled,
-                ]}
-                onPress={handleDeleteLive}
-                disabled={isDeletingLive}
-              >
-                {isDeletingLive ? (
-                  <ActivityIndicator color="#ffffff" size="small" />
-                ) : (
-                  <Text style={styles.liveRemoveIcon}>×</Text>
-                )}
-              </Pressable>
-            ) : null}
-            {livePost ? (
-              <View style={styles.liveBadge}>
-                <Text style={styles.liveBadgeLabel}>1 hr</Text>
-                <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveBadgeCountdown} />
-              </View>
-            ) : null}
           </View>
           <View style={styles.headerText}>
             <Text style={styles.displayName}>{displayName}</Text>
             {user.email ? <Text style={styles.email}>{user.email}</Text> : null}
           </View>
         </View>
+
+        <Text style={styles.bio}>{bioCopy}</Text>
 
         <View style={styles.buttonRow}>
           <Pressable
@@ -199,121 +179,22 @@ const ProfileScreen: React.FC = () => {
             style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
             onPress={() => navigation.navigate('MyQuizBuilder')}
           >
-            <Text style={styles.secondaryButtonLabel}>Create Quiz</Text>
+            <Text style={styles.secondaryButtonLabel}>Edit Quiz</Text>
           </Pressable>
         </View>
-
-        <View style={styles.liveCard}>
-          <Text style={styles.liveCardTitle}>1-hour spotlight</Text>
-          <Text style={styles.liveCardCopy}>
-            Capture what you’re doing right now to stay featured for the next 60 minutes. Available once per day.
-          </Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.liveActionButton,
-              (Platform.OS !== 'ios' || isUploading) && styles.liveActionDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={() => navigation.navigate('MainTabs', { screen: 'Post' })}
-            disabled={Platform.OS !== 'ios' || isUploading}
-          >
-            <Text style={styles.liveActionLabel}>
-              {Platform.OS === 'ios' ? 'Post for 1 hour' : '1-hour posts are iOS-only'}
-            </Text>
-          </Pressable>
-            {livePost ? (
-              <>
-                <View style={styles.liveStatusRow}>
-                  <Text style={styles.liveStatusLabel}>Live for another</Text>
-                  <LiveCountdown expiresAt={livePost.live_expires_at} style={styles.liveStatusCountdown} />
-                </View>
-                <Text style={styles.liveStatusHint}>Tap the × on your photo to remove it early.</Text>
-              </>
-            ) : (
-              <Text style={styles.liveStatusInactive}>You are not featured right now.</Text>
-            )}
-        </View>
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bio</Text>
-          <Text style={styles.sectionBody}>{bioCopy}</Text>
-        </View>
-
-        {pendingCount > 0 ? (
-          <View style={styles.noticeBox}>
-            <Text style={styles.noticeText}>
-              {pendingCount === 1
-                ? '1 photo is pending review.'
-                : `${pendingCount} photos are pending review.`}
-            </Text>
-          </View>
-        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>
-          {approvedPhotos.length ? (
+          {isLoadingPosts ? (
+            <ActivityIndicator color={palette.textPrimary} style={styles.photosLoader} />
+          ) : posts.length ? (
             <FlatList
-              data={approvedPhotos}
-              keyExtractor={(item) => item.id}
+              data={posts}
+              keyExtractor={keyExtractor}
               numColumns={3}
               scrollEnabled={false}
               columnWrapperStyle={styles.photoRow}
-              renderItem={({ item }) => {
-                const isRemoving = removingPhotoIds.has(item.id);
-                const handleRemove = () => {
-                  Alert.alert('Remove photo?', 'This will delete the photo from your profile.', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Remove',
-                      style: 'destructive',
-                      onPress: () => {
-                        setRemovingPhotoIds((prev) => {
-                          const next = new Set(prev);
-                          next.add(item.id);
-                          return next;
-                        });
-                        removePhoto(item.id)
-                          .then(() => {
-                            show('Photo removed.');
-                          })
-                          .catch((err) => {
-                            console.error('Failed to remove photo', err);
-                            show('Unable to remove this photo. Please try again.');
-                          })
-                          .finally(() => {
-                            setRemovingPhotoIds((prev) => {
-                              const next = new Set(prev);
-                              next.delete(item.id);
-                              return next;
-                            });
-                          });
-                      },
-                    },
-                  ]);
-                };
-                return (
-                  <View style={[styles.photoItem, isRemoving && styles.photoItemRemoving]}>
-                    <Image source={{ uri: item.url ?? item.localUri ?? '' }} style={styles.photo} />
-                    <Pressable
-                      accessibilityRole="button"
-                      style={({ pressed }) => [
-                        styles.photoDeleteButton,
-                        pressed && styles.photoDeleteButtonPressed,
-                      ]}
-                      onPress={handleRemove}
-                      disabled={isRemoving}
-                    >
-                      {isRemoving ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text style={styles.photoDeleteIcon}>×</Text>
-                      )}
-                    </Pressable>
-                  </View>
-                );
-              }}
+              renderItem={renderPost}
               ListFooterComponent={<View style={styles.photoFooterSpacer} />}
             />
           ) : (
@@ -334,6 +215,7 @@ function createStyles(palette: AppPalette) {
     content: {
       paddingHorizontal: 20,
       paddingVertical: 24,
+      gap: 20,
     },
     loadingContainer: {
       flex: 1,
@@ -349,7 +231,6 @@ function createStyles(palette: AppPalette) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 16,
-      marginBottom: 24,
     },
     avatarWrapper: {
       position: 'relative',
@@ -374,50 +255,6 @@ function createStyles(palette: AppPalette) {
       fontSize: 24,
       fontWeight: '700',
     },
-    liveBadge: {
-      position: 'absolute',
-      bottom: -4,
-      right: -10,
-      backgroundColor: '#ef4444',
-      borderRadius: 999,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 6,
-    },
-    liveBadgeLabel: {
-      color: '#fff',
-      fontWeight: '700',
-      fontSize: 12,
-    },
-      liveBadgeCountdown: {
-        color: '#fff',
-        fontSize: 12,
-        fontVariant: ['tabular-nums'],
-      },
-      liveRemoveChip: {
-        position: 'absolute',
-        top: -10,
-        right: -10,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#111827',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 4,
-      },
-      liveRemoveIcon: {
-        color: '#ffffff',
-        fontSize: 20,
-        fontWeight: '700',
-        lineHeight: 20,
-      },
     headerText: {
       flex: 1,
       gap: 4,
@@ -430,10 +267,13 @@ function createStyles(palette: AppPalette) {
     email: {
       color: palette.textSecondary,
     },
+    bio: {
+      color: palette.textSecondary,
+      lineHeight: 20,
+    },
     buttonRow: {
       flexDirection: 'row',
       gap: 12,
-      marginBottom: 12,
     },
     primaryButton: {
       flex: 1,
@@ -463,88 +303,16 @@ function createStyles(palette: AppPalette) {
     buttonPressed: {
       opacity: 0.85,
     },
-    liveCard: {
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.card,
-      borderRadius: 16,
-      padding: 16,
-      gap: 12,
-      marginBottom: 24,
-    },
-    liveCardTitle: {
-      color: palette.textPrimary,
-      fontSize: 18,
-      fontWeight: '700',
-    },
-    liveCardCopy: {
-      color: palette.textSecondary,
-      lineHeight: 20,
-    },
-    liveActionButton: {
-      backgroundColor: palette.accent,
-      borderRadius: 12,
-      paddingVertical: 12,
-      alignItems: 'center',
-    },
-    liveActionDisabled: {
-      opacity: 0.6,
-    },
-      liveActionLabel: {
-        color: '#fff',
-        fontWeight: '700',
-      },
-      liveStatusRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: 12,
-      },
-      liveStatusLabel: {
-        color: palette.textSecondary,
-        fontWeight: '600',
-      },
-      liveStatusCountdown: {
-        color: palette.textPrimary,
-        fontWeight: '700',
-        fontVariant: ['tabular-nums'],
-      },
-      liveStatusHint: {
-        marginTop: 12,
-        color: palette.textSecondary,
-        fontSize: 13,
-      },
-      liveStatusInactive: {
-        color: palette.textSecondary,
-        fontStyle: 'italic',
-      },
-    errorText: {
-      color: palette.danger,
-      marginBottom: 16,
-    },
     section: {
-      marginBottom: 24,
-      gap: 8,
+      gap: 16,
     },
     sectionTitle: {
       color: palette.textPrimary,
       fontSize: 18,
       fontWeight: '700',
     },
-    sectionBody: {
-      color: palette.textSecondary,
-      lineHeight: 20,
-    },
-    noticeBox: {
-      padding: 12,
-      borderRadius: 12,
-      backgroundColor: palette.card,
-      borderWidth: 1,
-      borderColor: palette.border,
-      marginBottom: 24,
-    },
-    noticeText: {
-      color: palette.textSecondary,
+    photosLoader: {
+      paddingVertical: 12,
     },
     photoRow: {
       justifyContent: 'space-between',
@@ -556,6 +324,7 @@ function createStyles(palette: AppPalette) {
       borderRadius: 16,
       overflow: 'hidden',
       position: 'relative',
+      backgroundColor: palette.surface,
     },
     photoItemRemoving: {
       opacity: 0.6,

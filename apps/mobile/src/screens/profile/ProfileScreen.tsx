@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getSupabaseClient } from '../../api/supabase';
-import { const [myPosts, setMyPosts] = useState<Array<{ id: string; photo_url: string; created_at: string }>>([]);
 
 /** Load this user's post photos for profile grid */
 const loadMyPosts = React.useCallback(async (uid: string) => {
@@ -26,7 +25,6 @@ const loadMyPosts = React.useCallback(async (uid: string) => {
   if (!error && Array.isArray(data)) setMyPosts(data);
 }, []);
 
-useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
 import { selectCurrentUser, useAuthStore } from '../../state/authStore';
@@ -35,10 +33,13 @@ import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
 import { deleteLivePost, fetchCurrentLivePost, type LivePostRow } from '../../api/livePosts';
 import LiveCountdown from '../../components/LiveCountdown';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 const PLACEHOLDER_BIO = 'Share a short bio so matches know a little about you.';
 
 const ProfileScreen: React.FC = () => {
+  const [myPosts, setMyPosts] = React.useState<Array<{ id: string; photo_url: string; created_at: string }>>([]);
+
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -146,7 +147,7 @@ const ProfileScreen: React.FC = () => {
         <View style={styles.headerRow}>
           <View style={styles.avatarWrapper}>
             {avatarUri ? (
-              <Image source={{ uri: p.photo_url }} style={styles.avatar} />
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarPlaceholderText}>{initials || '😊'}</Text>

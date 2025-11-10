@@ -1,23 +1,37 @@
 import { getSupabaseClient } from './supabase';
-import type { Post } from '@us/types';
 
-export type CreatePostArgs = {
-  userId: string;
-  photoUrl: string;
-  caption?: string | null;
+export type Post = {
+  id: string;
+  user_id: string;
+  photo_url: string;
+  created_at: string;
 };
 
-export async function createPost({ userId, photoUrl, caption }: CreatePostArgs): Promise<Post> {
+export async function createPost({ userId, photoUrl }: { userId: string; photoUrl: string }) {
+  const client = getSupabaseClient();
+  const { error } = await client.from('posts').insert({ user_id: userId, photo_url: photoUrl });
+  if (error) throw error;
+}
+
+export async function listRecentPosts(limit = 50): Promise<Post[]> {
   const client = getSupabaseClient();
   const { data, error } = await client
     .from('posts')
-    .insert({ user_id: userId, photo_url: photoUrl, caption: caption ?? null })
-    .select('*')
-    .single();
+    .select('id,user_id,photo_url,created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
 
-  if (error || !data) {
-    throw error ?? new Error('Unable to create post');
-  }
-
-  return data as Post;
+export async function listUserPosts(userId: string, limit = 50): Promise<Post[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await client
+    .from('posts')
+    .select('id,user_id,photo_url,created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
 }

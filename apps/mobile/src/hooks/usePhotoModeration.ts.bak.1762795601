@@ -183,14 +183,6 @@ export function usePhotoModeration() {
         }
 
         const { data: publicUrlData } = client.storage.from(POST_PHOTO_BUCKET).getPublicUrl(path);
-
-// --- MODERATION DISABLED: early-approve and return immediately ---
-return {
-  success: true,
-  status: 'approved',
-  photo: { url: publicUrlData.publicUrl, storagePath: path }
-};
-// --- END DISABLE ---
         const publicUrl = publicUrlData?.publicUrl;
         if (!publicUrl) {
           throw new Error('Unable to resolve uploaded photo URL');

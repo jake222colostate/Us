@@ -25,6 +25,7 @@ export type PhotoResource = {
 };
 
 export const PROFILE_PHOTO_BUCKET = 'profile-photos';
+export const POST_PHOTO_BUCKET = 'post-photos';
 
 export async function createSignedPhotoUrl(
   storagePath: string | null,

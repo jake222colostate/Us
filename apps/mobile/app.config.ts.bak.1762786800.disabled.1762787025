@@ -1,0 +1,19 @@
+import baseConfig from './app.config.base.ts';
+
+const PROJECT_ID = '3ea68b38-55da-42b5-b8b3-605c9fdb9332';
+
+export default (...args: any[]) => {
+  const base = (typeof baseConfig === 'function') ? (baseConfig as any)(...args) : (baseConfig as any);
+  const extra = (base && (base as any).extra) ? (base as any).extra : {};
+  const eas = (extra as any).eas ? (extra as any).eas : {};
+  return {
+    ...base,
+    extra: {
+      ...extra,
+      eas: {
+        ...eas,
+        projectId: PROJECT_ID,
+      },
+    },
+  };
+};

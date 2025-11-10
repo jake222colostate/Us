@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { ThemeProvider, DarkTheme, DefaultTheme } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -152,7 +152,7 @@ export default function RootNavigator() {
   return (
     <>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <ThemeProvider value={navigationTheme}>
+      <NavigationContainer theme={navigationTheme}>
       {isAuthenticated ? (
         <RootStack.Navigator
           key={navKey}
@@ -255,7 +255,7 @@ export default function RootNavigator() {
       ) : (
         <AuthStackNavigator />
       )}
-      </ThemeProvider>
+      </NavigationContainer>
     </>
   );
 }

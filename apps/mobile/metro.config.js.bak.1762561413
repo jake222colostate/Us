@@ -1,0 +1,26 @@
+const path = require('path');
+const { getDefaultConfig } = require('expo/metro-config');
+
+const projectRoot = __dirname;
+const workspaceRoot = path.resolve(projectRoot, '..', '..');
+
+// Build a default config for the app
+const config = getDefaultConfig(projectRoot);
+
+// Watch the monorepo root so Metro can hash files referenced outside mobile/
+config.watchFolders = [workspaceRoot];
+
+// pnpm + monorepo friendly resolution
+config.resolver.unstable_enableSymlinks = true;
+config.resolver.nodeModulesPaths = [
+  path.join(projectRoot, 'node_modules'),
+  path.join(workspaceRoot, 'node_modules'),
+];
+
+// Optionally also watch a PNPM store if provided via env
+const pnpmStore = process.env.PNPM_STORE_PATH || '/workspace/.pnpm-store';
+if (pnpmStore) {
+  config.watchFolders.push(pnpmStore);
+}
+
+module.exports = config;

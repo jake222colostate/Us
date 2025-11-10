@@ -84,7 +84,7 @@ export const LikesScreen: React.FC = () => {
                     heart.post?.photo_url ? (
                       <Image
                         key={heart.id}
-                        source={{ uri: heart.post.photo_url }}
+                        source={{ uri: heart.post.photo_url ?? '' }}
                         style={styles.thumbnail}
                         contentFit="cover"
                       />

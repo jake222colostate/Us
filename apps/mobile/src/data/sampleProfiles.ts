@@ -1,4 +1,4 @@
-import type { ModerationStatus, VerificationStatus } from '@us/api-client';
+import type { ModerationStatus, VerificationStatus } from '@us/types';
 
 export type ModeratedPhoto = {
   id: string;
@@ -32,7 +32,7 @@ export type SampleUser = {
   avatar: string;
   bio: string;
   interests: string[];
-  verificationStatus: VerificationStatus;
+  verificationStatus: VerificationStatus | 'unverified';
   photos: ModeratedPhoto[];
 };
 

@@ -11,12 +11,22 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 
+type ComparePhotosParamList = {
+  ComparePhotos:
+    | {
+        viewerImageUri?: string | null;
+        viewerName?: string | null;
+        profileImageUri?: string | null;
+        profileName?: string | null;
+      }
+    | undefined;
+};
+
 export type ComparePhotosScreenProps = NativeStackScreenProps<
-  RootStackParamList,
+  ComparePhotosParamList,
   'ComparePhotos'
 >;
 
@@ -24,7 +34,11 @@ export const ComparePhotosScreen: React.FC<ComparePhotosScreenProps> = ({
   navigation,
   route,
 }) => {
-  const { viewerImageUri, viewerName, profileImageUri, profileName } = route.params;
+  const params = route.params ?? {};
+  const viewerImageUri = params.viewerImageUri ?? '';
+  const viewerName = params.viewerName ?? '';
+  const profileImageUri = params.profileImageUri ?? '';
+  const profileName = params.profileName ?? '';
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 

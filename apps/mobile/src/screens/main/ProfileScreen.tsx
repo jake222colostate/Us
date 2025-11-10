@@ -38,7 +38,7 @@ export const ProfileScreen: React.FC = () => {
       </Text>
       <View style={styles.grid}>
         {posts.map((post) => (
-          <Image key={post.id} source={{ uri: post.photo_url }} style={styles.gridImage} />
+          <Image key={post.id} source={{ uri: post.photo_url ?? '' }} style={styles.gridImage} />
         ))}
       </View>
       <Button label="View Legal" variant="ghost" onPress={() => navigation.navigate('Legal')} />

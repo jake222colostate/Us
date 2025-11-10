@@ -6,13 +6,15 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 type Props = NativeStackScreenProps<RootStackParamList, 'Compare'>;
 
 export default function CompareScreen({ route }: Props) {
-  const { leftUri, rightUri } = route.params || {};
+  const params = route.params ?? {};
+  const leftUri = params.leftUri ?? params.leftPhoto ?? null;
+  const rightUri = params.rightUri ?? params.rightPhoto ?? null;
   const { width } = useWindowDimensions();
   const vertical = width < 700;
 
   const Item = ({ uri }: { uri?: string }) => (
     <Image
-      source={{ uri }}
+      source={{ uri: uri ?? '' }}
       style={{
         width: vertical ? width - 24 : (width - 48) / 2,
         height: vertical ? (width - 24) * 1.2 : ((width - 48) / 2) * 1.2,
@@ -31,8 +33,8 @@ export default function CompareScreen({ route }: Props) {
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-        <Item uri={leftUri} />
-        <Item uri={rightUri} />
+        <Item uri={leftUri ?? undefined} />
+        <Item uri={rightUri ?? undefined} />
       </View>
     </ScrollView>
   );

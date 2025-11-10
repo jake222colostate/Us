@@ -7,6 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchProfile } from '../../features/profile/api';
 import { supabase } from '../../api/supabase';
 
+type EditProfileFormValues = { display_name: string; bio: string };
+
 export const EditProfileScreen: React.FC = () => {
   const { session } = useAuth();
   const client = useQueryClient();
@@ -15,15 +17,15 @@ export const EditProfileScreen: React.FC = () => {
     queryFn: () => (session ? fetchProfile(session.user.id) : Promise.resolve(null)),
   });
 
-  const { control, handleSubmit } = useForm({
+  const { control, handleSubmit } = useForm<EditProfileFormValues>({
     defaultValues: {
-      display_name: profile?.display_name ?? '',
-      bio: profile?.bio ?? '',
+      display_name: typeof profile?.display_name === 'string' ? profile.display_name : '',
+      bio: typeof profile?.bio === 'string' ? profile.bio : '',
     },
   });
 
   const mutation = useMutation({
-    mutationFn: async (values: { display_name: string; bio: string }) => {
+    mutationFn: async (values: EditProfileFormValues) => {
       if (!session) return;
       const { error } = await supabase
         .from('profiles')
@@ -34,21 +36,21 @@ export const EditProfileScreen: React.FC = () => {
     onSuccess: () => client.invalidateQueries({ queryKey: ['profile', session?.user.id] }),
   });
 
-  const onSubmit = handleSubmit((values) => mutation.mutate(values));
+  const onSubmit = handleSubmit((values: EditProfileFormValues) => mutation.mutate(values));
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text weight="bold" style={styles.title}>
         Edit profile
       </Text>
-      <Controller
+      <Controller<EditProfileFormValues>
         control={control}
         name="display_name"
         render={({ field: { value, onChange } }) => (
           <TextInput value={value} onChangeText={onChange} placeholder="Name" style={styles.input} />
         )}
       />
-      <Controller
+      <Controller<EditProfileFormValues>
         control={control}
         name="bio"
         render={({ field: { value, onChange } }) => (

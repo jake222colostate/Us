@@ -23,7 +23,12 @@ export function navigate<RouteName extends keyof AppNavigatorParams>(
     warnNotReady(`navigate(${String(name)})`);
     return;
   }
-  navigationRef.navigate(name as never, params as never);
+  const nav: any = navigationRef;
+  if (typeof params === 'undefined') {
+    nav.navigate(name);
+  } else {
+    nav.navigate(name, params);
+  }
 }
 
 export function reset(state: ResetState) {

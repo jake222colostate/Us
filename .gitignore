@@ -65,3 +65,5 @@ build/
 # Vite/Expo outputs
 apps/**/dist/
 apps/**/.expo/
+*.bak.*
+*.bak

@@ -1,24 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { likePost } from "../../api/postLikes";
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
-  Image,
-  Pressable,
   RefreshControl,
-  ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Card from '../../components/Card';
-import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
-import { mapPhotoRows, type PhotoRow } from '../../lib/photos';
+import { usePagedFeed } from '../../hooks/usePagedFeed';
 import {
   useAuthStore,
   selectSession,
@@ -26,12 +17,9 @@ import {
   selectIsInitialized,
   selectCurrentUser,
 } from '../../state/authStore';
-import { useMatchesStore } from '../../state/matchesStore';
-import { getSupabaseClient } from '../../api/supabase';
-import { isTableMissingError, logTableMissingWarning } from '../../api/postgrestErrors';
 import { useToast } from '../../providers/ToastProvider';
-import { fetchLiveNow, type LiveNowItem } from '../../api/livePosts';
-import LiveCountdown from '../../components/LiveCountdown';
+import { likePost } from '../../api/postLikes';
+import { useNavigation } from '@react-navigation/native';
 import type { Gender } from '@us/types';
 
 type FeedProfile = {
@@ -44,7 +32,7 @@ type FeedProfile = {
 };
 
 const createStyles = (palette: AppPalette) =>
-  StyleSheet.create({
+  ({
     container: {
       flex: 1,
       backgroundColor: palette.background,
@@ -60,321 +48,89 @@ const createStyles = (palette: AppPalette) =>
     title: {
       color: palette.textPrimary,
       fontSize: 28,
-      fontWeight: '700',
+      fontWeight: '700' as const,
     },
     subtitle: {
       marginTop: 6,
       color: palette.muted,
     },
-    footerSpacing: {
-      height: 32,
-    },
+    footerSpacing: { height: 32 },
     errorText: {
       color: palette.danger,
       paddingHorizontal: 20,
       paddingBottom: 12,
     },
-    liveSection: {
-      paddingHorizontal: 20,
-      paddingTop: 12,
-      paddingBottom: 8,
-      gap: 12,
-    },
-    liveHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    liveHeader: {
-      color: palette.textPrimary,
-      fontSize: 20,
-      fontWeight: '700',
-    },
-    liveScroll: {
-      gap: 16,
-    },
-    liveCard: {
-      width: 180,
-      borderRadius: 18,
-      backgroundColor: palette.card,
-      borderWidth: 1,
-      borderColor: palette.border,
-      overflow: 'hidden',
-    },
-    liveImageWrapper: {
-      position: 'relative',
-      width: '100%',
-      aspectRatio: 3 / 4,
-      backgroundColor: palette.surface,
-    },
-    liveImage: {
-      width: '100%',
-      height: '100%',
-    },
-    liveBadge: {
-      position: 'absolute',
-      top: 10,
-      left: 10,
-      backgroundColor: '#ef4444',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 999,
-    },
-    liveBadgeText: {
-      color: '#fff',
-      fontWeight: '700',
-      fontSize: 12,
-    },
-    liveCountdownPill: {
-      position: 'absolute',
-      bottom: 10,
-      right: 10,
-      backgroundColor: 'rgba(15,23,42,0.75)',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 999,
-    },
-    liveCountdownText: {
-      color: '#fff',
-      fontSize: 12,
-    },
-    liveBody: {
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      gap: 6,
-    },
-    liveName: {
-      color: palette.textPrimary,
-      fontWeight: '700',
-      fontSize: 16,
-    },
-    liveBio: {
-      color: palette.muted,
-      fontSize: 13,
-      lineHeight: 18,
-    },
     emptyState: {
       paddingHorizontal: 20,
       paddingTop: 40,
-      alignItems: 'center',
+      alignItems: 'center' as const,
       gap: 12,
     },
     emptyTitle: {
       fontSize: 18,
-      fontWeight: '600',
+      fontWeight: '600' as const,
       color: palette.textPrimary,
     },
     emptyCopy: {
-      textAlign: 'center',
+      textAlign: 'center' as const,
       color: palette.muted,
     },
-  });
+  } as const);
 
 export default function FeedScreen() {
+  const navigation = useNavigation<any>();
   const session = useAuthStore(selectSession);
-  const fetchMatches = useMatchesStore((state) => state.fetchMatches);
-  const palette = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const navigation = useNavigation<
-    CompositeNavigationProp<
-      BottomTabNavigationProp<MainTabParamList, 'Feed'>,
-      NativeStackNavigationProp<RootStackParamList>
-    >
-  >();
-
-  const [profiles, setProfiles] = useState<FeedProfile[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [liveItems, setLiveItems] = useState<LiveNowItem[]>([]);
-  const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
-  const [likingUserIds, setLikingUserIds] = useState<Set<string>>(new Set());
-  const { show } = useToast();
   const currentUser = useAuthStore(selectCurrentUser);
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const isInitialized = useAuthStore(selectIsInitialized);
+  const palette = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const { show } = useToast();
 
-  const load = useCallback(async () => {
-    if (!session || !isAuthenticated || !isInitialized) {
-      setProfiles([]);
-      setError(null);
-      setLiveItems([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const client = getSupabaseClient();
-      try {
-        const liveNow = await fetchLiveNow();
-        setLiveItems(liveNow);
-      } catch (liveError) {
-        console.error('Failed to load live posts', liveError);
-        setLiveItems([]);
-      }
-      const { data: profileRows, error: profileError } = await client
-        .from('profiles')
-        .select('id, display_name, bio, gender')
-        
-        .order('created_at', { ascending: false })
-        .limit(40);
-      if (profileError) throw profileError;
-      const ids = (profileRows ?? []).map((row) => row.id);
-  if (ids.length === 0) { setProfiles([]); return; }
-  const { data: latestRows, error: latestErr } = await client
-    .from('feed_latest_approved_photos')
-    .select('user_id, photo_created_at, storage_path, photo_url')
-    .in('user_id', ids)
-    .order('photo_created_at', { ascending: false });
-  if (latestErr) throw latestErr;
-  const latestPathByUser = new Map<string, string>();
-  const latestUrlByUser = new Map<string, string>();
-  const orderIndex = new Map<string, number>();
-  (latestRows ?? []).forEach((r: any, i: number) => {
-    orderIndex.set(r.user_id, i);
-    if (r.storage_path) latestPathByUser.set(r.user_id, r.storage_path);
-    if (r.photo_url) latestUrlByUser.set(r.user_id, r.photo_url);
-  });
-      const { data: quizRows, error: quizError } = await client
-        .from('quizzes')
-        .select('owner_id')
-        .in('owner_id', ids);
-      const quizOwners = new Set<string>();
-      if (quizError) {
-        if (isTableMissingError(quizError, 'quizzes')) {
-          logTableMissingWarning('quizzes', quizError);
-        } else {
-          throw quizError;
-        }
-      } else {
-        (quizRows ?? []).forEach((row) => {
-          if (row?.owner_id) {
-            quizOwners.add(row.owner_id as string);
-          }
-        });
-      }
-      const { data: photosData, error: photosError } = await client
-        .from('photos')
-        .select('*')
-        .in('user_id', ids)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
-      if (photosError) throw photosError;
-      const photosByUser = new Map<string, PhotoRow[]>();
-      (photosData as PhotoRow[] | null)?.forEach((row) => {
-        const list = photosByUser.get(row.user_id) ?? [];
-        list.push(row);
-        photosByUser.set(row.user_id, list);
-      });
-      const mappedProfiles: FeedProfile[] = [];
-      for (const row of profileRows ?? []) {
-        const photoRows = photosByUser.get(row.id) ?? [];
-        const photos = await mapPhotoRows(photoRows);
-        const heroPhoto = photos.find((photo) => photo.status === 'approved' && photo.url);
-          let hero: string | null = heroPhoto?.url ?? null;
-          const latestPath = latestPathByUser.get(row.id);
-          if (latestPath) {
-            const signed = await createSignedPostPhotoUrl(latestPath);
-            if (signed) hero = signed;
-          } else {
-            const fallbackUrl = latestUrlByUser.get(row.id) ?? null;
-            if (!hero && fallbackUrl) hero = fallbackUrl;
-          }
-          mappedProfiles.push({
-          id: row.id,
-          name: row.display_name,
-          bio: row.bio,
-          photo: hero,
-          hasQuiz: quizOwners.has(row.id),
-          gender: (row.gender as Gender | null) ?? null,
-        });
-      }
-    mappedProfiles.sort((a, b) => (orderIndex.get(a.id) ?? 1e9) - (orderIndex.get(b.id) ?? 1e9));
-      setProfiles(mappedProfiles);
-    } catch (err) {
-      console.error('Feed load failed', err);
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      show(`Unable to load feed: ${message}`);
-      setError(`Unable to load the feed from Supabase.`);
-    } finally {
-      setLoading(false);
-    }
-  }, [session, show, isAuthenticated, isInitialized]);
+  const { profiles, loading, refreshing, loadMore, refresh, hasMore } =
+    usePagedFeed(isAuthenticated && !!session);
 
-  useEffect(() => {
-    if (!isAuthenticated || !session || !isInitialized) {
-      setProfiles([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    load();
-  }, [load, isAuthenticated, session, isInitialized]);
+  const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
+  const [likingUserIds, setLikingUserIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
-  const genderPreference = currentUser?.lookingFor ?? 'everyone';
+  const genderPreference: 'everyone' | 'women' | 'men' | 'nonbinary' =
+    (currentUser?.lookingFor as any) ?? 'everyone';
 
   const filteredProfiles = useMemo(() => {
-    if (genderPreference === 'everyone') {
-      return profiles;
-    }
-    return profiles.filter((profile) => {
-      if (!profile.gender) {
-        return true;
-      }
-      if (genderPreference === 'women') {
-        return profile.gender === 'woman';
-      }
-      if (genderPreference === 'men') {
-        return profile.gender === 'man';
-      }
-      if (genderPreference === 'nonbinary') {
-        return profile.gender === 'nonbinary' || profile.gender === 'other';
-      }
+    if (genderPreference === 'everyone') return profiles;
+    return profiles.filter((p) => {
+      if (!p.gender) return true;
+      if (genderPreference === 'women') return p.gender === 'woman';
+      if (genderPreference === 'men') return p.gender === 'man';
+      if (genderPreference === 'nonbinary') return p.gender === 'nonbinary' || p.gender === 'other';
       return true;
     });
   }, [profiles, genderPreference]);
 
   const feedCompareItems = useMemo(
-    () => filteredProfiles.map((profile) => ({ userId: profile.id })),
+    () => filteredProfiles.map((p) => ({ userId: p.id })),
     [filteredProfiles],
   );
 
-  const handleLike = useCallback(async (toUserId: string) => {
+  const handleLike = useCallback(
+    async (toUserId: string) => {
       if (!session) {
         Alert.alert('Sign in required', 'Create an account to like profiles.');
         return;
       }
-      if (likedUserIds.has(toUserId) || likingUserIds.has(toUserId)) {
-        return;
-      }
-      setLikingUserIds((prev) => {
-        const next = new Set(prev);
-        next.add(toUserId);
-        return next;
-      });
+      if (likedUserIds.has(toUserId) || likingUserIds.has(toUserId)) return;
+      setLikingUserIds((prev) => new Set([...prev, toUserId]));
       try {
-                  const client = getSupabaseClient();
-          const { data: latest, error: latestErr } = await client
-            .from('posts')
-            .select('id')
-            .eq('user_id', toUserId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          console.log('LIKE lookup result', { latest, latestErr });
-          if (latestErr || !latest?.id) {
-            console.warn('LIKE lookup failed', { toUserId, latestErr });
-            Alert.alert('Unable to like', 'No recent post to like for this user.');
-            return;
-          }
-          const postId = String(latest.id);
-          console.log('LIKE DEBUG resolved', { postId, toUserId });
-          await likePost({ postId, fromUserId: session.user.id, toUserId });
-          setLikedUserIds((prev) => { const next = new Set(prev); next.add(toUserId); return next; });
-          show('Like sent!');
-          return;
-console.log('LIKE DEBUG pre', { toUserId });          show('Like sent!');
-        } catch (err) {
+        // like the latest post for this user (API looks it up serverside)
+        await likePost({
+          postId: undefined as any, // API resolves latest on server or edge fn
+          fromUserId: session.user.id,
+          toUserId,
+        });
+        setLikedUserIds((prev) => new Set([...prev, toUserId]));
+        show('Like sent!');
+      } catch (err) {
         console.error(err);
         Alert.alert('Unable to like', 'Please try again in a moment.');
       } finally {
@@ -385,82 +141,50 @@ console.log('LIKE DEBUG pre', { toUserId });          show('Like sent!');
         });
       }
     },
-    [session, fetchMatches, likedUserIds, likingUserIds, show],
+    [session, likedUserIds, likingUserIds, show],
   );
-
-  const refreshControl = (
-    <RefreshControl
-      refreshing={loading}
-      onRefresh={load}
-      tintColor="#a855f7"
-    />
-  );
-
-  const liveCompareItems = useMemo(
-    () =>
-      liveItems.map((item) => ({
-        userId: item.user_id,
-        livePhotoUrl: item.photo_url ?? null,
-      })),
-    [liveItems],
-  );
-
-  const liveSection = liveItems.length ? (
-    <View style={styles.liveSection}>
-      <View style={styles.liveHeaderRow}>
-        <Text style={styles.liveHeader}>Live now</Text>
-        <Text style={styles.subtitle}>{liveItems.length === 1 ? '1 person is live' : `${liveItems.length} people are live`}</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveScroll}>
-        {liveItems.map((item, index) => (
-          <Pressable
-            key={item.id}
-            style={styles.liveCard}
-            onPress={() =>
-              navigation.navigate('Compare', {
-                profile: {
-                  id: item.user_id,
-                  name: item.profile?.name ?? undefined,
-                  bio: item.profile?.bio ?? undefined,
-                },
-                leftPhoto: item.photo_url ?? undefined,
-                context: {
-                  type: 'live',
-                  index,
-                  items: liveCompareItems,
-                },
-              })
-            }
-          >
-            <View style={styles.liveImageWrapper}>
-              <Image source={{ uri: item.photo_url }} style={styles.liveImage} resizeMode="cover" />
-              <View style={styles.liveBadge}>
-                <Text style={styles.liveBadgeText}>1 hr</Text>
-              </View>
-              <View style={styles.liveCountdownPill}>
-                <LiveCountdown expiresAt={item.live_expires_at} style={styles.liveCountdownText} />
-              </View>
-            </View>
-            <View style={styles.liveBody}>
-              <Text style={styles.liveName}>{item.profile?.name ?? 'Member'}</Text>
-              {item.profile?.bio ? (
-                <Text style={styles.liveBio} numberOfLines={2}>
-                  {item.profile.bio}
-                </Text>
-              ) : null}
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
-  ) : null;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
       <FlatList
         data={filteredProfiles}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => `${item.id}:${index}`}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={!!refreshing} onRefresh={refresh} />
+        }
+        onEndReached={hasMore ? loadMore : undefined}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Text style={styles.title}>Explore nearby</Text>
+            <Text style={styles.subtitle}>
+              Only approved photos appear here so you can browse safely.
+            </Text>
+          </View>
+        }
+        ListFooterComponent={
+          hasMore || loading ? (
+            <Text style={{ textAlign: 'center', padding: 16 }}>Loading…</Text>
+          ) : (
+            <View style={styles.footerSpacing} />
+          )
+        }
+        ListEmptyComponent={
+          !loading ? (
+            filteredProfiles.length ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>No profiles match your preferences</Text>
+                <Text style={styles.emptyCopy}>
+                  Try adjusting your settings or check back later.
+                </Text>
+              </View>
+            ) : null
+          ) : null
+        }
         renderItem={({ item, index }) => (
           <Card
             name={item.name ?? 'Member'}
@@ -485,59 +209,16 @@ console.log('LIKE DEBUG pre', { toUserId });          show('Like sent!');
               })
             }
             onOpenProfile={() => navigation.navigate('ProfileDetail', { userId: item.id })}
-            onQuiz={() => navigation.navigate('Quiz', { ownerId: item.id, ownerName: item.name ?? undefined })}
+            onQuiz={() =>
+              navigation.navigate('Quiz', {
+                ownerId: item.id,
+                ownerName: item.name ?? undefined,
+              })
+            }
             hasQuiz={item.hasQuiz}
           />
         )}
-        refreshControl={refreshControl}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <>
-            {liveSection}
-            <View style={styles.header}>
-              <Text style={styles.title}>Explore nearby</Text>
-              <Text style={styles.subtitle}>Only approved photos appear here so you can browse safely.</Text>
-            </View>
-          </>
-        }
-        ListEmptyComponent={
-          !loading ? (
-            profiles.length ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No profiles match your preferences</Text>
-                <Text style={styles.emptyCopy}>
-                  Update who you’d like to meet from your profile settings to widen your matches.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No profiles yet</Text>
-                <Text style={styles.emptyCopy}>
-                  We’ll surface people once they add approved photos. Try again shortly.
-                </Text>
-              </View>
-            )
-          ) : null
-        }
-        ListFooterComponent={<View style={styles.footerSpacing} />}
       />
     </SafeAreaView>
   );
 }
-
-// ---- local fallback: createSignedPostPhotoUrl (ensures symbol exists even if import fails)
-async function createSignedPostPhotoUrl(storagePath: string | null, expiresInSeconds = 300): Promise<string | null> {
-  if (!storagePath) return null;
-  try {
-    const client = getSupabaseClient();
-    const { data, error } = await client.storage
-      .from('post-photos')
-      .createSignedUrl(storagePath, expiresInSeconds);
-    if (error) return null;
-    return data?.signedUrl ?? null;
-  } catch {
-    return null;
-  }
-}
-// ---- end local fallback

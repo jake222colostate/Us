@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { likePost } from "../../api/postLikes";
 import {
   Alert,
   FlatList,
@@ -19,6 +18,7 @@ import Card from '../../components/Card';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { mapPhotoRows, type PhotoRow } from '../../lib/photos';
+import { likeUser } from '../../api/likes';
 import {
   useAuthStore,
   selectSession,
@@ -318,48 +318,40 @@ export default function FeedScreen() {
     [filteredProfiles],
   );
 
-  const handleLike = useCallback(async (toUserId: string) => {
+  const handleLike = useCallback(
+    async (targetId: string) => {
       if (!session) {
         Alert.alert('Sign in required', 'Create an account to like profiles.');
         return;
       }
-      if (likedUserIds.has(toUserId) || likingUserIds.has(toUserId)) {
+      if (likedUserIds.has(targetId) || likingUserIds.has(targetId)) {
         return;
       }
       setLikingUserIds((prev) => {
         const next = new Set(prev);
-        next.add(toUserId);
+        next.add(targetId);
         return next;
       });
       try {
-                  const client = getSupabaseClient();
-          const { data: latest, error: latestErr } = await client
-            .from('posts')
-            .select('id')
-            .eq('user_id', toUserId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          console.log('LIKE lookup result', { latest, latestErr });
-          if (latestErr || !latest?.id) {
-            console.warn('LIKE lookup failed', { toUserId, latestErr });
-            Alert.alert('Unable to like', 'No recent post to like for this user.');
-            return;
-          }
-          const postId = String(latest.id);
-          console.log('LIKE DEBUG resolved', { postId, toUserId });
-          await likePost({ postId, fromUserId: session.user.id, toUserId });
-          setLikedUserIds((prev) => { const next = new Set(prev); next.add(toUserId); return next; });
+        const result = await likeUser(session.user.id, targetId);
+        setLikedUserIds((prev) => {
+          const next = new Set(prev);
+          next.add(targetId);
+          return next;
+        });
+        if (result.matchCreated) {
+          await fetchMatches(session.user.id);
+          Alert.alert('It’s a match!', 'You both liked each other. Check your matches tab.');
+        } else {
           show('Like sent!');
-          return;
-console.log('LIKE DEBUG pre', { toUserId });          show('Like sent!');
-        } catch (err) {
+        }
+      } catch (err) {
         console.error(err);
         Alert.alert('Unable to like', 'Please try again in a moment.');
       } finally {
         setLikingUserIds((prev) => {
           const next = new Set(prev);
-          next.delete(toUserId);
+          next.delete(targetId);
           return next;
         });
       }

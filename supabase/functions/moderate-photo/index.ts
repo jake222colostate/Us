@@ -1,124 +1,40 @@
-// Edge Function: moderate-photo
-// Required environment variables:
-//   - SUPABASE_URL
-//   - SUPABASE_SERVICE_ROLE_KEY
-//   - MODERATION_ENDPOINT (HTTP endpoint returning { nsfw_score: number })
-//   - MODERATION_KEY (api key for the moderation provider)
-//   - MODERATION_THRESHOLD (optional, defaults to 0.75)
-
+// supabase/functions/moderate-photo/index.ts
+// Phase 1: fast-approve stub (we’ll wire real moderation next)
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-type ModerateRequest = {
-  photoId: string;
-  userId: string;
-  publicUrl: string;
-};
-
-const MODERATION_ENDPOINT = Deno.env.get("MODERATION_ENDPOINT");
-const MODERATION_KEY = Deno.env.get("MODERATION_KEY");
-const MODERATION_THRESHOLD = Number(Deno.env.get("MODERATION_THRESHOLD") ?? "0.75");
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("Missing Supabase environment variables");
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
   try {
-    const body = (await req.json()) as ModerateRequest;
-    if (!body?.photoId || !body?.userId || !body?.publicUrl) {
-      return new Response(JSON.stringify({ error: "Invalid payload" }), {
-        status: 400,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      });
+    const { photo_id } = await req.json();
+    if (!photo_id) {
+      return new Response(JSON.stringify({ error: "photo_id required" }), { status: 400 });
     }
 
-    let nsfwScore = 0;
-    if (MODERATION_ENDPOINT && MODERATION_KEY) {
-      const response = await fetch(MODERATION_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${MODERATION_KEY}`,
-        },
-        body: JSON.stringify({
-          image_url: body.publicUrl,
-        }),
-      });
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const url = Deno.env.get("SUPABASE_URL")!;
 
-      if (!response.ok) {
-        console.error("Moderation provider error", await response.text());
-        return new Response(JSON.stringify({ error: "Moderation provider error" }), {
-          status: 502,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        });
-      }
-
-      const result = (await response.json()) as { nsfw_score?: number };
-      nsfwScore = typeof result.nsfw_score === "number" ? result.nsfw_score : 0;
-    } else {
-      console.warn("Moderation endpoint or key missing; defaulting to approval");
-    }
-
-    const status = nsfwScore >= MODERATION_THRESHOLD ? "rejected" : "approved";
-
-    const { error: updateError } = await supabase
-      .from("photos")
-      .update({ status })
-      .eq("id", body.photoId)
-      .eq("user_id", body.userId);
-
-    if (updateError) {
-      console.error("Failed to update photo status", updateError);
-      return new Response(JSON.stringify({ error: "Failed to update photo status" }), {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      });
-    }
-
-    return new Response(JSON.stringify({ status, nsfwScore }), {
-      status: 200,
+    const resp = await fetch(`${url}/rest/v1/photos?id=eq.${photo_id}`, {
+      method: "PATCH",
       headers: {
-        ...corsHeaders,
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
+        Prefer: "return=representation",
       },
+      body: JSON.stringify({
+        status: "approved",
+        moderated_at: new Date().toISOString(),
+        moderation_labels: [],
+      }),
     });
-  } catch (error) {
-    console.error(error);
-    return new Response(JSON.stringify({ error: "Unexpected error" }), {
-      status: 500,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
-      },
-    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      return new Response(JSON.stringify({ error: "DB update failed", details: txt }), { status: 500 });
+    }
+
+    const data = await resp.json();
+    return new Response(JSON.stringify({ ok: true, data }), { status: 200 });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
   }
 });

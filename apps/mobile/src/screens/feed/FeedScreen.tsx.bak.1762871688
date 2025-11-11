@@ -215,26 +215,14 @@ export default function FeedScreen() {
       const { data: profileRows, error: profileError } = await client
         .from('profiles')
         .select('id, display_name, bio, gender')
-        
         .order('created_at', { ascending: false })
         .limit(40);
       if (profileError) throw profileError;
       const ids = (profileRows ?? []).map((row) => row.id);
-  if (ids.length === 0) { setProfiles([]); return; }
-  const { data: latestRows, error: latestErr } = await client
-    .from('feed_latest_approved_photos')
-    .select('user_id, photo_created_at, storage_path, photo_url')
-    .in('user_id', ids)
-    .order('photo_created_at', { ascending: false });
-  if (latestErr) throw latestErr;
-  const latestPathByUser = new Map<string, string>();
-  const latestUrlByUser = new Map<string, string>();
-  const orderIndex = new Map<string, number>();
-  (latestRows ?? []).forEach((r: any, i: number) => {
-    orderIndex.set(r.user_id, i);
-    if (r.storage_path) latestPathByUser.set(r.user_id, r.storage_path);
-    if (r.photo_url) latestUrlByUser.set(r.user_id, r.photo_url);
-  });
+      if (ids.length === 0) {
+        setProfiles([]);
+        return;
+      }
       const { data: quizRows, error: quizError } = await client
         .from('quizzes')
         .select('owner_id')
@@ -271,25 +259,15 @@ export default function FeedScreen() {
         const photoRows = photosByUser.get(row.id) ?? [];
         const photos = await mapPhotoRows(photoRows);
         const heroPhoto = photos.find((photo) => photo.status === 'approved' && photo.url);
-          let hero: string | null = heroPhoto?.url ?? null;
-          const latestPath = latestPathByUser.get(row.id);
-          if (latestPath) {
-            const signed = await createSignedPostPhotoUrl(latestPath);
-            if (signed) hero = signed;
-          } else {
-            const fallbackUrl = latestUrlByUser.get(row.id) ?? null;
-            if (!hero && fallbackUrl) hero = fallbackUrl;
-          }
-          mappedProfiles.push({
+        mappedProfiles.push({
           id: row.id,
           name: row.display_name,
           bio: row.bio,
-          photo: hero,
+          photo: heroPhoto?.url ?? null,
           hasQuiz: quizOwners.has(row.id),
           gender: (row.gender as Gender | null) ?? null,
         });
       }
-    mappedProfiles.sort((a, b) => (orderIndex.get(a.id) ?? 1e9) - (orderIndex.get(b.id) ?? 1e9));
       setProfiles(mappedProfiles);
     } catch (err) {
       console.error('Feed load failed', err);
@@ -525,19 +503,3 @@ console.log('LIKE DEBUG pre', { toUserId });          show('Like sent!');
     </SafeAreaView>
   );
 }
-
-// ---- local fallback: createSignedPostPhotoUrl (ensures symbol exists even if import fails)
-async function createSignedPostPhotoUrl(storagePath: string | null, expiresInSeconds = 300): Promise<string | null> {
-  if (!storagePath) return null;
-  try {
-    const client = getSupabaseClient();
-    const { data, error } = await client.storage
-      .from('post-photos')
-      .createSignedUrl(storagePath, expiresInSeconds);
-    if (error) return null;
-    return data?.signedUrl ?? null;
-  } catch {
-    return null;
-  }
-}
-// ---- end local fallback

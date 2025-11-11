@@ -30,17 +30,6 @@ export type PhotoResource = {
 export const PROFILE_PHOTO_BUCKET = 'profile-photos';
 export const POST_PHOTO_BUCKET = 'post-photos';
 
-export function extractStoragePathFromPublicUrl(url: string | null): string | null {
-  if (!url) return null;
-  const marker = '/object/public/';
-  const i = url.indexOf(marker);
-  if (i === -1) return null;
-  const rest = url.slice(i + marker.length);
-  const j = rest.indexOf('/');
-  if (j === -1) return null;
-  return rest.slice(j + 1);
-}
-
 export async function createSignedPhotoUrl(
   storagePath: string | null,
   expiresInSeconds = 300,
@@ -51,28 +40,30 @@ export async function createSignedPhotoUrl(
     const { data, error } = await client.storage
       .from(PROFILE_PHOTO_BUCKET)
       .createSignedUrl(storagePath, expiresInSeconds);
-    if (error) return null;
+    if (error) {
+      console.warn('Failed to create signed URL', error.message);
+      return null;
+    }
     return data?.signedUrl ?? null;
-  } catch {
+  } catch (error) {
+    console.warn('Failed to sign storage path', error);
     return null;
   }
 }
 
-export async function createSignedPostPhotoUrl(
-  storagePath: string | null,
-  expiresInSeconds = 300,
-): Promise<string | null> {
-  if (!storagePath) return null;
-  try {
-    const client = getSupabaseClient();
-    const { data, error } = await client.storage
-      .from(POST_PHOTO_BUCKET)
-      .createSignedUrl(storagePath, expiresInSeconds);
-    if (error) return null;
-    return data?.signedUrl ?? null;
-  } catch {
+export function extractStoragePathFromPublicUrl(url: string | null): string | null {
+  if (!url) return null;
+  const marker = '/object/public/';
+  const markerIndex = url.indexOf(marker);
+  if (markerIndex === -1) {
     return null;
   }
+  const remainder = url.slice(markerIndex + marker.length);
+  const slashIndex = remainder.indexOf('/');
+  if (slashIndex === -1) {
+    return null;
+  }
+  return remainder.slice(slashIndex + 1);
 }
 
 export async function mapPhotoRow(row: PhotoRow): Promise<PhotoResource> {

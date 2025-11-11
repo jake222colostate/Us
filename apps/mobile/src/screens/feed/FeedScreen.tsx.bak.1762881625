@@ -215,7 +215,7 @@ export default function FeedScreen() {
       const { data: profileRows, error: profileError } = await client
         .from('profiles')
         .select('id, display_name, bio, gender')
-        
+        .neq('id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(40);
       if (profileError) throw profileError;
@@ -525,19 +525,3 @@ console.log('LIKE DEBUG pre', { toUserId });          show('Like sent!');
     </SafeAreaView>
   );
 }
-
-// ---- local fallback: createSignedPostPhotoUrl (ensures symbol exists even if import fails)
-async function createSignedPostPhotoUrl(storagePath: string | null, expiresInSeconds = 300): Promise<string | null> {
-  if (!storagePath) return null;
-  try {
-    const client = getSupabaseClient();
-    const { data, error } = await client.storage
-      .from('post-photos')
-      .createSignedUrl(storagePath, expiresInSeconds);
-    if (error) return null;
-    return data?.signedUrl ?? null;
-  } catch {
-    return null;
-  }
-}
-// ---- end local fallback

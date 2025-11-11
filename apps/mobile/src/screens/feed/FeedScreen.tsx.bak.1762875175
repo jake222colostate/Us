@@ -18,7 +18,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Card from '../../components/Card';
 import type { MainTabParamList, RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
-import { mapPhotoRows, type PhotoRow } from '../../lib/photos';
+import { mapPhotoRows, type PhotoRow, createSignedPostPhotoUrl } from '../../lib/photos';
 import {
   useAuthStore,
   selectSession,
@@ -212,29 +212,29 @@ export default function FeedScreen() {
         console.error('Failed to load live posts', liveError);
         setLiveItems([]);
       }
-      const { data: profileRows, error: profileError } = await client
-        .from('profiles')
-        .select('id, display_name, bio, gender')
-        
-        .order('created_at', { ascending: false })
-        .limit(40);
-      if (profileError) throw profileError;
-      const ids = (profileRows ?? []).map((row) => row.id);
-  if (ids.length === 0) { setProfiles([]); return; }
-  const { data: latestRows, error: latestErr } = await client
-    .from('feed_latest_approved_photos')
-    .select('user_id, photo_created_at, storage_path, photo_url')
-    .in('user_id', ids)
-    .order('photo_created_at', { ascending: false });
-  if (latestErr) throw latestErr;
-  const latestPathByUser = new Map<string, string>();
-  const latestUrlByUser = new Map<string, string>();
-  const orderIndex = new Map<string, number>();
-  (latestRows ?? []).forEach((r: any, i: number) => {
-    orderIndex.set(r.user_id, i);
-    if (r.storage_path) latestPathByUser.set(r.user_id, r.storage_path);
-    if (r.photo_url) latestUrlByUser.set(r.user_id, r.photo_url);
-  });
+      const { data: latestRows, error: latestErr } = await client
+  .from('feed_latest_approved_photos')
+  .select('user_id, photo_created_at, storage_path')
+  .order('photo_created_at', { ascending: false })
+  .limit(40);
+if (latestErr) throw latestErr;
+const ids = (latestRows ?? []).map((r) => r.user_id);
+if (ids.length === 0) {
+  setProfiles([]);
+  return;
+}
+const { data: profileRows, error: profileError } = await client
+  .from('profiles')
+  .select('id, display_name, bio, gender')
+  .in('id', ids);
+if (profileError) throw profileError;
+
+        // Build map of latest storage_path by user
+        const latestPathByUser = new Map<string, string>();
+        (latestRows ?? []).forEach((r: any) => {
+          if (r?.user_id && r?.storage_path) latestPathByUser.set(r.user_id, r.storage_path);
+        });
+
       const { data: quizRows, error: quizError } = await client
         .from('quizzes')
         .select('owner_id')
@@ -265,32 +265,37 @@ export default function FeedScreen() {
         const list = photosByUser.get(row.user_id) ?? [];
         list.push(row);
         photosByUser.set(row.user_id, list);
+
       });
+        // ORDER FEED BY LATEST APPROVED PHOTO (uses view feed_latest_approved_photos)
+        const { data: orderRows, error: orderErr } = await client
+          .from('feed_latest_approved_photos')
+          .select('user_id, photo_created_at, storage_path')
+          .in('user_id', ids)
+          .order('photo_created_at', { ascending: false });
+        if (orderErr) throw orderErr;
+        const rank = new Map<string, number>();
+        (orderRows ?? []).forEach((r: any, i: number) => rank.set(r.user_id, i));
       const mappedProfiles: FeedProfile[] = [];
       for (const row of profileRows ?? []) {
-        const photoRows = photosByUser.get(row.id) ?? [];
-        const photos = await mapPhotoRows(photoRows);
-        const heroPhoto = photos.find((photo) => photo.status === 'approved' && photo.url);
-          let hero: string | null = heroPhoto?.url ?? null;
-          const latestPath = latestPathByUser.get(row.id);
-          if (latestPath) {
-            const signed = await createSignedPostPhotoUrl(latestPath);
-            if (signed) hero = signed;
-          } else {
-            const fallbackUrl = latestUrlByUser.get(row.id) ?? null;
-            if (!hero && fallbackUrl) hero = fallbackUrl;
-          }
+          const photoRows = photosByUser.get(row.id) ?? [];
+          const photos = await mapPhotoRows(photoRows);
+          // Prefer the latest signed URL from post-photos (instant)
+          const latestPath = latestPathByUser.get(row.id) ?? null;
+          const signedLatest = await createSignedPostPhotoUrl(latestPath);
+          const found = photos.find((photo) => photo.status === 'approved' && photo.url);
+          const heroPhoto = signedLatest ?? found?.url ?? null;
           mappedProfiles.push({
           id: row.id,
           name: row.display_name,
           bio: row.bio,
-          photo: hero,
+          photo: heroPhoto?.url ?? null,
           hasQuiz: quizOwners.has(row.id),
           gender: (row.gender as Gender | null) ?? null,
         });
       }
-    mappedProfiles.sort((a, b) => (orderIndex.get(a.id) ?? 1e9) - (orderIndex.get(b.id) ?? 1e9));
-      setProfiles(mappedProfiles);
+              mappedProfiles.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9));
+        setProfiles(mappedProfiles);
     } catch (err) {
       console.error('Feed load failed', err);
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -525,19 +530,3 @@ console.log('LIKE DEBUG pre', { toUserId });          show('Like sent!');
     </SafeAreaView>
   );
 }
-
-// ---- local fallback: createSignedPostPhotoUrl (ensures symbol exists even if import fails)
-async function createSignedPostPhotoUrl(storagePath: string | null, expiresInSeconds = 300): Promise<string | null> {
-  if (!storagePath) return null;
-  try {
-    const client = getSupabaseClient();
-    const { data, error } = await client.storage
-      .from('post-photos')
-      .createSignedUrl(storagePath, expiresInSeconds);
-    if (error) return null;
-    return data?.signedUrl ?? null;
-  } catch {
-    return null;
-  }
-}
-// ---- end local fallback

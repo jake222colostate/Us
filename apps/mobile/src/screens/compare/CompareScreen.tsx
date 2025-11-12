@@ -140,7 +140,8 @@ export default function CompareScreen({ route, navigation }: Props) {
 
       let nextLeftPhoto: string | null = null;
       if (context.type === 'live') {
-        nextLeftPhoto = target.livePhotoUrl ?? null;
+        const liveTarget = context.items[nextIndex];
+        nextLeftPhoto = liveTarget?.livePhotoUrl ?? null;
         if (!nextLeftPhoto) {
           const { data: liveData, error: liveError } = await client
             .from('live_posts')

@@ -1,5 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActionSheetIOS,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,6 +40,7 @@ export default function CompareScreen({ route, navigation }: Props) {
   const [rightPhoto, setRightPhoto] = useState<string | null>(() => params.rightPhoto ?? null);
   const [rightPhotoSource, setRightPhotoSource] = useState<'camera' | 'library' | 'post' | null>(null);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [isPostPickerVisible, setIsPostPickerVisible] = useState(false);
   const [isSendingLike, setIsSendingLike] = useState(false);
   const session = useAuthStore(selectSession);
   const currentUser = useAuthStore(selectCurrentUser);
@@ -255,6 +268,12 @@ export default function CompareScreen({ route, navigation }: Props) {
     }
   }, [ensurePermission, show]);
 
+  const handleSelectPost = useCallback((post: { id: string; uri: string }) => {
+    setRightPhoto(post.uri);
+    setRightPhotoSource('post');
+    setSelectedPostId(post.id);
+    setIsPostPickerVisible(false);
+  }, []);
   const handleSelectPost = useCallback(
     (post: { id: string; uri: string }) => {
       setRightPhoto(post.uri);
@@ -268,6 +287,62 @@ export default function CompareScreen({ route, navigation }: Props) {
     setRightPhoto(null);
     setRightPhotoSource(null);
     setSelectedPostId(null);
+    setIsPostPickerVisible(false);
+  }, []);
+
+  const handleChooseFromPosts = useCallback(() => {
+    if (!viewerPostOptions.length) {
+      show('Add a post first to choose one here.');
+      return;
+    }
+    setIsPostPickerVisible(true);
+  }, [show, viewerPostOptions.length]);
+
+  const handleOpenRightPhotoMenu = useCallback(() => {
+    const optionHandlers = [
+      () => handleTakePhoto(),
+      () => handleChooseFromLibrary(),
+      () => handleChooseFromPosts(),
+    ];
+    const optionLabels = ['Take a photo', 'Upload from library', 'Choose from posts'];
+
+    if (rightPhoto) {
+      optionHandlers.push(() => handleClearRightPhoto());
+      optionLabels.push('Remove photo');
+    }
+
+    const cancelIndex = optionLabels.length;
+
+    const handleSelection = (index: number | undefined) => {
+      if (typeof index !== 'number' || index < 0 || index >= optionHandlers.length) {
+        return;
+      }
+      optionHandlers[index]();
+    };
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: 'Add your photo',
+          options: [...optionLabels, 'Cancel'],
+          cancelButtonIndex: cancelIndex,
+        },
+        handleSelection,
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Add your photo',
+      undefined,
+      [
+        ...optionLabels.map((label, index) => ({ text: label, onPress: optionHandlers[index] })),
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true },
+    );
+  }, [handleChooseFromLibrary, handleChooseFromPosts, handleTakePhoto, handleClearRightPhoto, rightPhoto]);
+
   }, []);
 
   const handleSendLike = useCallback(async () => {
@@ -348,6 +423,24 @@ export default function CompareScreen({ route, navigation }: Props) {
             </View>
             <Text style={styles.photoMeta}>This is what they shared publicly.</Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="Choose how to add your photo"
+            onPress={handleOpenRightPhotoMenu}
+            style={({ pressed }) => [
+              styles.photoCard,
+              isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard,
+              pressed && styles.photoCardPressed,
+            ]}
+          >
+            {rightPhoto ? (
+              <Image source={{ uri: rightPhoto }} style={styles.photo} resizeMode="cover" />
+            ) : (
+              <View style={[styles.photo, styles.placeholder]}>
+                <Text style={styles.placeholderLabel}>Tap to add photo</Text>
+              </View>
+            )}
+          </Pressable>
           <View style={[styles.photoColumn, isVertical ? styles.verticalPhotoColumn : styles.horizontalPhotoColumn]}>
             <Text style={styles.photoLabel}>{viewerName}</Text>
             <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
@@ -482,6 +575,55 @@ export default function CompareScreen({ route, navigation }: Props) {
           </Pressable>
         </View>
       </ScrollView>
+      <Modal
+        animationType="slide"
+        transparent
+        visible={isPostPickerVisible}
+        onRequestClose={() => setIsPostPickerVisible(false)}
+      >
+        <View style={styles.postPickerBackdrop}>
+          <View style={styles.postPickerContainer}>
+            <View style={styles.postPickerHeader}>
+              <Text style={styles.postPickerTitle}>Choose from posts</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setIsPostPickerVisible(false)}
+                style={({ pressed }) => [styles.postPickerClose, pressed && styles.postPickerClosePressed]}
+              >
+                <Text style={styles.postPickerCloseLabel}>Close</Text>
+              </Pressable>
+            </View>
+            {viewerPostsQuery.isLoading ? (
+              <ActivityIndicator color="#94a3b8" style={styles.postPickerLoading} />
+            ) : viewerPostOptions.length ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.postPickerScroller}
+              >
+                {viewerPostOptions.map((post) => (
+                  <Pressable
+                    key={post.id}
+                    accessibilityRole="button"
+                    onPress={() => handleSelectPost(post)}
+                    style={({ pressed }) => [
+                      styles.postThumbnailWrapper,
+                      selectedPostId === post.id && styles.postThumbnailSelected,
+                      pressed && styles.postThumbnailPressed,
+                    ]}
+                  >
+                    <Image source={{ uri: post.uri }} style={styles.postThumbnail} resizeMode="cover" />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={styles.postPickerEmptyText}>
+                You haven’t shared any posts yet. Add one from your profile to pick it here.
+              </Text>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -593,6 +735,8 @@ const styles = StyleSheet.create({
     flexBasis: 0,
     minWidth: 0,
   },
+  photoCardPressed: {
+    opacity: 0.9,
   photoLabel: {
     color: '#cbd5f5',
     fontWeight: '700',
@@ -759,5 +903,55 @@ const styles = StyleSheet.create({
     color: '#cbd5f5',
     fontWeight: '700',
     fontSize: 16,
+  },
+  postPickerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'flex-end',
+  },
+  postPickerContainer: {
+    backgroundColor: '#0b1220',
+    paddingTop: 20,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    gap: 16,
+  },
+  postPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  postPickerTitle: {
+    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  postPickerClose: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+  },
+  postPickerClosePressed: {
+    opacity: 0.85,
+  },
+  postPickerCloseLabel: {
+    color: '#cbd5f5',
+    fontWeight: '600',
+  },
+  postPickerLoading: {
+    marginTop: 12,
+  },
+  postPickerScroller: {
+    gap: 12,
+    paddingRight: 4,
+  },
+  postPickerEmptyText: {
+    color: '#64748b',
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

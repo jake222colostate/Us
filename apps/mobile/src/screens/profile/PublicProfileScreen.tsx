@@ -101,8 +101,8 @@ const createStyles = (palette: AppPalette) =>
       color: palette.muted,
       lineHeight: 20,
     },
-    actionRow: {
-      flexDirection: 'column',
+    actionSection: {
+      paddingHorizontal: 20,
       marginTop: 20,
       gap: 12,
     },
@@ -309,22 +309,7 @@ const PublicProfileScreen: React.FC = () => {
         {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Gallery</Text>
-        {photos.length ? (
-          <View style={styles.grid}>
-            {photos.map((uri) => (
-              <View key={uri} style={styles.gridItem}>
-                <Image source={{ uri }} style={styles.gridImage} />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.sectionCopy}>No approved photos yet.</Text>
-        )}
-      </View>
-
-      <View style={[styles.section, styles.actionRow]}>
+      <View style={styles.actionSection}>
         <Pressable
           accessibilityRole="button"
           style={({ pressed }) => [
@@ -339,18 +324,30 @@ const PublicProfileScreen: React.FC = () => {
             {isMatched ? 'Send a message' : liking ? 'Sending…' : 'Send like'}
           </Text>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            pressed && styles.primaryButtonPressed,
-            !hasQuiz && styles.primaryButtonDisabled,
-          ]}
-          onPress={() => navigation.navigate('Quiz', { ownerId: userId })}
-          disabled={!hasQuiz}
-        >
-          <Text style={styles.secondaryLabel}>{hasQuiz ? '🧠 Take My Quiz' : 'Quiz coming soon'}</Text>
-        </Pressable>
+        {hasQuiz ? (
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.primaryButtonPressed]}
+            onPress={() => navigation.navigate('Quiz', { ownerId: userId })}
+          >
+            <Text style={styles.secondaryLabel}>🧠 Take My Quiz</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Gallery</Text>
+        {photos.length ? (
+          <View style={styles.grid}>
+            {photos.map((uri) => (
+              <View key={uri} style={styles.gridItem}>
+                <Image source={{ uri }} style={styles.gridImage} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.sectionCopy}>No approved photos yet.</Text>
+        )}
       </View>
     </ScrollView>
   );

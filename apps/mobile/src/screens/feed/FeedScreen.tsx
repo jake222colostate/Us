@@ -27,7 +27,6 @@ type FeedProfile = {
   name: string | null;
   bio: string | null;
   photo: string | null;
-  hasQuiz: boolean;
   gender: Gender | null;
 };
 
@@ -209,13 +208,6 @@ export default function FeedScreen() {
               })
             }
             onOpenProfile={() => navigation.navigate('ProfileDetail', { userId: item.id })}
-            onQuiz={() =>
-              navigation.navigate('Quiz', {
-                ownerId: item.id,
-                ownerName: item.name ?? undefined,
-              })
-            }
-            hasQuiz={item.hasQuiz}
           />
         )}
       />

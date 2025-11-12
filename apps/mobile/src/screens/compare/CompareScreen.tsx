@@ -275,14 +275,6 @@ export default function CompareScreen({ route, navigation }: Props) {
     setSelectedPostId(post.id);
     setIsPostPickerVisible(false);
   }, []);
-  const handleSelectPost = useCallback(
-    (post: { id: string; uri: string }) => {
-      setRightPhoto(post.uri);
-      setRightPhotoSource('post');
-      setSelectedPostId(post.id);
-    },
-    [],
-  );
 
   const handleClearRightPhoto = useCallback(() => {
     setRightPhoto(null);
@@ -343,8 +335,6 @@ export default function CompareScreen({ route, navigation }: Props) {
       { cancelable: true },
     );
   }, [handleChooseFromLibrary, handleChooseFromPosts, handleTakePhoto, handleClearRightPhoto, rightPhoto]);
-
-  }, []);
 
   const handleSendLike = useCallback(async () => {
     if (!session?.user?.id) {
@@ -738,6 +728,7 @@ const styles = StyleSheet.create({
   },
   photoCardPressed: {
     opacity: 0.9,
+  },
   photoLabel: {
     color: '#cbd5f5',
     fontWeight: '700',

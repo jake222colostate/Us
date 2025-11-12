@@ -15,6 +15,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { listUserPosts, deletePost, type Post } from '../../api/posts';
+import { getSupabaseClient } from '../../api/supabase';
+import { isTableMissingError, logTableMissingWarning } from '../../api/postgrestErrors';
 import { selectCurrentUser, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
@@ -60,6 +62,39 @@ const ProfileScreen: React.FC = () => {
   );
 
   const posts = postsData ?? [];
+
+  const { data: hasQuizData } = useQuery({
+    queryKey: ['profile-has-quiz', user?.id],
+    enabled: Boolean(user?.id),
+    queryFn: async () => {
+      if (!user?.id) return false;
+      try {
+        const client = getSupabaseClient();
+        const { data: quizRow, error } = await client
+          .from('quizzes')
+          .select('id')
+          .eq('owner_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) {
+          if (isTableMissingError(error, 'quizzes')) {
+            logTableMissingWarning('quizzes', error);
+            return false;
+          }
+          if ((error as { code?: string }).code === 'PGRST116') {
+            return false;
+          }
+          throw error;
+        }
+        return Boolean(quizRow);
+      } catch (err) {
+        console.warn('Failed to check quiz availability', err);
+        return false;
+      }
+    },
+  });
+  const hasQuiz = Boolean(hasQuizData);
 
   const deleteMutation = useMutation({
     mutationFn: async ({ postId, photoUrl }: DeletePayload) => {
@@ -183,6 +218,16 @@ const ProfileScreen: React.FC = () => {
           </Pressable>
         </View>
 
+        {hasQuiz ? (
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.quizButton, pressed && styles.buttonPressed]}
+            onPress={() => navigation.navigate('Quiz', { ownerId: user.id })}
+          >
+            <Text style={styles.quizButtonLabel}>🧠 Take my quiz</Text>
+          </Pressable>
+        ) : null}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>
           {isLoadingPosts ? (
@@ -274,6 +319,19 @@ function createStyles(palette: AppPalette) {
     buttonRow: {
       flexDirection: 'row',
       gap: 12,
+    },
+    quizButton: {
+      alignSelf: 'stretch',
+      backgroundColor: palette.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: palette.accent,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    quizButtonLabel: {
+      color: palette.accent,
+      fontWeight: '700',
     },
     primaryButton: {
       flex: 1,

@@ -7,7 +7,6 @@ export type FeedProfile = {
   name: string | null;
   bio: string | null;
   photo: string | null;
-  hasQuiz: boolean;        // placeholder until quizzes are wired here
   gender: Gender | null;
 };
 
@@ -27,7 +26,6 @@ export function usePagedFeed(enabled: boolean) {
       name: r.owner_display_name ?? null,
       bio: r.owner_bio ?? null,
       photo: r.photo_url ?? null,
-      hasQuiz: false,
       gender: (r.owner_gender as Gender | null) ?? null,
     }));
   }, []);

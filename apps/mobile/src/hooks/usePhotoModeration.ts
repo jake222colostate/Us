@@ -4,6 +4,7 @@ import * as Crypto from 'expo-crypto';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { Buffer } from 'buffer';
 import { getSupabaseClient } from '../api/supabase';
+import { isTableMissingError, logTableMissingWarning } from '../api/postgrestErrors';
 import { POST_PHOTO_BUCKET, type PhotoResource, type ModerationStatus } from '../lib/photos';
 import { useAuthStore, selectSession, selectCurrentUser } from '../state/authStore';
 
@@ -122,21 +123,73 @@ export function usePhotoModeration() {
           throw new Error('Unable to resolve uploaded photo URL');
         }
 
+        let status: ModerationStatus = 'pending';
+        let photoId: string = storagePath;
+        let rejectionReason: string | null = null;
+
+        try {
+          const payload: Record<string, unknown> = {
+            user_id: session.user.id,
+            url: publicUrl,
+            storage_path: storagePath,
+            status: 'pending',
+            content_type: contentType,
+            width: asset.width ?? null,
+            height: asset.height ?? null,
+          };
+
+          const { data: photoRow, error: photoError } = await client
+            .from('photos')
+            .upsert(payload, { onConflict: 'storage_path' })
+            .select('id, status, url, storage_path, content_type, width, height, rejection_reason')
+            .maybeSingle();
+
+          if (photoError) {
+            if ((photoError as { code?: string }).code === 'PGRST116') {
+              status = 'pending';
+            } else {
+              throw photoError;
+            }
+          } else if (photoRow) {
+            const typed = photoRow as {
+              id?: string;
+              status?: ModerationStatus;
+              url?: string | null;
+              storage_path?: string | null;
+              content_type?: string | null;
+              width?: number | null;
+              height?: number | null;
+              rejection_reason?: string | null;
+            };
+            status = typed.status ?? 'pending';
+            photoId = typed.id ?? storagePath;
+            rejectionReason = typed.rejection_reason ?? null;
+          }
+        } catch (err) {
+          if (isTableMissingError(err, 'photos')) {
+            logTableMissingWarning('photos', err);
+            status = 'approved';
+          } else {
+            console.warn('Failed to register photo for moderation', err);
+            status = 'approved';
+          }
+        }
+
         const photo: PhotoResource = {
-          id: storagePath,
+          id: photoId,
           storagePath,
-          status: 'approved',
+          status,
           url: publicUrl,
           contentType,
           width: asset.width ?? null,
           height: asset.height ?? null,
-          rejectionReason: null,
+          rejectionReason,
           localUri: asset.uri,
         };
 
         return {
           success: true,
-          status: 'approved',
+          status,
           photo,
         };
       } catch (err) {

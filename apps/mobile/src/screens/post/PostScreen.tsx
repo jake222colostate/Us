@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -43,6 +43,7 @@ const PostScreen: React.FC = () => {
   const [hostedUri, setHostedUri] = useState<string | null>(null);
   const [hostedPath, setHostedPath] = useState<string | null>(null);
   const [status, setStatus] = useState<ModerationStatus | null>(null);
+  const [photoId, setPhotoId] = useState<string | null>(null);
   const [pendingSelection, setPendingSelection] = useState(false);
   const [isPostingLive, setIsPostingLive] = useState(false);
   const [liveAsset, setLiveAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -132,6 +133,7 @@ const PostScreen: React.FC = () => {
         setPreviewUri(asset.uri);
         setHostedUri(null);
         setHostedPath(null);
+        setPhotoId(null);
         setStatus('pending');
         setPendingSelection(true);
 
@@ -140,11 +142,14 @@ const PostScreen: React.FC = () => {
 
         if (!outcome.success) {
           show('Upload failed. Please try again once you have a stable connection.');
+          setStatus(null);
+          setPhotoId(null);
           return;
         }
 
         const finalStatus = outcome.status ?? 'pending';
         setStatus(finalStatus);
+        setPhotoId(outcome.photo?.id ?? null);
 
         if (!outcome.photo?.url) {
           show('Upload succeeded but the photo URL is missing. Please try again.');
@@ -157,14 +162,18 @@ const PostScreen: React.FC = () => {
           setPreviewUri(null);
           setHostedUri(null);
           setHostedPath(null);
+          setPhotoId(null);
           return;
         }
 
         setHostedUri(outcome.photo.url);
         setHostedPath(outcome.photo.storagePath ?? null);
 
-        
-        show('Ready to upload. Tap Upload Photo.');
+        if (finalStatus === 'approved') {
+          show('Photo approved and ready to share.');
+        } else {
+          show('Photo submitted for review. We’ll let you know once it’s approved.');
+        }
         return;
       } catch (err) {
         console.error('Photo selection failed', err);
@@ -185,6 +194,14 @@ const PostScreen: React.FC = () => {
         show('Sign in to post.');
         return;
       }
+      if (status === 'pending') {
+        show('Your photo is still pending review. Please wait for approval before posting.');
+        return;
+      }
+      if (status === 'rejected') {
+        show('Select a new photo to share. This one was rejected by moderation.');
+        return;
+      }
       setIsPublishingPost(true);
       await createPost({ userId: session.user.id, photoUrl: hostedUri, storagePath: hostedPath ?? undefined });
       await Promise.all([
@@ -196,6 +213,7 @@ const PostScreen: React.FC = () => {
       setHostedUri(null);
       setHostedPath(null);
       setStatus(null);
+      setPhotoId(null);
       // optional: jump back to feed
       try { navigation.navigate('Feed' as never); } catch {}
       } catch (e: any) {
@@ -212,6 +230,7 @@ const PostScreen: React.FC = () => {
           setHostedUri(null);
           setHostedPath(null);
           setStatus(null);
+          setPhotoId(null);
           try { navigation.navigate("Feed" as never); } catch {}
         } else {
           console.error("Failed to publish post", e);
@@ -220,7 +239,98 @@ const PostScreen: React.FC = () => {
       } finally {
         setIsPublishingPost(false);
       }
-  }, [hostedUri, hostedPath, session, queryClient, navigation, show]);
+  }, [hostedUri, hostedPath, session, status, queryClient, navigation, show]);
+
+  useEffect(() => {
+    if (status !== 'pending') {
+      return;
+    }
+    if (!hostedPath && !photoId) {
+      return;
+    }
+
+    const client = getSupabaseClient();
+    let cancelled = false;
+
+    const fetchStatus = async () => {
+      try {
+        let query = client
+          .from('photos')
+          .select('id, status, url, storage_path, rejection_reason')
+          .limit(1);
+        if (photoId) {
+          query = query.eq('id', photoId);
+        } else if (hostedPath) {
+          query = query.eq('storage_path', hostedPath);
+        } else {
+          return;
+        }
+
+        const { data, error } = await query.maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          if (error.code && error.code !== 'PGRST116') {
+            console.warn('Failed to poll photo status', error);
+          }
+          return;
+        }
+        if (!data) {
+          return;
+        }
+
+        const typed = data as {
+          id?: string;
+          status?: ModerationStatus | null;
+          url?: string | null;
+          storage_path?: string | null;
+          rejection_reason?: string | null;
+        };
+
+        if (typed.id && typed.id !== photoId) {
+          setPhotoId(typed.id);
+        }
+        if (typed.storage_path && typed.storage_path !== hostedPath) {
+          setHostedPath(typed.storage_path);
+        }
+
+        const nextStatus = (typed.status as ModerationStatus | null) ?? 'pending';
+        if (nextStatus === status) {
+          return;
+        }
+
+        if (nextStatus === 'approved') {
+          if (typed.url) {
+            setHostedUri(typed.url);
+          }
+          setStatus('approved');
+          return;
+        }
+
+        if (nextStatus === 'rejected') {
+          setStatus('rejected');
+          setHostedUri(null);
+          setHostedPath(null);
+          setPhotoId(null);
+          show('This photo was rejected by moderation. Try another one.');
+          return;
+        }
+
+        setStatus(nextStatus);
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('Photo status poll failed', error);
+        }
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 4000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [status, hostedPath, photoId, show]);
 
 
   const ensureUuid = useCallback(() => {
@@ -373,6 +483,13 @@ const PostScreen: React.FC = () => {
 
   const currentPreview = hostedUri ?? previewUri;
   const showSpinner = isUploading || pendingSelection || isPublishingPost;
+  const uploadDisabled = showSpinner || status !== 'approved' || !hostedUri;
+  const uploadLabel =
+    status === 'pending'
+      ? 'Awaiting approval'
+      : status === 'rejected'
+      ? 'Select a new photo'
+      : 'Upload Photo';
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -452,7 +569,7 @@ const PostScreen: React.FC = () => {
                 ]}
               >
                 <Text style={styles.badgeText}>
-                  {status === 'approved' ? 'Approved' : status === 'pending' ? 'Pending review' : 'Rejected'}
+                  {status === 'approved' ? 'Approved' : status === 'pending' ? 'Pending' : 'Rejected'}
                 </Text>
               </View>
             )}
@@ -460,13 +577,13 @@ const PostScreen: React.FC = () => {
           <Pressable
             style={({ pressed }) => [
               styles.uploadButton,
-              showSpinner && styles.uploadButtonDisabled,
-              pressed && !showSpinner && styles.uploadButtonPressed,
+              uploadDisabled && styles.uploadButtonDisabled,
+              pressed && !uploadDisabled && styles.uploadButtonPressed,
             ]}
             onPress={handleUploadSelected}
-            disabled={showSpinner}
+            disabled={uploadDisabled}
           >
-            <Text style={styles.uploadButtonLabel}>Upload Photo</Text>
+            <Text style={styles.uploadButtonLabel}>{uploadLabel}</Text>
           </Pressable>
         </View>
       </ScrollView>

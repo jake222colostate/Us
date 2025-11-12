@@ -197,6 +197,22 @@ export default function CompareScreen({ route, navigation }: Props) {
       ? params.profile.verification.status
       : null;
   const verificationLabel = verificationStatus ? `Verification: ${verificationStatus}` : 'Verification pending';
+  const viewerName = useMemo(() => {
+    if (currentUser?.name?.trim()) return currentUser.name.trim();
+    if (currentUser?.email) {
+      const prefix = currentUser.email.split('@')[0];
+      if (prefix) return prefix;
+    }
+    return 'You';
+  }, [currentUser?.name, currentUser?.email]);
+  const rightPhotoMeta = useMemo(() => {
+    if (!rightPhoto || !rightPhotoSource) return null;
+    if (rightPhotoSource === 'post') return 'Chosen from your posts';
+    if (rightPhotoSource === 'camera') return 'Captured just now';
+    if (rightPhotoSource === 'library') return 'Uploaded from your library';
+    return null;
+  }, [rightPhoto, rightPhotoSource]);
+
   const isVertical = layout === 'vertical';
   const containerStyle = isVertical ? styles.verticalLayout : styles.horizontalLayout;
   const canSendLike = Boolean(left && rightPhoto && params.profile?.id && session?.user?.id && !isSendingLike);
@@ -259,6 +275,14 @@ export default function CompareScreen({ route, navigation }: Props) {
     setSelectedPostId(post.id);
     setIsPostPickerVisible(false);
   }, []);
+  const handleSelectPost = useCallback(
+    (post: { id: string; uri: string }) => {
+      setRightPhoto(post.uri);
+      setRightPhotoSource('post');
+      setSelectedPostId(post.id);
+    },
+    [],
+  );
 
   const handleClearRightPhoto = useCallback(() => {
     setRightPhoto(null);
@@ -319,6 +343,8 @@ export default function CompareScreen({ route, navigation }: Props) {
       { cancelable: true },
     );
   }, [handleChooseFromLibrary, handleChooseFromPosts, handleTakePhoto, handleClearRightPhoto, rightPhoto]);
+
+  }, []);
 
   const handleSendLike = useCallback(async () => {
     if (!session?.user?.id) {
@@ -385,14 +411,18 @@ export default function CompareScreen({ route, navigation }: Props) {
         </View>
 
         <View key={layout} style={[styles.compareArea, containerStyle]}>
-          <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
-            {left ? (
-              <Image source={{ uri: left }} style={styles.photo} resizeMode="cover" />
-            ) : (
-              <View style={[styles.photo, styles.placeholder]}>
-                <Text style={styles.placeholderLabel}>No photo</Text>
-              </View>
-            )}
+          <View style={[styles.photoColumn, isVertical ? styles.verticalPhotoColumn : styles.horizontalPhotoColumn]}>
+            <Text style={styles.photoLabel}>{profileName}</Text>
+            <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
+              {left ? (
+                <Image source={{ uri: left }} style={styles.photo} resizeMode="cover" />
+              ) : (
+                <View style={[styles.photo, styles.placeholder]}>
+                  <Text style={styles.placeholderLabel}>No photo</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.photoMeta}>This is what they shared publicly.</Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -412,6 +442,107 @@ export default function CompareScreen({ route, navigation }: Props) {
               </View>
             )}
           </Pressable>
+          <View style={[styles.photoColumn, isVertical ? styles.verticalPhotoColumn : styles.horizontalPhotoColumn]}>
+            <Text style={styles.photoLabel}>{viewerName}</Text>
+            <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
+              {rightPhoto ? (
+                <Image source={{ uri: rightPhoto }} style={styles.photo} resizeMode="cover" />
+              ) : (
+                <View style={[styles.photo, styles.placeholder]}>
+                  <Text style={styles.placeholderLabel}>Add your photo</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.photoMeta}>
+              {rightPhotoMeta ?? 'Upload, snap, or pick a post so they can see you too.'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.actionsSection}>
+          <Text style={styles.actionsTitle}>Choose how you show up</Text>
+          <Text style={styles.actionsHint}>
+            Upload a fresh photo, take one on the spot, or tap one of your posts below. We only use it for this comparison.
+          </Text>
+          <View style={styles.actionsRow}>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
+              onPress={handleTakePhoto}
+            >
+              <Text style={styles.actionButtonText}>Take photo</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
+              onPress={handleChooseFromLibrary}
+            >
+              <Text style={styles.actionButtonText}>Upload photo</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={!viewerPostOptions.length}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.actionButtonGhost,
+                pressed && styles.actionButtonPressed,
+                !viewerPostOptions.length && styles.actionButtonDisabled,
+              ]}
+              onPress={() => {
+                if (!viewerPostOptions.length) {
+                  show('Add a post first to choose from your gallery.');
+                  return;
+                }
+                handleSelectPost(viewerPostOptions[0]);
+                show('Using a post—tap another thumbnail to swap it.');
+              }}
+            >
+              <Text style={styles.actionButtonGhostText}>Choose from posts</Text>
+            </Pressable>
+            {rightPhoto ? (
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.actionButton, styles.actionButtonGhost, pressed && styles.actionButtonPressed]}
+                onPress={handleClearRightPhoto}
+              >
+                <Text style={styles.actionButtonGhostText}>Remove photo</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {viewerPostsQuery.isLoading ? (
+            <ActivityIndicator color="#94a3b8" style={styles.postsLoading} />
+          ) : viewerPostOptions.length ? (
+            <View style={styles.postsSection}>
+              <View style={styles.postsLabelRow}>
+                <Text style={styles.postsLabel}>Your posts</Text>
+                <Text style={styles.postsHint}>Tap to compare with this profile.</Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.postsScroller}
+              >
+                {viewerPostOptions.map((post) => (
+                  <Pressable
+                    key={post.id}
+                    accessibilityRole="button"
+                    onPress={() => handleSelectPost(post)}
+                    style={({ pressed }) => [
+                      styles.postThumbnailWrapper,
+                      selectedPostId === post.id && styles.postThumbnailSelected,
+                      pressed && styles.postThumbnailPressed,
+                    ]}
+                  >
+                    <Image source={{ uri: post.uri }} style={styles.postThumbnail} resizeMode="cover" />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : (
+            <Text style={styles.postsEmptyText}>
+              You haven’t shared any posts yet. Add one from your profile to pick it here.
+            </Text>
+          )}
         </View>
 
         <View style={styles.ctaRow}>
@@ -579,6 +710,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
   },
+  photoColumn: {
+    flex: 1,
+  },
+  verticalPhotoColumn: {
+    width: '100%',
+  },
+  horizontalPhotoColumn: {
+    flexBasis: 0,
+    minWidth: 0,
+  },
   photoCard: {
     flex: 1,
     borderRadius: 18,
@@ -597,6 +738,11 @@ const styles = StyleSheet.create({
   },
   photoCardPressed: {
     opacity: 0.9,
+  photoLabel: {
+    color: '#cbd5f5',
+    fontWeight: '700',
+    fontSize: 15,
+    marginBottom: 10,
   },
   photo: {
     width: '100%',
@@ -611,6 +757,86 @@ const styles = StyleSheet.create({
   },
   placeholderLabel: {
     color: '#94a3b8',
+  },
+  photoMeta: {
+    color: '#94a3b8',
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  actionsSection: {
+    backgroundColor: '#0f172a',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 24,
+    gap: 12,
+  },
+  actionsTitle: {
+    color: '#f8fafc',
+    fontWeight: '700',
+    fontSize: 18,
+  },
+  actionsHint: {
+    color: '#94a3b8',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  actionButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: '#1f2937',
+  },
+  actionButtonPressed: {
+    opacity: 0.85,
+  },
+  actionButtonText: {
+    color: '#f8fafc',
+    fontWeight: '600',
+  },
+  actionButtonGhost: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  actionButtonGhostText: {
+    color: '#cbd5f5',
+    fontWeight: '600',
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  postsLoading: {
+    marginTop: 16,
+  },
+  postsSection: {
+    marginTop: 12,
+    gap: 12,
+  },
+  postsLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  postsLabel: {
+    color: '#cbd5f5',
+    fontWeight: '600',
+  },
+  postsHint: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  postsScroller: {
+    gap: 12,
+    paddingRight: 4,
   },
   postThumbnailWrapper: {
     borderRadius: 16,
@@ -628,6 +854,11 @@ const styles = StyleSheet.create({
     width: 88,
     height: 118,
     backgroundColor: '#1f2937',
+  },
+  postsEmptyText: {
+    color: '#64748b',
+    fontSize: 13,
+    lineHeight: 18,
   },
   ctaRow: {
     flexDirection: 'row',

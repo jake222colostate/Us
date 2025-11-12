@@ -191,20 +191,20 @@ export default function CompareScreen({ route, navigation }: Props) {
 
   const left = params.leftPhoto ?? allPhotos[0] ?? null;
   const profileName = params.profile?.name ?? 'This profile';
+  const profileFirstName = useMemo(() => {
+    const rawName = params.profile?.name;
+    if (typeof rawName !== 'string') return 'this person';
+    const trimmed = rawName.trim();
+    if (!trimmed) return 'this person';
+    const [first = ''] = trimmed.split(/\s+/);
+    return first || 'this person';
+  }, [params.profile?.name]);
   const profileBio = params.profile?.bio ?? null;
   const verificationStatus =
     typeof params.profile?.verification?.status === 'string'
       ? params.profile.verification.status
       : null;
   const verificationLabel = verificationStatus ? `Verification: ${verificationStatus}` : 'Verification pending';
-  const viewerName = useMemo(() => {
-    if (currentUser?.name?.trim()) return currentUser.name.trim();
-    if (currentUser?.email) {
-      const prefix = currentUser.email.split('@')[0];
-      if (prefix) return prefix;
-    }
-    return 'You';
-  }, [currentUser?.name, currentUser?.email]);
   const rightPhotoMeta = useMemo(() => {
     if (!rightPhoto || !rightPhotoSource) return null;
     if (rightPhotoSource === 'post') return 'Chosen from your posts';
@@ -214,7 +214,7 @@ export default function CompareScreen({ route, navigation }: Props) {
   }, [rightPhoto, rightPhotoSource]);
 
   const isVertical = layout === 'vertical';
-  const containerStyle = isVertical ? styles.verticalLayout : styles.horizontalLayout;
+  const layoutStyle = isVertical ? styles.verticalLayout : styles.horizontalLayout;
   const canSendLike = Boolean(left && rightPhoto && params.profile?.id && session?.user?.id && !isSendingLike);
 
   const ensurePermission = useCallback(async (
@@ -400,47 +400,59 @@ export default function CompareScreen({ route, navigation }: Props) {
           })}
         </View>
 
-        <View key={layout} style={[styles.compareArea, containerStyle]}>
-          <View
-            style={[styles.photoColumn, isVertical ? styles.verticalPhotoColumn : styles.horizontalPhotoColumn]}
-          >
-            <Text style={styles.photoLabel}>{profileName}</Text>
-            <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
-              {left ? (
-                <Image source={{ uri: left }} style={styles.photo} resizeMode="cover" />
-              ) : (
-                <View style={[styles.photo, styles.placeholder]}>
-                  <Text style={styles.placeholderLabel}>No photo</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.photoMeta}>This is what they shared publicly.</Text>
-          </View>
-          <View
-            style={[styles.photoColumn, isVertical ? styles.verticalPhotoColumn : styles.horizontalPhotoColumn]}
-          >
-            <Text style={styles.photoLabel}>{viewerName}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityHint="Choose how to add your photo"
-              onPress={handleOpenRightPhotoMenu}
-              style={({ pressed }) => [
-                styles.photoCard,
-                isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard,
-                pressed && styles.photoCardPressed,
+        <View style={styles.compareArea}>
+          <Text style={styles.compareHeading}>
+            Compare Photos with{' '}
+            <Text style={styles.compareHeadingName}>{profileFirstName}</Text>
+          </Text>
+          <View key={layout} style={[styles.photoLayout, layoutStyle]}>
+            <View
+              style={[
+                styles.photoColumn,
+                isVertical ? styles.verticalPhotoColumn : styles.horizontalPhotoColumn,
+                isVertical ? styles.verticalTopColumn : styles.horizontalLeftColumn,
               ]}
             >
-              {rightPhoto ? (
-                <Image source={{ uri: rightPhoto }} style={styles.photo} resizeMode="cover" />
-              ) : (
-                <View style={[styles.photo, styles.placeholder]}>
-                  <Text style={styles.placeholderLabel}>Tap to add your photo</Text>
-                </View>
-              )}
-            </Pressable>
-            <Text style={styles.photoMeta}>
-              {rightPhotoMeta ?? 'Upload, snap, or pick a post so they can see you too.'}
-            </Text>
+              <View style={[styles.photoCard, isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard]}>
+                {left ? (
+                  <Image source={{ uri: left }} style={styles.photo} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.photo, styles.placeholder]}>
+                    <Text style={styles.placeholderLabel}>No photo</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.photoMeta}>This is what they shared publicly.</Text>
+            </View>
+            <View
+              style={[
+                styles.photoColumn,
+                isVertical ? styles.verticalPhotoColumn : styles.horizontalPhotoColumn,
+                !isVertical && styles.horizontalRightColumn,
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityHint="Choose how to add your photo"
+                onPress={handleOpenRightPhotoMenu}
+                style={({ pressed }) => [
+                  styles.photoCard,
+                  isVertical ? styles.verticalPhotoCard : styles.horizontalPhotoCard,
+                  pressed && styles.photoCardPressed,
+                ]}
+              >
+                {rightPhoto ? (
+                  <Image source={{ uri: rightPhoto }} style={styles.photo} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.photo, styles.placeholder]}>
+                    <Text style={styles.placeholderLabel}>Tap to add your photo</Text>
+                  </View>
+                )}
+              </Pressable>
+              <Text style={styles.photoMeta}>
+                {rightPhotoMeta ?? 'Upload, snap, or pick a post so they can see you too.'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -599,7 +611,20 @@ const styles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 16,
     marginTop: 16,
-    gap: 16,
+    alignItems: 'stretch',
+  },
+  compareHeading: {
+    color: '#94a3b8',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  compareHeadingName: {
+    color: '#f8fafc',
+    fontWeight: '700',
+  },
+  photoLayout: {
+    marginTop: 16,
+    width: '100%',
     alignItems: 'stretch',
   },
   verticalLayout: {
@@ -607,7 +632,7 @@ const styles = StyleSheet.create({
   },
   horizontalLayout: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'flex-start',
   },
   photoColumn: {
     flex: 1,
@@ -618,6 +643,15 @@ const styles = StyleSheet.create({
   horizontalPhotoColumn: {
     flexBasis: 0,
     minWidth: 0,
+  },
+  horizontalLeftColumn: {
+    marginRight: 8,
+  },
+  horizontalRightColumn: {
+    marginLeft: 8,
+  },
+  verticalTopColumn: {
+    marginBottom: 16,
   },
   photoCard: {
     flex: 1,
@@ -637,12 +671,6 @@ const styles = StyleSheet.create({
   },
   photoCardPressed: {
     opacity: 0.9,
-  },
-  photoLabel: {
-    color: '#cbd5f5',
-    fontWeight: '700',
-    fontSize: 15,
-    marginBottom: 10,
   },
   photo: {
     width: '100%',

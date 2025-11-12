@@ -34,11 +34,11 @@ export async function createPost({ userId, photoUrl, storagePath }: CreatePostAr
     payload.storage_path = storagePath;
   }
 
-  let { error } = await client.from('posts').insert(payload);
+  let { error } = await client.rpc('app_publish_post_if_approved', { _user_id: payload.user_id, _storage_path: payload.storage_path, _photo_url: (payload.photo_url ?? null), _caption: (payload.caption ?? null) });
 
   if (error && error.code === '42703' && error.message?.toLowerCase().includes('storage_path')) {
     delete payload.storage_path;
-    ({ error } = await client.from('posts').insert(payload));
+    ({ error } = await client.rpc('app_publish_post_if_approved', { _user_id: payload.user_id, _storage_path: payload.storage_path, _photo_url: (payload.photo_url ?? null), _caption: (payload.caption ?? null) }));
   }
 
   if (error) {

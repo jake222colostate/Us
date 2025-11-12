@@ -19,7 +19,8 @@
     "test": "pnpm --recursive test",
     "migrate:dev": "pnpm --filter supabase-infra migrate:dev",
     "seed": "pnpm --filter supabase-infra seed",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "moderation": "node scripts/moderation-server.js"
   },
   "devDependencies": {
     "@babel/core": "^7",
@@ -43,6 +44,7 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.929.0",
     "@expo/metro-config": "^54.0.8",
     "@expo/vector-icons": "^15.0.3",
     "@us/ui": "workspace:^",
@@ -56,12 +58,14 @@
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
     "expo-web-browser": "~15.0.9",
+    "express": "^5.1.0",
     "metro": "^0.83.3",
     "metro-cache": "^0.83.3",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-reanimated": "~4.1.0",
-    "react-native-worklets": "^0.5.2"
+    "react-native-worklets": "^0.5.2",
+    "undici": "^7.16.0"
   },
   "workspaces": [
     "apps/*",

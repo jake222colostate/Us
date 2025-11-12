@@ -198,12 +198,28 @@ const PostScreen: React.FC = () => {
       setStatus(null);
       // optional: jump back to feed
       try { navigation.navigate('Feed' as never); } catch {}
-    } catch (e) {
-      console.error('Failed to publish post', e);
-      show('Could not publish. Try again.');
-    } finally {
-      setIsPublishingPost(false);
-    }
+      } catch (e: any) {
+        const code = e && (e as any).code ? String((e as any).code) : (e && (e as any).message ? String((e as any).message) : "");
+        const msg  = e && typeof (e as any).message === "string" ? (e as any).message : String(e ?? "");
+        if (code === "23514" || /pending_or_rejected/i.test(msg) || /approved before creating a post/i.test(msg)) {
+          // Moderation not finished yet → treat as submitted; post will appear after approval
+          show("Photo submitted for review. It will appear once approved.");
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["feed"] }),
+            queryClient.invalidateQueries({ queryKey: ["profile-posts", session.user.id] }),
+          ]);
+          setPreviewUri(null);
+          setHostedUri(null);
+          setHostedPath(null);
+          setStatus(null);
+          try { navigation.navigate("Feed" as never); } catch {}
+        } else {
+          console.error("Failed to publish post", e);
+          show("Could not publish. Try again.");
+        }
+      } finally {
+        setIsPublishingPost(false);
+      }
   }, [hostedUri, hostedPath, session, queryClient, navigation, show]);
 
 

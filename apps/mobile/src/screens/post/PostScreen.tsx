@@ -31,6 +31,13 @@ import { checkLiveGuard, createLivePost } from '../../api/livePosts';
 import type { MainTabParamList } from '../../navigation/tabs/MainTabs';
 import { createPost } from '../../api/posts';
 
+type PhotoStatusRecord = {
+  id: string | null;
+  status: ModerationStatus | null;
+  url: string | null;
+  storagePath: string | null;
+};
+
 const PREVIEW_ASPECT_RATIO = 3 / 4;
 const PREVIEW_MAX_WIDTH = 360;
 
@@ -53,6 +60,100 @@ const PostScreen: React.FC = () => {
 
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
   const styles = useMemo(() => createStyles(isDarkMode), [isDarkMode]);
+
+  const applyPhotoStatus = useCallback(
+    (record: PhotoStatusRecord, options?: { silent?: boolean }): ModerationStatus => {
+      const { silent = false } = options ?? {};
+
+      if (record.id && record.id !== photoId) {
+        setPhotoId(record.id);
+      }
+      if (record.storagePath && record.storagePath !== hostedPath) {
+        setHostedPath(record.storagePath);
+      }
+      const normalized: ModerationStatus =
+        record.status === 'approved'
+          ? 'approved'
+          : record.status === 'rejected'
+          ? 'rejected'
+          : 'pending';
+
+      if (normalized !== 'rejected' && record.url && record.url !== hostedUri) {
+        setHostedUri(record.url);
+      }
+
+      if (normalized === 'approved') {
+        setStatus('approved');
+        if (!silent && status !== 'approved') {
+          show('Photo approved and ready to share.');
+        }
+        return 'approved';
+      }
+
+      if (normalized === 'rejected') {
+        setStatus('rejected');
+        setHostedUri(null);
+        setHostedPath(null);
+        setPhotoId(null);
+        setPreviewUri(null);
+        if (!silent && status !== 'rejected') {
+          show('This photo was rejected by moderation. Try another one.');
+        }
+        return 'rejected';
+      }
+
+      setStatus('pending');
+      if (!silent && status !== 'pending') {
+        show('Photo submitted for review. We’ll let you know once it’s approved.');
+      }
+      return 'pending';
+    },
+    [hostedPath, hostedUri, photoId, show, status],
+  );
+
+  const fetchPhotoStatus = useCallback(async (): Promise<PhotoStatusRecord | null> => {
+    if (!photoId && !hostedPath) {
+      return null;
+    }
+
+    const client = getSupabaseClient();
+    let query = client
+      .from('photos')
+      .select('id, status, url, storage_path')
+      .limit(1);
+
+    if (photoId) {
+      query = query.eq('id', photoId);
+    } else if (hostedPath) {
+      query = query.eq('storage_path', hostedPath);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error) {
+      if (error.code && error.code !== 'PGRST116') {
+        console.warn('Failed to fetch photo status', error);
+      }
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    const typed = data as {
+      id?: string | null;
+      status?: ModerationStatus | null;
+      url?: string | null;
+      storage_path?: string | null;
+    };
+
+    return {
+      id: typed.id ?? null,
+      status: typed.status ?? null,
+      url: typed.url ?? null,
+      storagePath: typed.storage_path ?? null,
+    };
+  }, [hostedPath, photoId]);
 
   const mirrorAsset = useCallback(async (asset: ImagePicker.ImagePickerAsset) => {
     try {
@@ -135,6 +236,7 @@ const PostScreen: React.FC = () => {
         setHostedPath(null);
         setPhotoId(null);
         setStatus('pending');
+        setPreviewUri(asset.uri ?? null);
         setPendingSelection(true);
 
         const outcome = await uploadPhoto({ asset });
@@ -147,30 +249,24 @@ const PostScreen: React.FC = () => {
           return;
         }
 
-        const finalStatus = outcome.status ?? 'pending';
-        const safeStatus = finalStatus === 'rejected' ? 'pending' : finalStatus;
-        setStatus(safeStatus);
-        setPhotoId(outcome.photo?.id ?? null);
-
         if (!outcome.photo?.url) {
           show('Upload succeeded but the photo URL is missing. Please try again.');
-          setHostedPath(null);
-          return;
-        }
-
-        if (safeStatus === 'rejected') {
-          show('This photo was rejected by moderation. Try another one.');
-          setPreviewUri(null);
           setHostedUri(null);
           setHostedPath(null);
-          setPhotoId(null);
+          setPreviewUri(null);
           return;
         }
 
         setHostedUri(outcome.photo.url);
         setHostedPath(outcome.photo.storagePath ?? null);
+        setPhotoId(outcome.photo?.id ?? null);
 
-        if (safeStatus === 'approved') {
+        const finalStatus = outcome.status ?? null;
+        const initialStatus: ModerationStatus =
+          finalStatus === 'approved' ? 'approved' : 'pending';
+        setStatus(initialStatus);
+
+        if (initialStatus === 'approved') {
           show('Photo approved and ready to share.');
         } else {
           show('Photo submitted for review. We’ll let you know once it’s approved.');
@@ -181,7 +277,7 @@ const PostScreen: React.FC = () => {
         show('Something went wrong while selecting your photo. Please try again.');
       }
     },
-    [uploadPhoto, show, session, queryClient, mirrorAsset],
+    [uploadPhoto, show, mirrorAsset],
   );
 
   // Publish the currently hostedUri to the feed (no picker)
@@ -195,12 +291,24 @@ const PostScreen: React.FC = () => {
         show('Sign in to post.');
         return;
       }
+
+      let currentStatus: ModerationStatus | null = status;
       if (status === 'pending') {
-        show('Your photo is still pending review. Please wait for approval before posting.');
-        return;
+        const record = await fetchPhotoStatus();
+        if (record) {
+          currentStatus = applyPhotoStatus(record);
+        }
+
+        if (currentStatus === 'pending') {
+          show('Your photo is still pending review. Please wait for approval before posting.');
+          return;
+        }
       }
-      if (status === 'rejected') {
-        show('Select a new photo to share. This one was rejected by moderation.');
+
+      if (currentStatus === 'rejected') {
+        if (status === 'rejected') {
+          show('Select a new photo to share. This one was rejected by moderation.');
+        }
         return;
       }
       setIsPublishingPost(true);
@@ -240,7 +348,7 @@ const PostScreen: React.FC = () => {
       } finally {
         setIsPublishingPost(false);
       }
-  }, [hostedUri, hostedPath, session, status, queryClient, navigation, show]);
+  }, [applyPhotoStatus, fetchPhotoStatus, hostedPath, hostedUri, navigation, queryClient, session, show, status]);
 
   useEffect(() => {
     if (status !== 'pending') {
@@ -250,73 +358,15 @@ const PostScreen: React.FC = () => {
       return;
     }
 
-    const client = getSupabaseClient();
     let cancelled = false;
 
     const fetchStatus = async () => {
       try {
-        let query = client
-          .from('photos')
-          .select('id, status, url, storage_path, rejection_reason')
-          .limit(1);
-        if (photoId) {
-          query = query.eq('id', photoId);
-        } else if (hostedPath) {
-          query = query.eq('storage_path', hostedPath);
-        } else {
+        const record = await fetchPhotoStatus();
+        if (cancelled || !record) {
           return;
         }
-
-        const { data, error } = await query.maybeSingle();
-        if (cancelled) return;
-        if (error) {
-          if (error.code && error.code !== 'PGRST116') {
-            console.warn('Failed to poll photo status', error);
-          }
-          return;
-        }
-        if (!data) {
-          return;
-        }
-
-        const typed = data as {
-          id?: string;
-          status?: ModerationStatus | null;
-          url?: string | null;
-          storage_path?: string | null;
-          rejection_reason?: string | null;
-        };
-
-        if (typed.id && typed.id !== photoId) {
-          setPhotoId(typed.id);
-        }
-        if (typed.storage_path && typed.storage_path !== hostedPath) {
-          setHostedPath(typed.storage_path);
-        }
-
-        const nextStatus = (typed.status as ModerationStatus | null) ?? 'pending';
-        if (nextStatus === status) {
-          return;
-        }
-
-        if (nextStatus === 'approved') {
-          if (typed.url) {
-            setHostedUri(typed.url);
-          }
-          setStatus('approved');
-          return;
-        }
-
-        if (nextStatus === 'rejected') {
-          setStatus('rejected');
-          setHostedUri(null);
-          setHostedPath(null);
-          setPhotoId(null);
-          show('This photo was rejected by moderation. Try another one.');
-          return;
-        }
-
-        setStatus(nextStatus);
+        applyPhotoStatus(record);
       } catch (error) {
         if (!cancelled) {
           console.warn('Photo status poll failed', error);
@@ -331,7 +381,7 @@ const PostScreen: React.FC = () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [status, hostedPath, photoId, show]);
+  }, [applyPhotoStatus, fetchPhotoStatus, hostedPath, photoId, status]);
 
 
   const ensureUuid = useCallback(() => {

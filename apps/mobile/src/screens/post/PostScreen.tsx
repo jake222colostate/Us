@@ -1,3 +1,4 @@
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -443,7 +444,7 @@ const PostScreen: React.FC = () => {
         extension = 'heif';
       }
 
-      const base64 = await FileSystem.readAsStringAsync(liveAsset.uri, {
+      const base64 = await FileSystemLegacy.readAsStringAsync(liveAsset.uri, {
         encoding: 'base64',
       });
       const bytes = toBytes(base64);

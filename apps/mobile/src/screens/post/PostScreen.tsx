@@ -131,7 +131,6 @@ const PostScreen: React.FC = () => {
           asset = await mirrorAsset(asset);
         }
 
-        setPreviewUri(asset.uri);
         setHostedUri(null);
         setHostedPath(null);
         setPhotoId(null);
@@ -149,7 +148,8 @@ const PostScreen: React.FC = () => {
         }
 
         const finalStatus = outcome.status ?? 'pending';
-        setStatus(finalStatus);
+        const safeStatus = finalStatus === 'rejected' ? 'pending' : finalStatus;
+        setStatus(safeStatus);
         setPhotoId(outcome.photo?.id ?? null);
 
         if (!outcome.photo?.url) {
@@ -158,7 +158,7 @@ const PostScreen: React.FC = () => {
           return;
         }
 
-        if (finalStatus === 'rejected') {
+        if (safeStatus === 'rejected') {
           show('This photo was rejected by moderation. Try another one.');
           setPreviewUri(null);
           setHostedUri(null);
@@ -170,7 +170,7 @@ const PostScreen: React.FC = () => {
         setHostedUri(outcome.photo.url);
         setHostedPath(outcome.photo.storagePath ?? null);
 
-        if (finalStatus === 'approved') {
+        if (safeStatus === 'approved') {
           show('Photo approved and ready to share.');
         } else {
           show('Photo submitted for review. We’ll let you know once it’s approved.');

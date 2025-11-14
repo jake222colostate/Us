@@ -1,880 +1,348 @@
-import * as FileSystemLegacy from 'expo-file-system/legacy';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  View,
+  Text,
+  Image,
+  Pressable,
+  ActivityIndicator,
+  ScrollView,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import * as Crypto from 'expo-crypto';
-import { Buffer } from 'buffer';
-import { FlipType, SaveFormat, manipulateAsync } from 'expo-image-manipulator';
-import { useNavigation } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useQueryClient } from '@tanstack/react-query';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
-import type { ModerationStatus } from '../../lib/photos';
-import { POST_PHOTO_BUCKET } from '../../lib/photos';
-import { useToast } from '../../providers/ToastProvider';
-import { useThemeStore } from '../../state/themeStore';
 import { useAuthStore, selectSession } from '../../state/authStore';
+import { useToast } from '../../providers/ToastProvider';
 import { getSupabaseClient } from '../../api/supabase';
-import { checkLiveGuard, createLivePost } from '../../api/livePosts';
-import type { MainTabParamList } from '../../navigation/tabs/MainTabs';
 import { createPost } from '../../api/posts';
+import { useQueryClient } from '@tanstack/react-query';
+import type { ModerationStatus } from '../../lib/photos';
 
-type PhotoStatusRecord = {
-  id: string | null;
-  status: ModerationStatus | null;
-  url: string | null;
-  storagePath: string | null;
-};
-
-const PREVIEW_ASPECT_RATIO = 3 / 4;
-const PREVIEW_MAX_WIDTH = 360;
+const POLL_INTERVAL_MS = 4000;
 
 const PostScreen: React.FC = () => {
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList, 'Post'>>();
-  const queryClient = useQueryClient();
-  const { uploadPhoto, isUploading } = usePhotoModeration();
   const session = useAuthStore(selectSession);
+  const { uploadPhoto, isUploading } = usePhotoModeration();
   const { show } = useToast();
+  const queryClient = useQueryClient();
+
   const [previewUri, setPreviewUri] = useState<string | null>(null);
-  const [hostedUri, setHostedUri] = useState<string | null>(null);
   const [hostedPath, setHostedPath] = useState<string | null>(null);
-  const [status, setStatus] = useState<ModerationStatus | null>(null);
-  const [photoId, setPhotoId] = useState<string | null>(null);
-  const [pendingSelection, setPendingSelection] = useState(false);
-  const [isPostingLive, setIsPostingLive] = useState(false);
-  const [liveAsset, setLiveAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [isLivePreviewVisible, setIsLivePreviewVisible] = useState(false);
-  const [isPublishingPost, setIsPublishingPost] = useState(false);
+  const [hostedUri, setHostedUri] = useState<string | null>(null);
+  const [status, setStatus] = useState<ModerationStatus>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
 
-  // Hard reset any stale moderation state when PostScreen mounts
-  /* 🧼 DISABLED — this was wiping moderation state every mount */
+  const launchPicker = useCallback(
+    async (fromCamera: boolean) => {
+      const perm = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-  const isDarkMode = useThemeStore((state) => state.isDarkMode);
-  const styles = useMemo(() => createStyles(isDarkMode), [isDarkMode]);
-
-  const applyPhotoStatus = useCallback(
-    (record: PhotoStatusRecord, options?: { silent?: boolean }): ModerationStatus => {
-      const { silent = false } = options ?? {};
-
-      const rawStatus = record?.status ?? null;
-      const normalized: ModerationStatus =
-        rawStatus === 'approved'
-          ? 'approved'
-          : rawStatus === 'rejected'
-          ? 'rejected'
-          : 'pending';
-
-      console.log('🎯 applyPhotoStatus normalized', {
-        incoming: rawStatus,
-        normalized,
-        current: status,
-        record,
-        photoId,
-        hostedPath,
-      });
-
-      // Ignore updates that refer to a different photo than the one currently selected
-      if (photoId && record.id && record.id !== photoId) {
-        console.log('⏭ Ignoring status for mismatched photoId', {
-          currentPhotoId: photoId,
-          incomingId: record.id,
-        });
-        return status ?? 'pending';
-      }
-      if (hostedPath && record.storagePath && record.storagePath !== hostedPath) {
-        console.log('⏭ Ignoring status for mismatched storagePath', {
-          currentHostedPath: hostedPath,
-          incomingStoragePath: record.storagePath,
-        });
-        return status ?? 'pending';
+      if (!perm.granted) {
+        show(fromCamera ? 'Camera permission denied.' : 'Library permission denied.');
+        return;
       }
 
-      if (normalized !== 'rejected' && record.url && record.url !== hostedUri) {
-        setHostedUri(record.url);
+      const result = fromCamera
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 1,
+            allowsEditing: false,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 1,
+            allowsEditing: false,
+          });
+
+      if (!result || result.canceled || !result.assets || !result.assets.length) {
+        return;
       }
 
-      // Once we've marked this photo as approved on the client, don't let later
-      // non-approved updates flip it back.
-      if (status === 'approved' && normalized !== 'approved') {
-        console.log('🔒 Keeping approved status, ignoring non-approved update', { normalized });
-        return 'approved';
+      const asset = result.assets[0];
+      setPreviewUri(asset.uri);
+      setStatus('pending');
+
+      const uploadResult = await uploadPhoto({ asset });
+      console.log('📤 uploadPhoto result', uploadResult);
+
+      if (!uploadResult.success || !uploadResult.photo) {
+        show('Upload failed. Try again.');
+        return;
       }
 
-      if (normalized === 'approved') {
-        setStatus('approved');
-        if (!silent && status !== 'approved') {
-          show('Photo approved and ready to share.');
-        }
-        return 'approved';
-      }
+      const photo = uploadResult.photo;
+      const initialStatus: ModerationStatus = photo.status ?? 'pending';
 
-      if (normalized === 'rejected') {
-        setStatus('rejected');
-        if (!silent && status !== 'rejected') {
-          show('This photo was rejected by moderation. Try another one.');
-        }
-        return 'rejected';
-      }
+      setHostedPath(photo.storagePath ?? null);
+      setHostedUri(photo.url ?? null);
+      setStatus(initialStatus);
 
-      // setStatus('pending'); // DISABLED — was overwriting approval
-      if (!silent && status !== 'pending') {
-        show('Photo submitted for review. We’ll let you know once it’s approved.');
-      }
-      return 'pending';
-    },
-    [hostedPath, hostedUri, photoId, show, status],
-  );
-
-
-
-  // Publish the currently hostedUri to the feed (no picker)
-  
-  // Fetch current moderation status from Supabase for this photo  
-  const fetchPhotoStatus = useCallback(async () => {
-    if (!photoId) {
-      return null;
-    }
-
-    try {
-      const supabase = getSupabaseClient();
-
-      const { data, error } = await supabase
-        .from('photos')
-        .select('id, status, storage_path, created_at')
-        .eq('id', photoId)
-        .maybeSingle();
-
-      console.log("📡 FRESH fetchPhotoStatus:", { data, error, hostedPath, photoId });
-
-      if (error || !data) {
-        return null;
-      }
-
-      return {
-        id: data.id,
-        status: data.status,
-        storagePath: data.storage_path,
-        url: data.storage_path
-          ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/post-photos/${data.storage_path}`
-          : null,
-      };
-    } catch (e) {
-      console.warn("fetchPhotoStatus failed:", e);
-      return null;
-    }
-  }, [photoId, hostedPath]);
-
-  // Camera / Library picker
-  const handleSelect = useCallback(
-    async (source: 'camera' | 'library') => {
-      try {
-        const permission =
-          source === 'camera'
-            ? await ImagePicker.requestCameraPermissionsAsync()
-            : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-        if (!permission.granted) {
-          show(source === 'camera' ? 'Camera permission denied.' : 'Library permission denied.');
-          return;
-        }
-
-        const capture =
-          source === 'camera'
-            ? await ImagePicker.launchCameraAsync({
-                quality: 1,
-                allowsEditing: false,
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              })
-            : await ImagePicker.launchImageLibraryAsync({
-                quality: 1,
-                allowsEditing: false,
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              });
-
-        if (!capture || capture.canceled || !capture.assets || !capture.assets.length) {
-          return;
-        }
-
-        const asset = capture.assets[0];
-        setPreviewUri(asset.uri);
-
-        // Upload to moderation pipeline
-        const { photoId: newId, storagePath: newPath, publicUrl } =
-          await uploadPhoto(asset);
-
-        setHostedUri(publicUrl);
-        setHostedPath(newPath);
-        setPhotoId(newId);
-        // setStatus('pending'); // DISABLED — was overwriting approval
-        show('Photo submitted for review.');
-      } catch (err) {
-        console.error('handleSelect failed', err);
-        show('Failed to capture photo.');
-      }
+      show('Photo submitted for moderation.');
     },
     [show, uploadPhoto],
   );
 
-const handleUploadSelected = useCallback(async () => {
+  const pollStatus = useCallback(
+    async () => {
+      if (!hostedPath) {
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('photos')
+        .select('id, status, storage_path, created_at')
+        .eq('storage_path', hostedPath)
+        .maybeSingle();
+
+      console.log('📡 pollStatus raw', { hostedPath, data, error });
+
+      if (error || !data) {
+        return;
+      }
+
+      const raw = (data.status ?? 'pending').toString().toLowerCase().trim();
+      const normalized: ModerationStatus =
+        raw === 'approved' ? 'approved' : raw === 'rejected' ? 'rejected' : 'pending';
+
+      if (normalized !== status) {
+        console.log('📡 moderation status update', {
+          hostedPath,
+          rawStatus: data.status,
+          normalized,
+          created_at: data.created_at,
+        });
+        setStatus(normalized);
+      }
+
+      if (data.storage_path && data.storage_path !== hostedPath) {
+        const url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/post-photos/${data.storage_path}`;
+        console.log('🔗 updating hostedPath/hostedUri from pollStatus', {
+          oldHostedPath: hostedPath,
+          newStoragePath: data.storage_path,
+          url,
+        });
+        setHostedPath(data.storage_path);
+        setHostedUri(url);
+      }
+    },
+    [hostedPath, status],
+  );
+
+  useEffect(() => {
+    if (!hostedPath) return;
+
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      await pollStatus();
+    };
+
+    tick();
+    const id = setInterval(tick, POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [hostedPath, pollStatus]);
+
+  const resetPhoto = useCallback(() => {
+    setPreviewUri(null);
+    setHostedPath(null);
+    setHostedUri(null);
+    setStatus(null);
+  }, []);
+
+  const handlePost = useCallback(async () => {
+    if (!session) {
+      show('Sign in to post.');
+      return;
+    }
+    if (!hostedUri) {
+      show('No photo to post.');
+      return;
+    }
+    if (status !== 'approved') {
+      show('Photo must be approved before posting.');
+      return;
+    }
+
     try {
-      if (!hostedUri) {
-        show('Pick a photo first, then tap Upload Photo.');
-        return;
-      }
-      if (!session) {
-        show('Sign in to post.');
-        return;
-      }
+      setIsPublishing(true);
 
-      let currentStatus: ModerationStatus | null = status;
-      if (false) {
-        const record = await fetchPhotoStatusFixed(photoId, hostedPath);
-        if (record) {
-          currentStatus = console.log("🔥 APPLY", {photoId, hostedPath, record}); applyPhotoStatus(record);
-        }
+      await createPost({
+        userId: session.user.id,
+        photoUrl: hostedUri,
+        storagePath: hostedPath ?? undefined,
+      });
 
-        if (currentStatus === 'pending') {
-          show('Your photo is still pending review. Please wait for approval before posting.');
-          return;
-        }
-      }
-
-      if (currentStatus === 'rejected') {
-        if (status === "rejected") {
-          show('Select a new photo to share. This one was rejected by moderation.');
-        }
-        return;
-      }
-      setIsPublishingPost(true);
-      await createPost({ userId: session.user.id, photoUrl: hostedUri, storagePath: hostedPath ?? undefined });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['feed'] }),
         queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
       ]);
+
       show('Photo posted!');
-      setPreviewUri(null);
-      setHostedUri(null);
-      // DISABLED RESET BLOCK
-      // optional: jump back to feed
-      try { navigation.navigate('Feed' as never); } catch {}
-      } catch (e: any) {
-        const code = e && (e as any).code ? String((e as any).code) : (e && (e as any).message ? String((e as any).message) : "");
-        const msg  = e && typeof (e as any).message === "string" ? (e as any).message : String(e ?? "");
-        if (code === "23514" || /pending_or_rejected/i.test(msg) || /approved before creating a post/i.test(msg)) {
-          // Moderation not finished yet → treat as submitted; post will appear after approval
-          show("Photo submitted for review. It will appear once approved.");
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ["feed"] }),
-            queryClient.invalidateQueries({ queryKey: ["profile-posts", session.user.id] }),
-          ]);
-          setPreviewUri(null);
-          setHostedUri(null);
-          // DISABLED RESET BLOCK
-          try { navigation.navigate("Feed" as never); } catch {}
-        } else {
-          console.error("Failed to publish post", e);
-          show("Could not publish. Try again.");
-        }
-      } finally {
-        setIsPublishingPost(false);
-      }
-  }, [applyPhotoStatus, fetchPhotoStatus, hostedPath, hostedUri, navigation, queryClient, session, show, status]);
-
-    useEffect(() => {
-    if (!hostedPath && !photoId) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const fetchStatus = async () => {
-      try {
-        const record = await fetchPhotoStatusFixed(photoId, hostedPath);
-        console.log('📡 SYNC fetchPhotoStatus', { record, hostedPath, photoId });
-        if (cancelled || !record) {
-          return;
-        }
-        applyPhotoStatus(record, { silent: true });
-      } catch (error) {
-        if (!cancelled) {
-          console.warn('Photo status poll failed', error);
-        }
-      }
-    };
-
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 4000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [applyPhotoStatus, fetchPhotoStatus, hostedPath, photoId]);
-
-
-
-  const ensureUuid = useCallback(() => {
-    if (typeof globalThis.crypto?.randomUUID === 'function') {
-      return globalThis.crypto.randomUUID();
-    }
-    return Crypto.randomUUID();
-  }, []);
-
-  const toBytes = useCallback((base64: string) => {
-    if (typeof globalThis.atob === 'function') {
-      const binary = globalThis.atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return bytes;
-    }
-    const buffer = Buffer.from(base64, 'base64');
-    return new Uint8Array(buffer);
-  }, []);
-
-  const handlePostLive = useCallback(async () => {
-    if (!session) {
-      show('Sign in to post for 1 hour.');
-      return;
-    }
-
-    if (Platform.OS !== 'ios') {
-      show('1-hour posts are only available on iOS.');
-      return;
-    }
-
-    setIsPostingLive(true);
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        show('Camera access is required to capture your 1-hour post.');
-        return;
-      }
-
-      const guard = await checkLiveGuard(session.user.id);
-      if (!guard.allowed) {
-        const nextAt = guard.nextAllowedAt
-          ? new Date(guard.nextAllowedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-          : null;
-        show(
-          nextAt
-            ? `You already shared a 1-hour post today. You can post again after ${nextAt}.`
-            : 'You already shared a 1-hour post today. Try again tomorrow.',
-        );
-        return;
-      }
-
-      const asset = await openLiveCamera();
-      if (!asset) {
-        return;
-      }
-
-      setLiveAsset(asset);
-      setIsLivePreviewVisible(true);
-    } catch (error) {
-      console.error('Failed to capture 1-hour post', error);
-      show('Unable to open the camera. Please try again.');
+      resetPhoto();
+    } catch (e) {
+      console.error('Failed to publish post', e);
+      show('Could not publish. Try again.');
     } finally {
-      setIsPostingLive(false);
+      setIsPublishing(false);
     }
-  }, [session, show, openLiveCamera]);
+  }, [session, hostedUri, hostedPath, status, queryClient, resetPhoto, show]);
 
-  
-  // Temporary no-op stub to prevent crashes
-  const openLiveCamera = useCallback(async () => {
-    console.log('📷 openLiveCamera (stub) called');
-    return null;
-  }, []);
-const handleRetakeLive = useCallback(async () => {
-    try {
-      setIsPostingLive(true);
-      const asset = await openLiveCamera();
-      if (asset) {
-        setLiveAsset(asset);
-      }
-    } catch (error) {
-      console.error('Failed to retake 1-hour post', error);
-      show('Unable to capture a new photo right now.');
-    } finally {
-      setIsPostingLive(false);
-    }
-  }, [openLiveCamera, show]);
+  const disabled = isUploading || isPublishing || !hostedUri || status !== 'approved';
 
-  const handleCancelLive = useCallback(() => {
-    setLiveAsset(null);
-    setIsLivePreviewVisible(false);
-  }, []);
-
-  const handleConfirmLiveUpload = useCallback(async () => {
-    if (!session) {
-      show('Sign in to post for 1 hour.');
-      return;
-    }
-    if (!liveAsset) {
-      show('Capture a photo before posting.');
-      return;
-    }
-
-    setIsPostingLive(true);
-    try {
-      let contentType: string = 'image/jpeg';
-      let extension: string = 'jpg';
-      const lowerUri = liveAsset.uri.toLowerCase();
-      if (lowerUri.endsWith('.heic')) {
-        contentType = 'image/heic';
-        extension = 'heic';
-      } else if (lowerUri.endsWith('.heif')) {
-        contentType = 'image/heif';
-        extension = 'heif';
-      }
-
-      const base64 = await FileSystemLegacy.readAsStringAsync(liveAsset.uri, {
-        encoding: 'base64',
-      });
-      const bytes = toBytes(base64);
-      const path = `live/${session.user.id}/${ensureUuid()}.${extension}`;
-      const client = getSupabaseClient();
-      const { error: uploadError } = await client.storage
-        .from(POST_PHOTO_BUCKET)
-        .upload(path, bytes, { contentType, upsert: false });
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: publicUrlData } = client.storage.from(POST_PHOTO_BUCKET).getPublicUrl(path);
-      const publicUrl = publicUrlData?.publicUrl;
-      if (!publicUrl) {
-        throw new Error('Unable to resolve uploaded 1-hour post URL.');
-      }
-
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      await await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['feed'] }),
-        queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
-        queryClient.invalidateQueries({ queryKey: ['live-now'] }),
-      ]).catch((err) => console.warn('Failed to invalidate queries after 1-hour post', err));
-
-      show('Your 1-hour post is live for the next 60 minutes.');
-      setLiveAsset(null);
-      setIsLivePreviewVisible(false);
-      navigation.navigate('Feed');
-    } catch (error) {
-      console.error('Failed to publish 1-hour post', error);
-      show('Unable to post right now. Please try again in a moment.');
-    } finally {
-      setIsPostingLive(false);
-    }
-  }, [session, liveAsset, toBytes, ensureUuid, show, queryClient, navigation]);
-
-  const currentPreview = hostedUri ?? previewUri;
-  const showSpinner = isUploading || pendingSelection || isPublishingPost;
-  const uploadDisabled = showSpinner || status !== 'approved' || !hostedUri;
-  const uploadLabel =
-    status === 'pending'
-      ? 'Awaiting approval'
-      : status === 'rejected'
-      ? 'Select a new photo'
-      : 'Upload Photo';
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#050816' }}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{ alignItems: 'center', padding: 24 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.liveCard}>
-          <Text style={styles.liveTitle}>Post for 1 hour</Text>
-          <Text style={styles.liveCopy}>
-            Share what’s happening right now to jump to the top of the feed for the next 60 minutes. Capture only
-            from your camera—no uploads from the library.
-          </Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.liveButton,
-              (isPostingLive || Platform.OS !== 'ios') && styles.liveButtonDisabled,
-              pressed && styles.liveButtonPressed,
-            ]}
-            onPress={handlePostLive}
-            disabled={isPostingLive || Platform.OS !== 'ios'}
-          >
-            {isPostingLive ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.liveButtonLabel}>
-                {Platform.OS === 'ios' ? 'Post for 1 hour' : '1-hour posts are iOS-only'}
-              </Text>
-            )}
-          </Pressable>
-        </View>
-
-        <View style={styles.header}>
-          <Text style={styles.title}>Share a new moment</Text>
-          <Text style={styles.subtitle}>Capture something now or pull from your camera roll.</Text>
-          <View style={styles.actions}>
+        {!previewUri && (
+          <View style={{ width: '100%', gap: 16 }}>
             <Pressable
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-              onPress={() => handleSelect('camera')}
-              disabled={showSpinner}
+              onPress={() => launchPicker(true)}
+              style={{
+                backgroundColor: '#2563eb',
+                paddingVertical: 16,
+                borderRadius: 16,
+                alignItems: 'center',
+              }}
             >
-              <Text style={styles.buttonLabel}>Open Camera</Text>
+              <Text style={{ fontSize: 18, color: '#fff', fontWeight: 'bold' }}>
+                Take Photo
+              </Text>
             </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-                onPress={() => handleSelect('library')}
-                disabled={showSpinner}
-              >
-                <Text style={styles.buttonLabel}>Pick from Library</Text>
-              </Pressable>
-          </View>
-        </View>
 
-        <View style={styles.previewWrapper}>
-          <View style={styles.previewFrame}>
-            {currentPreview ? (
-              <Image source={{ uri: currentPreview }} style={styles.previewImage} resizeMode="cover" />
-            ) : (
-              <View style={[styles.previewImage, styles.previewPlaceholder]}>
-                <Text style={styles.previewPlaceholderText}>Select a photo to preview it here.</Text>
-              </View>
-            )}
-            {showSpinner && (
-              <View style={styles.previewSpinner}>
-                <ActivityIndicator size="large" color="#fff" />
-              </View>
-            )}
-            {status && !showSpinner && (
+            <Pressable
+              onPress={() => launchPicker(false)}
+              style={{
+                backgroundColor: '#111827',
+                paddingVertical: 16,
+                borderRadius: 16,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: '#374151',
+              }}
+            >
+              <Text style={{ fontSize: 18, color: '#e5e7eb', fontWeight: 'bold' }}>
+                Pick From Library
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {previewUri && (
+          <View
+            style={{
+              backgroundColor: '#020617',
+              width: '100%',
+              borderRadius: 20,
+              padding: 16,
+              marginTop: 16,
+              shadowColor: '#000',
+              shadowOpacity: 0.4,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 6,
+            }}
+          >
+            <Image
+              source={{ uri: previewUri }}
+              style={{
+                width: '100%',
+                height: 420,
+                borderRadius: 16,
+                marginBottom: 16,
+                backgroundColor: '#020617',
+              }}
+            />
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 12,
+              }}
+            >
               <View
-                style={[
-                  styles.badge,
-                  status === 'approved'
-                    ? styles.badgeApproved
-                    : status === 'rejected'
-                    ? styles.badgeRejected
-                    : styles.badgePending,
-                ]}
+                style={{
+                  backgroundColor:
+                    status === 'approved'
+                      ? '#22c55e'
+                      : status === 'rejected'
+                      ? '#ef4444'
+                      : '#eab308',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                }}
               >
-                <Text style={styles.badgeText}>
-                  {status === 'approved' ? 'Approved' : status === 'pending' ? 'Pending' : 'Rejected'}
+                <Text
+                  style={{
+                    fontWeight: 'bold',
+                    color: status === 'pending' ? '#111827' : '#020617',
+                    fontSize: 14,
+                  }}
+                >
+                  {status === 'approved'
+                    ? 'Approved'
+                    : status === 'rejected'
+                    ? 'Rejected'
+                    : 'Pending review'}
                 </Text>
               </View>
-            )}
-          </View>
-          <Pressable
-            style={({ pressed }) => [
-              styles.uploadButton,
-              uploadDisabled && styles.uploadButtonDisabled,
-              pressed && !uploadDisabled && styles.uploadButtonPressed,
-            ]}
-            onPress={handleUploadSelected}
-            disabled={uploadDisabled}
-          >
-            <Text style={styles.uploadButtonLabel}>{uploadLabel}</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
 
-      <Modal
-        transparent
-        animationType="fade"
-        visible={isLivePreviewVisible && Boolean(liveAsset)}
-        onRequestClose={handleCancelLive}
-      >
-        <View style={styles.liveModalBackdrop}>
-          <View style={styles.liveModalContainer}>
-            {liveAsset ? (
-              <Image source={{ uri: liveAsset.uri }} style={styles.liveModalImage} resizeMode="cover" />
-            ) : null}
-            <View style={styles.liveModalActions}>
-              <Pressable
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.liveModalButton,
-                  pressed && styles.liveModalButtonPressed,
-                  styles.liveModalButtonSecondary,
-                  isPostingLive && styles.liveModalButtonDisabled,
-                ]}
-                onPress={handleCancelLive}
-                disabled={isPostingLive}
-              >
-                <Text style={styles.liveModalButtonLabel}>Exit</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.liveModalButton,
-                  pressed && styles.liveModalButtonPressed,
-                  styles.liveModalButtonSecondary,
-                  isPostingLive && styles.liveModalButtonDisabled,
-                ]}
-                onPress={handleRetakeLive}
-                disabled={isPostingLive}
-              >
-                <Text style={styles.liveModalButtonLabel}>Retake</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.liveModalButton,
-                  styles.liveModalButtonPrimary,
-                  pressed && styles.liveModalButtonPressed,
-                  isPostingLive && styles.liveModalButtonDisabled,
-                ]}
-                onPress={handleConfirmLiveUpload}
-                disabled={isPostingLive}
-              >
-                {isPostingLive ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.liveModalPrimaryLabel}>Post for 1 hour</Text>
-                )}
-              </Pressable>
+              {isUploading && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <ActivityIndicator color="#e5e7eb" />
+                  <Text style={{ color: '#9ca3af', fontSize: 12 }}>Uploading…</Text>
+                </View>
+              )}
             </View>
+
+            <Pressable onPress={resetPhoto} style={{ marginBottom: 8 }}>
+              <Text
+                style={{
+                  paddingVertical: 8,
+                  color: '#60a5fa',
+                  fontWeight: 'bold',
+                  fontSize: 14,
+                }}
+              >
+                Retake / Pick New Photo
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handlePost}
+              disabled={disabled}
+              style={{
+                marginTop: 8,
+                paddingVertical: 14,
+                borderRadius: 999,
+                alignItems: 'center',
+                backgroundColor: disabled ? '#4b5563' : '#2563eb',
+              }}
+            >
+              {isPublishing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                  Upload to Feed
+                </Text>
+              )}
+            </Pressable>
           </View>
-        </View>
-      </Modal>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 };
-
-function createStyles(isDarkMode: boolean) {
-  const background = isDarkMode ? '#0b1220' : '#fdf8ff';
-  const textPrimary = isDarkMode ? '#f8fafc' : '#2f0c4d';
-  const textSecondary = isDarkMode ? '#94a3b8' : '#5b4d71';
-  const placeholderBorder = isDarkMode ? '#334155' : '#d4c2f4';
-  const placeholderBackground = isDarkMode ? '#111b2e' : '#f6ecff';
-  const placeholderText = isDarkMode ? '#64748b' : '#7c699b';
-  const overlay = isDarkMode ? 'rgba(15, 23, 42, 0.45)' : 'rgba(226, 209, 255, 0.4)';
-  const liveBackground = isDarkMode ? '#111b2e' : '#f2e6ff';
-  const liveBorder = isDarkMode ? '#273552' : '#d8c2f6';
-
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: background,
-    },
-    scrollContent: {
-      paddingHorizontal: 24,
-      paddingTop: 16,
-      paddingBottom: 40,
-    },
-    liveCard: {
-      borderWidth: 1,
-      borderColor: liveBorder,
-      backgroundColor: liveBackground,
-      padding: 16,
-      borderRadius: 16,
-      marginBottom: 24,
-      gap: 8,
-    },
-    liveTitle: {
-      color: textPrimary,
-      fontSize: 18,
-      fontWeight: '700',
-    },
-    liveCopy: {
-      color: textSecondary,
-      lineHeight: 18,
-      fontSize: 14,
-    },
-    liveButton: {
-      backgroundColor: '#f472b6',
-      borderRadius: 12,
-      paddingVertical: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    liveButtonDisabled: {
-      opacity: 0.6,
-    },
-    liveButtonPressed: {
-      opacity: 0.9,
-    },
-    liveButtonLabel: {
-      color: '#fff',
-      fontWeight: '600',
-      fontSize: 15,
-    },
-    liveModalBackdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(10,16,28,0.85)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
-    },
-    liveModalContainer: {
-      width: '100%',
-      maxWidth: 420,
-      borderRadius: 24,
-      overflow: 'hidden',
-      backgroundColor: background,
-      borderWidth: 1,
-      borderColor: liveBorder,
-    },
-    liveModalImage: {
-      width: '100%',
-      aspectRatio: PREVIEW_ASPECT_RATIO,
-      backgroundColor: placeholderBackground,
-    },
-    liveModalActions: {
-      flexDirection: 'row',
-      gap: 12,
-      padding: 16,
-    },
-    liveModalButton: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    liveModalButtonSecondary: {
-      backgroundColor: isDarkMode ? '#1e293b' : '#eadeff',
-    },
-    liveModalButtonPrimary: {
-      backgroundColor: '#f472b6',
-    },
-    liveModalButtonLabel: {
-      color: textPrimary,
-      fontWeight: '600',
-      fontSize: 15,
-    },
-    liveModalPrimaryLabel: {
-      color: '#fff',
-      fontWeight: '700',
-      fontSize: 15,
-    },
-    liveModalButtonPressed: {
-      opacity: 0.85,
-    },
-    liveModalButtonDisabled: {
-      opacity: 0.6,
-    },
-    header: {
-      marginBottom: 24,
-      gap: 16,
-    },
-    title: {
-      fontSize: 24,
-      fontWeight: '700',
-      color: textPrimary,
-    },
-    subtitle: {
-      fontSize: 16,
-      color: textSecondary,
-      lineHeight: 22,
-    },
-    previewWrapper: {
-      alignItems: 'center',
-      marginBottom: 32,
-    },
-    previewFrame: {
-      width: '100%',
-      maxWidth: PREVIEW_MAX_WIDTH,
-      aspectRatio: PREVIEW_ASPECT_RATIO,
-      borderRadius: 24,
-      borderWidth: 2,
-      borderColor: placeholderBorder,
-      backgroundColor: placeholderBackground,
-      overflow: 'hidden',
-      position: 'relative',
-      justifyContent: 'center',
-    },
-    previewImage: {
-      width: '100%',
-      height: '100%',
-    },
-    previewPlaceholder: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 24,
-    },
-    previewPlaceholderText: {
-      color: placeholderText,
-      textAlign: 'center',
-      fontSize: 16,
-    },
-    previewSpinner: {
-      ...StyleSheet.absoluteFillObject,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: overlay,
-    },
-    uploadButton: {
-      marginTop: 16,
-      width: '100%',
-      maxWidth: PREVIEW_MAX_WIDTH,
-      backgroundColor: '#f472b6',
-      paddingVertical: 14,
-      borderRadius: 14,
-      alignItems: 'center',
-    },
-    uploadButtonDisabled: {
-      opacity: 0.6,
-    },
-    uploadButtonPressed: {
-      opacity: 0.85,
-    },
-    uploadButtonLabel: {
-      color: '#fff',
-      fontWeight: '600',
-      fontSize: 16,
-    },
-    badge: {
-      position: 'absolute',
-      bottom: 16,
-      right: 16,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 999,
-    },
-    badgeText: {
-      fontWeight: '600',
-      color: '#fff',
-      fontSize: 13,
-    },
-    badgeApproved: {
-      backgroundColor: '#22c55e',
-    },
-    badgePending: {
-      backgroundColor: '#f59e0b',
-    },
-    badgeRejected: {
-      backgroundColor: '#ef4444',
-    },
-    actions: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
-    },
-    button: {
-      flex: 1,
-      backgroundColor: '#f472b6',
-      paddingVertical: 16,
-      borderRadius: 14,
-      alignItems: 'center',
-    },
-    buttonPressed: {
-      opacity: 0.85,
-    },
-    buttonLabel: {
-      color: '#fff',
-      fontWeight: '600',
-      fontSize: 16,
-    },
-  });
-}
 
 export default PostScreen;

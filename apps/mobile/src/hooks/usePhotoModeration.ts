@@ -43,14 +43,13 @@ function toBytes(base64: string): Uint8Array {
 
 function normalizeAsset(input: UploadPhotoArgs): NormalizedAsset {
   if ('asset' in input) {
+    const a = input.asset;
     return {
-      success: true,
-      photo: {
-        id: inserted?.id ?? null,
-        status: inserted?.status ?? null,
-        url: publicUrl ?? null,
-        storagePath: storagePath ?? null,
-      }
+      uri: a.uri,
+      mimeType: (a as any).mimeType ?? null,
+      fileName: (a as any).fileName ?? a.uri.split('/').pop() ?? null,
+      width: a.width ?? null,
+      height: a.height ?? null,
     };
   }
   return {

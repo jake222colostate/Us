@@ -58,9 +58,6 @@ const PostScreen: React.FC = () => {
   const [isLivePreviewVisible, setIsLivePreviewVisible] = useState(false);
   const [isPublishingPost, setIsPublishingPost] = useState(false);
 
-  // Hard reset any stale moderation state when PostScreen mounts
-  /* 🧼 DISABLED — this was wiping moderation state every mount */
-
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
   const styles = useMemo(() => createStyles(isDarkMode), [isDarkMode]);
 
@@ -68,48 +65,21 @@ const PostScreen: React.FC = () => {
     (record: PhotoStatusRecord, options?: { silent?: boolean }): ModerationStatus => {
       const { silent = false } = options ?? {};
 
-      const rawStatus = record?.status ?? null;
+      if (record.id && record.id !== photoId) {
+        setPhotoId(record.id);
+      }
+      if (record.storagePath && record.storagePath !== hostedPath) {
+        setHostedPath(record.storagePath);
+      }
       const normalized: ModerationStatus =
-        rawStatus === 'approved'
+        record.status === 'approved'
           ? 'approved'
-          : rawStatus === 'rejected'
+          : record.status === 'rejected'
           ? 'rejected'
           : 'pending';
 
-      console.log('🎯 applyPhotoStatus normalized', {
-        incoming: rawStatus,
-        normalized,
-        current: status,
-        record,
-        photoId,
-        hostedPath,
-      });
-
-      // Ignore updates that refer to a different photo than the one currently selected
-      if (photoId && record.id && record.id !== photoId) {
-        console.log('⏭ Ignoring status for mismatched photoId', {
-          currentPhotoId: photoId,
-          incomingId: record.id,
-        });
-        return status ?? 'pending';
-      }
-      if (hostedPath && record.storagePath && record.storagePath !== hostedPath) {
-        console.log('⏭ Ignoring status for mismatched storagePath', {
-          currentHostedPath: hostedPath,
-          incomingStoragePath: record.storagePath,
-        });
-        return status ?? 'pending';
-      }
-
       if (normalized !== 'rejected' && record.url && record.url !== hostedUri) {
         setHostedUri(record.url);
-      }
-
-      // Once we've marked this photo as approved on the client, don't let later
-      // non-approved updates flip it back.
-      if (status === 'approved' && normalized !== 'approved') {
-        console.log('🔒 Keeping approved status, ignoring non-approved update', { normalized });
-        return 'approved';
       }
 
       if (normalized === 'approved') {
@@ -122,13 +92,17 @@ const PostScreen: React.FC = () => {
 
       if (normalized === 'rejected') {
         setStatus('rejected');
+        setHostedUri(null);
+        setHostedPath(null);
+        setPhotoId(null);
+        setPreviewUri(null);
         if (!silent && status !== 'rejected') {
           show('This photo was rejected by moderation. Try another one.');
         }
         return 'rejected';
       }
 
-      // setStatus('pending'); // DISABLED — was overwriting approval
+      setStatus('pending');
       if (!silent && status !== 'pending') {
         show('Photo submitted for review. We’ll let you know once it’s approved.');
       }
@@ -137,46 +111,88 @@ const PostScreen: React.FC = () => {
     [hostedPath, hostedUri, photoId, show, status],
   );
 
-
-
-  // Publish the currently hostedUri to the feed (no picker)
-  
-  // Fetch current moderation status from Supabase for this photo  
-  const fetchPhotoStatus = useCallback(async () => {
-    if (!photoId) {
+  const fetchPhotoStatus = useCallback(async (): Promise<PhotoStatusRecord | null> => {
+    if (!photoId && !hostedPath) {
       return null;
     }
 
-    try {
-      const supabase = getSupabaseClient();
+    const client = getSupabaseClient();
+    let query = client
+      .from('photos')
+      .select('id, status, url, storage_path')
+      .limit(1);
 
-      const { data, error } = await supabase
-        .from('photos')
-        .select('id, status, storage_path, created_at')
-        .eq('id', photoId)
-        .maybeSingle();
+    if (photoId) {
+      query = query.eq('id', photoId);
+    } else if (hostedPath) {
+      query = query.eq('storage_path', hostedPath);
+    }
 
-      console.log("📡 FRESH fetchPhotoStatus:", { data, error, hostedPath, photoId });
-
-      if (error || !data) {
-        return null;
+    const { data, error } = await query.maybeSingle();
+    if (error) {
+      if (error.code && error.code !== 'PGRST116') {
+        console.warn('Failed to fetch photo status', error);
       }
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    const typed = data as {
+      id?: string | null;
+      status?: ModerationStatus | null;
+      url?: string | null;
+      storage_path?: string | null;
+    };
+
+    return {
+      id: typed.id ?? null,
+      status: typed.status ?? null,
+      url: typed.url ?? null,
+      storagePath: typed.storage_path ?? null,
+    };
+  }, [hostedPath, photoId]);
+
+  const mirrorAsset = useCallback(async (asset: ImagePicker.ImagePickerAsset) => {
+    try {
+      const result = await manipulateAsync(
+        asset.uri,
+        [{ flip: FlipType.Horizontal }],
+        {
+          compress: asset.base64 ? 1 : 0.9,
+          format: SaveFormat.JPEG,
+        },
+      );
 
       return {
-        id: data.id,
-        status: data.status,
-        storagePath: data.storage_path,
-        url: data.storage_path
-          ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/post-photos/${data.storage_path}`
-          : null,
+        ...asset,
+        uri: result.uri,
+        width: result.width ?? asset.width,
+        height: result.height ?? asset.height,
       };
-    } catch (e) {
-      console.warn("fetchPhotoStatus failed:", e);
+    } catch (error) {
+      console.error('Failed to mirror photo', error);
+      return asset;
+    }
+  }, []);
+
+  const openLiveCamera = useCallback(async () => {
+    const captureResult = await ImagePicker.launchCameraAsync({
+      quality: 0.9,
+      exif: true,
+    });
+
+    if (captureResult.canceled || !captureResult.assets?.length) {
       return null;
     }
-  }, [photoId, hostedPath]);
 
-  // Camera / Library picker
+    let asset = captureResult.assets[0];
+    asset = await mirrorAsset(asset);
+    return asset;
+  }, [mirrorAsset]);
+
   const handleSelect = useCallback(
     async (source: 'camera' | 'library') => {
       try {
@@ -186,48 +202,86 @@ const PostScreen: React.FC = () => {
             : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (!permission.granted) {
-          show(source === 'camera' ? 'Camera permission denied.' : 'Library permission denied.');
+          show(
+            source === 'camera'
+              ? 'Camera access is required to take a photo.'
+              : 'Media library access is required to pick a photo.',
+          );
           return;
         }
 
-        const capture =
+        const result =
           source === 'camera'
             ? await ImagePicker.launchCameraAsync({
-                quality: 1,
-                allowsEditing: false,
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.8,
+                exif: true,
               })
             : await ImagePicker.launchImageLibraryAsync({
-                quality: 1,
-                allowsEditing: false,
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: 'images',
+                allowsMultipleSelection: false,
+                quality: 0.8,
+                exif: true,
               });
 
-        if (!capture || capture.canceled || !capture.assets || !capture.assets.length) {
+        if (result.canceled || !result.assets?.length) {
           return;
         }
 
-        const asset = capture.assets[0];
-        setPreviewUri(asset.uri);
+        let asset = result.assets[0];
+        if (source === 'camera') {
+          asset = await mirrorAsset(asset);
+        }
 
-        // Upload to moderation pipeline
-        const { photoId: newId, storagePath: newPath, publicUrl } =
-          await uploadPhoto(asset);
+        setHostedUri(null);
+        setHostedPath(null);
+        setPhotoId(null);
+        setStatus('pending');
+        setPreviewUri(asset.uri ?? null);
+        setPendingSelection(true);
 
-        setHostedUri(publicUrl);
-        setHostedPath(newPath);
-        setPhotoId(newId);
-        // setStatus('pending'); // DISABLED — was overwriting approval
-        show('Photo submitted for review.');
+        const outcome = await uploadPhoto({ asset });
+        setPendingSelection(false);
+
+        if (!outcome.success) {
+          show('Upload failed. Please try again once you have a stable connection.');
+          setStatus(null);
+          setPhotoId(null);
+          return;
+        }
+
+        if (!outcome.photo?.url) {
+          show('Upload succeeded but the photo URL is missing. Please try again.');
+          setHostedUri(null);
+          setHostedPath(null);
+          setPreviewUri(null);
+          return;
+        }
+
+        setHostedUri(outcome.photo.url);
+        setHostedPath(outcome.photo.storagePath ?? null);
+        setPhotoId(outcome.photo?.id ?? null);
+
+        const finalStatus = outcome.status ?? null;
+        const initialStatus: ModerationStatus =
+          finalStatus === 'approved' ? 'approved' : 'pending';
+        setStatus(initialStatus);
+
+        if (initialStatus === 'approved') {
+          show('Photo approved and ready to share.');
+        } else {
+          show('Photo submitted for review. We’ll let you know once it’s approved.');
+        }
+        return;
       } catch (err) {
-        console.error('handleSelect failed', err);
-        show('Failed to capture photo.');
+        console.error('Photo selection failed', err);
+        show('Something went wrong while selecting your photo. Please try again.');
       }
     },
-    [show, uploadPhoto],
+    [uploadPhoto, show, mirrorAsset],
   );
 
-const handleUploadSelected = useCallback(async () => {
+  // Publish the currently hostedUri to the feed (no picker)
+  const handleUploadSelected = useCallback(async () => {
     try {
       if (!hostedUri) {
         show('Pick a photo first, then tap Upload Photo.');
@@ -239,10 +293,10 @@ const handleUploadSelected = useCallback(async () => {
       }
 
       let currentStatus: ModerationStatus | null = status;
-      if (false) {
-        const record = await fetchPhotoStatusFixed(photoId, hostedPath);
+      if (status === 'pending') {
+        const record = await fetchPhotoStatus();
         if (record) {
-          currentStatus = console.log("🔥 APPLY", {photoId, hostedPath, record}); applyPhotoStatus(record);
+          currentStatus = applyPhotoStatus(record);
         }
 
         if (currentStatus === 'pending') {
@@ -252,7 +306,7 @@ const handleUploadSelected = useCallback(async () => {
       }
 
       if (currentStatus === 'rejected') {
-        if (status === "rejected") {
+        if (status === 'rejected') {
           show('Select a new photo to share. This one was rejected by moderation.');
         }
         return;
@@ -266,7 +320,9 @@ const handleUploadSelected = useCallback(async () => {
       show('Photo posted!');
       setPreviewUri(null);
       setHostedUri(null);
-      // DISABLED RESET BLOCK
+      setHostedPath(null);
+      setStatus(null);
+      setPhotoId(null);
       // optional: jump back to feed
       try { navigation.navigate('Feed' as never); } catch {}
       } catch (e: any) {
@@ -281,7 +337,9 @@ const handleUploadSelected = useCallback(async () => {
           ]);
           setPreviewUri(null);
           setHostedUri(null);
-          // DISABLED RESET BLOCK
+          setHostedPath(null);
+          setStatus(null);
+          setPhotoId(null);
           try { navigation.navigate("Feed" as never); } catch {}
         } else {
           console.error("Failed to publish post", e);
@@ -292,7 +350,10 @@ const handleUploadSelected = useCallback(async () => {
       }
   }, [applyPhotoStatus, fetchPhotoStatus, hostedPath, hostedUri, navigation, queryClient, session, show, status]);
 
-    useEffect(() => {
+  useEffect(() => {
+    if (status !== 'pending') {
+      return;
+    }
     if (!hostedPath && !photoId) {
       return;
     }
@@ -301,12 +362,11 @@ const handleUploadSelected = useCallback(async () => {
 
     const fetchStatus = async () => {
       try {
-        const record = await fetchPhotoStatusFixed(photoId, hostedPath);
-        console.log('📡 SYNC fetchPhotoStatus', { record, hostedPath, photoId });
+        const record = await fetchPhotoStatus();
         if (cancelled || !record) {
           return;
         }
-        applyPhotoStatus(record, { silent: true });
+        applyPhotoStatus(record);
       } catch (error) {
         if (!cancelled) {
           console.warn('Photo status poll failed', error);
@@ -321,8 +381,7 @@ const handleUploadSelected = useCallback(async () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [applyPhotoStatus, fetchPhotoStatus, hostedPath, photoId]);
-
+  }, [applyPhotoStatus, fetchPhotoStatus, hostedPath, photoId, status]);
 
 
   const ensureUuid = useCallback(() => {
@@ -392,13 +451,7 @@ const handleUploadSelected = useCallback(async () => {
     }
   }, [session, show, openLiveCamera]);
 
-  
-  // Temporary no-op stub to prevent crashes
-  const openLiveCamera = useCallback(async () => {
-    console.log('📷 openLiveCamera (stub) called');
-    return null;
-  }, []);
-const handleRetakeLive = useCallback(async () => {
+  const handleRetakeLive = useCallback(async () => {
     try {
       setIsPostingLive(true);
       const asset = await openLiveCamera();

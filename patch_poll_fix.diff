@@ -1,0 +1,28 @@
+--- a/apps/mobile/src/screens/post/PostScreen.tsx
++++ b/apps/mobile/src/screens/post/PostScreen.tsx
+@@ -120,6 +120,36 @@
+   }, [hostedPath, photoId]);
+
++  // 🔥 Poll moderation status until approved/rejected
++  useEffect(() => {
++    if (!photoId && !hostedPath) return;
++
++    const interval = setInterval(async () => {
++      try {
++        const record = await fetchPhotoStatus();
++        if (!record) return;
++
++        const normalized = applyPhotoStatus(record, { silent: true });
++
++        // stop polling when finished
++        if (normalized === "approved" || normalized === "rejected") {
++          clearInterval(interval);
++        }
++      } catch (err) {
++        console.warn("Polling moderation status failed:", err);
++      }
++    }, 1500); // poll every 1.5 seconds
++
++    return () => clearInterval(interval);
++  }, [photoId, hostedPath, fetchPhotoStatus, applyPhotoStatus]);
++

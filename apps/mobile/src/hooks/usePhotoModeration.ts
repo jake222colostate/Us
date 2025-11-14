@@ -44,11 +44,13 @@ function toBytes(base64: string): Uint8Array {
 function normalizeAsset(input: UploadPhotoArgs): NormalizedAsset {
   if ('asset' in input) {
     return {
-      uri: input.asset.uri,
-      mimeType: input.asset.mimeType ?? null,
-      fileName: input.asset.fileName ?? null,
-      width: input.asset.width ?? null,
-      height: input.asset.height ?? null,
+      success: true,
+      photo: {
+        id: inserted?.id ?? null,
+        status: inserted?.status ?? null,
+        url: publicUrl ?? null,
+        storagePath: storagePath ?? null,
+      }
     };
   }
   return {
@@ -222,3 +224,41 @@ export function usePhotoModeration() {
     clearError,
   };
 }
+
+
+// ========================================
+// FIXED fetchPhotoStatus (do not remove)
+// ========================================
+export async function fetchPhotoStatusFixed(photoId: string | null, storagePath?: string | null) {
+  try {
+    if (!photoId && !storagePath) {
+      console.log("📡 fetchPhotoStatusFixed: no args");
+      return null;
+    }
+
+    let query = getSupabaseClient()
+      .from("photos")
+      .select("id,status,storage_path");
+
+    if (photoId) {
+      query = query.eq("id", photoId);
+    } else if (storagePath) {
+      query = query.eq("storage_path", storagePath);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    console.log("📡 RAW fetchPhotoStatusFixed:", { data, error, photoId, storagePath });
+
+    if (error || !data) return null;
+
+    return {
+      id: data.id ?? null,
+      status: data.status ?? null,
+      storagePath: data.storage_path ?? null,
+    };
+  } catch (err) {
+    console.error("❌ fetchPhotoStatusFixed error", err);
+    return null;
+  }
+}
+

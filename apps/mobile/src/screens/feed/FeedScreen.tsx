@@ -18,7 +18,7 @@ import {
   selectCurrentUser,
 } from '../../state/authStore';
 import { useToast } from '../../providers/ToastProvider';
-import { likePost } from '../../api/postLikes';
+import { likeUser } from '../../api/likes';
 import { useNavigation } from '@react-navigation/native';
 import type { Gender } from '@us/types';
 
@@ -121,12 +121,7 @@ export default function FeedScreen() {
       if (likedUserIds.has(toUserId) || likingUserIds.has(toUserId)) return;
       setLikingUserIds((prev) => new Set([...prev, toUserId]));
       try {
-        // like the latest post for this user (API looks it up serverside)
-        await likePost({
-          postId: undefined as any, // API resolves latest on server or edge fn
-          fromUserId: session.user.id,
-          toUserId,
-        });
+        await likeUser(session.user.id, toUserId);
         setLikedUserIds((prev) => new Set([...prev, toUserId]));
         show('Like sent!');
       } catch (err) {

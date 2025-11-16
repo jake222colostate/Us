@@ -29,7 +29,6 @@ const PostScreen: React.FC = () => {
   const [hostedPath, setHostedPath] = useState<string | null>(null);
   const [hostedUri, setHostedUri] = useState<string | null>(null);
   const [status, setStatus] = useState<ModerationStatus>(null);
-  const [mode, setMode] = useState<'post' | 'live' | 'upload'>('post');
   const [selectionStartedAt, setSelectionStartedAt] = useState<number | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
 
@@ -61,13 +60,10 @@ const PostScreen: React.FC = () => {
       }
 
       const asset = result.assets[0];
-
-      // Local live preview from the device
       setPreviewUri(asset.uri);
       setStatus('pending');
       setSelectionStartedAt(Date.now());
 
-      // Upload to moderation / photos table
       const uploadResult = await uploadPhoto({ asset });
       console.log('📤 uploadPhoto result', uploadResult);
 
@@ -78,7 +74,6 @@ const PostScreen: React.FC = () => {
 
       const photo = uploadResult.photo;
 
-      // Track Supabase storage path + public URL for when we actually post
       setHostedPath(photo.storagePath ?? null);
       setHostedUri(photo.url ?? null);
 
@@ -110,7 +105,7 @@ const PostScreen: React.FC = () => {
       let normalized: ModerationStatus =
         raw === 'approved' ? 'approved' : raw === 'rejected' ? 'rejected' : 'pending';
 
-      // For the first 10s after selection, suppress early "rejected" flashes.
+      // Keep the first few seconds always as pending unless we see an approval.
       if (normalized === 'rejected' && selectionStartedAt && Date.now() - selectionStartedAt < 10000) {
         normalized = 'pending';
       }
@@ -163,11 +158,9 @@ const PostScreen: React.FC = () => {
     setHostedPath(null);
     setHostedUri(null);
     setStatus(null);
-    setSelectionStartedAt(null);
   }, []);
 
   const handlePost = useCallback(async () => {
-    // 🚫 No auto-posting anywhere: only this function creates posts.
     if (!session) {
       show('Sign in to post.');
       return;
@@ -214,50 +207,6 @@ const PostScreen: React.FC = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Top mode selector */}
-        <View
-          style={{
-            width: '100%',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            marginBottom: 16,
-            gap: 8,
-          }}
-        >
-          {[
-            { key: 'post', label: 'Post' },
-            { key: 'live', label: 'Live Photo (1 Hour)' },
-            { key: 'upload', label: 'Upload' },
-          ].map((tab) => {
-            const active = mode === tab.key;
-            return (
-              <Pressable
-                key={tab.key}
-                onPress={() => setMode(tab.key as 'post' | 'live' | 'upload')}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  borderRadius: 999,
-                  alignItems: 'center',
-                  backgroundColor: active ? '#ec4899' : '#111827',
-                  borderWidth: active ? 0 : 1,
-                  borderColor: '#374151',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 'bold',
-                    color: active ? '#ffffff' : '#e5e7eb',
-                  }}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
         {!previewUri && (
           <View style={{ width: '100%', gap: 16 }}>
             <Pressable

@@ -6,6 +6,7 @@ export type FeedProfile = {
   id: string;
   name: string | null;
   bio: string | null;
+  avatar: string | null;
   photo: string | null;
   gender: Gender | null;
 };
@@ -25,6 +26,7 @@ export function usePagedFeed(enabled: boolean) {
       id: r.user_id,
       name: r.owner_display_name ?? null,
       bio: r.owner_bio ?? null,
+      avatar: r.owner_avatar_url ?? null,
       photo: r.photo_url ?? null,
       gender: (r.owner_gender as Gender | null) ?? null,
     }));
@@ -39,7 +41,11 @@ export function usePagedFeed(enabled: boolean) {
       pending.current = p;
       const { rows, nextCursor } = await p;
       setItems(mapRows(rows));
-      setCursor(nextCursor ? { created_at: nextCursor.before_created_at, id: nextCursor.before_id } : null);
+      setCursor(
+        nextCursor
+          ? { created_at: nextCursor.before_created_at, id: nextCursor.before_id }
+          : null,
+      );
     } finally {
       pending.current = null;
       setLoading(false);
@@ -56,7 +62,11 @@ export function usePagedFeed(enabled: boolean) {
       pending.current = p;
       const { rows, nextCursor } = await p;
       setItems(prev => [...prev, ...mapRows(rows)]);
-      setCursor(nextCursor ? { created_at: nextCursor.before_created_at, id: nextCursor.before_id } : null);
+      setCursor(
+        nextCursor
+          ? { created_at: nextCursor.before_created_at, id: nextCursor.before_id }
+          : null,
+      );
     } finally {
       pending.current = null;
       setLoadingMore(false);
@@ -72,7 +82,11 @@ export function usePagedFeed(enabled: boolean) {
       pending.current = p;
       const { rows, nextCursor } = await p;
       setItems(mapRows(rows));
-      setCursor(nextCursor ? { created_at: nextCursor.before_created_at, id: nextCursor.before_id } : null);
+      setCursor(
+        nextCursor
+          ? { created_at: nextCursor.before_created_at, id: nextCursor.before_id }
+          : null,
+      );
     } finally {
       pending.current = null;
       setRefreshing(false);

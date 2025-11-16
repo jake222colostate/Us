@@ -188,7 +188,7 @@ export default function FeedScreen() {
           <Card
             name={item.name ?? 'Member'}
             bio={item.bio}
-            avatar={item.photo}
+            avatar={item.avatar ?? item.photo}
             photo={item.photo}
             onLike={() => handleLike(item.id)}
             liked={likedUserIds.has(item.id)}

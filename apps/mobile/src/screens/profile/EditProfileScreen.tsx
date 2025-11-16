@@ -76,6 +76,7 @@ const EditProfileScreen: React.FC = () => {
   const user = useAuthStore(selectCurrentUser);
   const updateUser = useAuthStore((state) => state.updateUser);
   const setAvatar = useAuthStore((state) => state.setAvatar);
+  const refreshProfile = useAuthStore((state) => state.refreshProfile);
   const { show } = useToast();
 
   const [displayName, setDisplayName] = useState(user?.name ?? '');
@@ -276,6 +277,7 @@ const EditProfileScreen: React.FC = () => {
         gender,
         lookingFor,
       });
+      await refreshProfile();
       show('Profile updated.');
       navigation.goBack();
     } catch (err) {
@@ -293,6 +295,7 @@ const EditProfileScreen: React.FC = () => {
     navigation,
     normalizedInterests,
     show,
+    refreshProfile,
     updateUser,
     user,
   ]);

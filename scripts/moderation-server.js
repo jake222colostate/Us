@@ -132,7 +132,7 @@ async function fetchImageBuffer(url) {
 
 app.get("/moderate", async (req, res) => {
   const started = Date.now();
-  const min = Number(req.query.min || 60);
+  const min = Number(req.query.min || 80);
   const url = String(req.query.url || "");
   try {
     if (!url || !/^https?:\/\//i.test(url)) {
@@ -154,10 +154,40 @@ app.get("/moderate", async (req, res) => {
     }));
 
     const labels = out.ModerationLabels || [];
-    const pass = labels.length === 0;
+
+    const forbiddenParents = new Set([
+      "explicit nudity",
+      "sexual activity",
+      "sexual content",
+      "graphic violence or physical injury"
+    ]);
+
+    const forbiddenNames = new Set([
+      "explicit nudity",
+      "sexual activity",
+      "sexual content",
+      "graphic violence",
+      "graphic violence or physical injury",
+      "self harm"
+    ]);
+
+    const blocked = labels.filter((l) => {
+      const parent = (l.ParentName || "").toLowerCase();
+      const name = (l.Name || "").toLowerCase();
+      const conf = (l.Confidence || 0);
+
+      // Ignore low/moderate confidence labels
+      if (conf < 95) return false;
+
+      if (forbiddenParents.has(parent)) return true;
+      if (forbiddenNames.has(name)) return true;
+      return false;
+    });
+
+    const pass = blocked.length === 0;
     const ms = Date.now() - started;
-    console.log(`[moderate] ${pass ? "PASS" : "FAIL"} bytes=${result.buf.length} min=${min} labels=${labels.length} ms=${ms}`);
-    return res.json({ pass, min, labels, model: out.ModerationModelVersion, bytes: result.buf.length });
+    console.log(`[moderate] ${pass ? "PASS" : "FAIL"} bytes=${result.buf.length} min=${min} labels=${labels.length} blocked=${blocked.length} ms=${ms}`);
+    return res.json({ pass, min, labels, blocked, model: out.ModerationModelVersion, bytes: result.buf.length });
   } catch (err) {
     const ms = Date.now() - started;
     console.log(`[moderate] 500 err="${String(err && err.message || err)}" ms=${ms} url=${url}`);

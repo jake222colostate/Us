@@ -59,7 +59,8 @@ const ProfileScreen: React.FC = () => {
     }, [refetch, user?.id]),
   );
 
-  const posts = postsData ?? [];
+  const rawPosts = postsData ?? [];
+  const posts = useMemo(() => rawPosts.filter((p) => !!p.photo_url), [rawPosts]);
 
   const deleteMutation = useMutation({
     mutationFn: async ({ postId, photoUrl }: DeletePayload) => {

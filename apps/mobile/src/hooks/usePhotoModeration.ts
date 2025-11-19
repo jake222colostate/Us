@@ -5,14 +5,26 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import { Buffer } from 'buffer';
 import { getSupabaseClient } from '../api/supabase';
 import { isTableMissingError, logTableMissingWarning } from '../api/postgrestErrors';
-import { POST_PHOTO_BUCKET, type PhotoResource, type ModerationStatus } from '../lib/photos';
+import {
+  POST_PHOTO_BUCKET,
+  PROFILE_PHOTO_BUCKET,
+  type PhotoResource,
+  type ModerationStatus,
+} from '../lib/photos';
 import { useAuthStore, selectSession, selectCurrentUser } from '../state/authStore';
 
 const FALLBACK_TYPE = 'image/jpeg';
 
 export type UploadPhotoArgs =
   | { asset: ImagePickerAsset }
-  | { uri: string; mimeType?: string | null; width?: number | null; height?: number | null };
+  | {
+      uri: string;
+      mimeType?: string | null;
+      width?: number | null;
+      height?: number | null;
+    };
+
+type UploadKind = 'post' | 'avatar';
 
 export type UploadResult = {
   success: boolean;
@@ -86,7 +98,12 @@ export function usePhotoModeration() {
   const [error, setError] = useState<string | null>(null);
 
   const uploadPhoto = useCallback(
-    async (input: UploadPhotoArgs): Promise<UploadResult> => {
+    async (
+      input: UploadPhotoArgs,
+      opts?: {
+        kind?: UploadKind;
+      },
+    ): Promise<UploadResult> => {
       if (!session) {
         setError('Sign in to upload photos.');
         return { success: false };
@@ -97,6 +114,9 @@ export function usePhotoModeration() {
         setError('Choose a valid photo to upload.');
         return { success: false };
       }
+
+      const logicalKind: UploadKind = opts?.kind ?? 'post';
+      const bucket = POST_PHOTO_BUCKET; // always use shared post-photos bucket
 
       setIsUploading(true);
       setError(null);
@@ -112,13 +132,13 @@ export function usePhotoModeration() {
         const storagePath = `${session.user.id}/${ensureUuid()}.${extension}`;
 
         const { error: uploadError } = await client.storage
-          .from(POST_PHOTO_BUCKET)
+          .from(bucket)
           .upload(storagePath, bytes, { contentType, upsert: false });
         if (uploadError) {
           throw uploadError;
         }
 
-        const { data: publicUrlData } = client.storage.from(POST_PHOTO_BUCKET).getPublicUrl(storagePath);
+        const { data: publicUrlData } = client.storage.from(bucket).getPublicUrl(storagePath);
         const publicUrl = publicUrlData?.publicUrl;
         if (!publicUrl) {
           throw new Error('Unable to resolve uploaded photo URL');
@@ -137,12 +157,15 @@ export function usePhotoModeration() {
             content_type: contentType,
             width: asset.width ?? null,
             height: asset.height ?? null,
+            kind: logicalKind,
           };
 
           const { data: photoRow, error: photoError } = await client
             .from('photos')
             .upsert(payload, { onConflict: 'storage_path' })
-            .select('id, status, url, storage_path, content_type, width, height, rejection_reason')
+            .select(
+              'id, status, url, storage_path, content_type, width, height, rejection_reason',
+            )
             .maybeSingle();
 
           if (photoError) {
@@ -224,29 +247,28 @@ export function usePhotoModeration() {
   };
 }
 
-
 // ========================================
 // FIXED fetchPhotoStatus (do not remove)
 // ========================================
 export async function fetchPhotoStatusFixed(photoId: string | null, storagePath?: string | null) {
   try {
     if (!photoId && !storagePath) {
-      console.log("📡 fetchPhotoStatusFixed: no args");
+      console.log('📡 fetchPhotoStatusFixed: no args');
       return null;
     }
 
     let query = getSupabaseClient()
-      .from("photos")
-      .select("id,status,storage_path");
+      .from('photos')
+      .select('id,status,storage_path');
 
     if (photoId) {
-      query = query.eq("id", photoId);
+      query = query.eq('id', photoId);
     } else if (storagePath) {
-      query = query.eq("storage_path", storagePath);
+      query = query.eq('storage_path', storagePath);
     }
 
     const { data, error } = await query.maybeSingle();
-    console.log("📡 RAW fetchPhotoStatusFixed:", { data, error, photoId, storagePath });
+    console.log('📡 RAW fetchPhotoStatusFixed:', { data, error, photoId, storagePath });
 
     if (error || !data) return null;
 
@@ -256,8 +278,7 @@ export async function fetchPhotoStatusFixed(photoId: string | null, storagePath?
       storagePath: data.storage_path ?? null,
     };
   } catch (err) {
-    console.error("❌ fetchPhotoStatusFixed error", err);
+    console.error('❌ fetchPhotoStatusFixed error', err);
     return null;
   }
 }
-

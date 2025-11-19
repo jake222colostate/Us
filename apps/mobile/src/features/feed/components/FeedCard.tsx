@@ -122,7 +122,10 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, distanceText, onOpenPr
           locations={[0, 0.45, 1]}
         />
         <View style={styles.overlayContent}>
-          <View style={styles.topRow}>
+          <View style={styles.topRow}><View style={styles.avatarWrapper}><Image source={{ uri: post.avatar ?? "" }} style={styles.avatar} /></View>
+      {post.avatar ? (
+            <Image source={{ uri: post.avatar }} style={styles.avatar} />
+          ) : null}
             {distanceText ? (
               <View style={styles.distancePill} accessibilityRole="text">
                 <Text weight="semibold" style={styles.distanceText}>
@@ -132,9 +135,9 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, distanceText, onOpenPr
             ) : null}
           </View>
           <View style={styles.bottomRow}>
-            <Pressable style={styles.metaBlock} onPress={() => onOpenProfile(post.user_id)}>
+            <Pressable style={styles.metaBlock} onPress={() => onOpenProfile(post.user_id)}><Image source={{ uri: post.avatar }} style={styles.avatar} />
               <Text weight="bold" style={styles.name} numberOfLines={1}>
-                {post.profile?.display_name ?? 'Someone new'}
+                {post.name ?? "Someone new" ?? 'Someone new'}
               </Text>
               <Text style={styles.caption} numberOfLines={3}>
                 {caption}
@@ -166,6 +169,14 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, distanceText, onOpenPr
 };
 
 const styles = StyleSheet.create({
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginBottom: 6,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
   wrapper: {
     alignItems: 'center',
   },

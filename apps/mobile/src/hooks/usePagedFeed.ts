@@ -22,7 +22,7 @@ export function usePagedFeed(enabled: boolean) {
   const pending = useRef<Promise<any> | null>(null);
 
   const mapRows = useCallback((rows: any[]): FeedProfile[] => {
-    return rows.map(r => ({
+    return rows.map((r: any) => ({
       id: r.user_id,
       name: r.owner_display_name ?? null,
       bio: r.owner_bio ?? null,

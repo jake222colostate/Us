@@ -130,7 +130,7 @@ async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
     location: profileRow.location ?? null,
     gender: (profileRow.gender as Gender | null) ?? null,
     lookingFor: (profileRow.looking_for as LookingFor | null) ?? null,
-    avatar: signedAvatar ?? firstApproved?.url ?? null,
+    avatar: signedAvatar ?? (firstApproved?.url ?? null),
     avatarStoragePath: profileRow.avatar_url ?? firstApproved?.storagePath ?? null,
     bio: profileRow.bio ?? null,
     interests: Array.isArray(profileRow.interests) ? (profileRow.interests as string[]) : [],

@@ -9,7 +9,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableWithoutFeedback,
@@ -20,64 +19,29 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Crypto from 'expo-crypto';
-import { Buffer } from 'buffer';
+
 import { selectCurrentUser, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import type { Gender, LookingFor } from '@us/types';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
-import { getSupabaseClient } from '../../api/supabase';
-import { PROFILE_PHOTO_BUCKET } from '../../lib/photos';
+import { usePhotoModeration, fetchPhotoStatusFixed } from '../../hooks/usePhotoModeration';
+import type { ModerationStatus } from '../../lib/photos';
 
 const BIO_LIMIT = 280;
-const FALLBACK_CONTENT_TYPE = Platform.OS === 'ios' ? 'image/jpeg' : 'image/jpg';
-
-function toBytes(base64: string): Uint8Array {
-  if (typeof globalThis.atob === 'function') {
-    const binary = globalThis.atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  }
-  const buffer = Buffer.from(base64, 'base64');
-  return new Uint8Array(buffer);
-}
-
-function guessContentType(uri: string, mimeType?: string | null): { contentType: string; extension: string } {
-  if (mimeType) {
-    const extension = mimeType.split('/')[1] || 'jpg';
-    return { contentType: mimeType, extension };
-  }
-  const fileName = uri.split('/').pop() ?? '';
-  const extension = fileName.split('.').pop()?.toLowerCase();
-  if (!extension) {
-    return { contentType: FALLBACK_CONTENT_TYPE, extension: 'jpg' };
-  }
-  if (extension === 'png') {
-    return { contentType: 'image/png', extension: 'png' };
-  }
-  if (extension === 'webp') {
-    return { contentType: 'image/webp', extension: 'webp' };
-  }
-  if (extension === 'heic' || extension === 'heif') {
-    return { contentType: 'image/heic', extension };
-  }
-  return { contentType: `image/${extension}`, extension };
-}
 
 const EditProfileScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+
   const user = useAuthStore(selectCurrentUser);
   const updateUser = useAuthStore((state) => state.updateUser);
   const setAvatar = useAuthStore((state) => state.setAvatar);
   const refreshProfile = useAuthStore((state) => state.refreshProfile);
+
   const { show } = useToast();
+  const { uploadPhoto } = usePhotoModeration();
 
   const [displayName, setDisplayName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
@@ -86,7 +50,12 @@ const EditProfileScreen: React.FC = () => {
   const [gender, setGender] = useState<Gender | null>(user?.gender ?? null);
   const [lookingFor, setLookingFor] = useState<LookingFor>(user?.lookingFor ?? 'everyone');
   const [saving, setSaving] = useState(false);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  // Avatar moderation state
+  const [avatarPreviewUri, setAvatarPreviewUri] = useState<string | null>(null);
+  const [avatarPath, setAvatarPath] = useState<string | null>(user?.avatarStoragePath ?? null);
+  const [avatarStatus, setAvatarStatus] = useState<ModerationStatus | null>(null);
+  const [avatarSelectionStartedAt, setAvatarSelectionStartedAt] = useState<number | null>(null);
 
   useEffect(() => {
     setDisplayName(user?.name ?? '');
@@ -95,6 +64,8 @@ const EditProfileScreen: React.FC = () => {
     setInterestsText((user?.interests ?? []).join(', '));
     setGender(user?.gender ?? null);
     setLookingFor(user?.lookingFor ?? 'everyone');
+    setAvatarPath(user?.avatarStoragePath ?? null);
+    setAvatarPreviewUri(null);
   }, [
     user?.name,
     user?.bio,
@@ -102,6 +73,7 @@ const EditProfileScreen: React.FC = () => {
     user?.gender,
     user?.lookingFor,
     JSON.stringify(user?.interests ?? []),
+    user?.avatarStoragePath,
   ]);
 
   const normalizedInterests = useMemo(
@@ -137,43 +109,64 @@ const EditProfileScreen: React.FC = () => {
       .slice(0, 2);
   }, [displayName]);
 
-  const avatarUri = user?.avatar ?? null;
+  const avatarUri = avatarPreviewUri ?? user?.avatar ?? null;
 
-  const uploadAvatar = useCallback(
-    async (asset: ImagePicker.ImagePickerAsset) => {
-      if (!user) {
-        return;
+  // Poll avatar moderation status for the current avatarPath
+  useEffect(() => {
+    let cancelled = false;
+    if (!avatarPath) return;
+
+    const tick = async () => {
+      const res = await fetchPhotoStatusFixed(null, avatarPath);
+      if (!res || cancelled) return;
+
+      const raw = (res.status ?? 'pending').toString().toLowerCase().trim();
+      let normalized: ModerationStatus =
+        raw === 'approved' ? 'approved' : raw === 'rejected' ? 'rejected' : 'pending';
+
+      // For the first 10s after selecting a new avatar, suppress early 'rejected' flashes.
+      if (
+        normalized === 'rejected' &&
+        avatarSelectionStartedAt &&
+        Date.now() - avatarSelectionStartedAt < 10000
+      ) {
+        normalized = 'pending';
       }
-      const client = getSupabaseClient();
-      const previousPath = user.avatarStoragePath ?? null;
-      const { contentType, extension } = guessContentType(asset.uri, asset.mimeType ?? null);
-      const path = `${user.id}/avatar-${Crypto.randomUUID()}.${extension}`;
-      setIsUploadingAvatar(true);
-      try {
-        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        const bytes = toBytes(base64);
-        const { error: uploadError } = await client.storage
-          .from(PROFILE_PHOTO_BUCKET)
-          .upload(path, bytes, { contentType, upsert: true });
-        if (uploadError) {
-          throw uploadError;
-        }
-        await setAvatar(path);
-        if (previousPath && previousPath !== path) {
-          await client.storage.from(PROFILE_PHOTO_BUCKET).remove([previousPath]).catch(() => undefined);
-        }
-        show('Profile photo updated.');
-      } catch (err) {
-        console.error('Failed to upload avatar', err);
-        show('Unable to update your profile photo. Please try again.');
-      } finally {
-        setIsUploadingAvatar(false);
+
+      if (normalized !== avatarStatus) {
+        setAvatarStatus(normalized);
       }
-    },
-    [setAvatar, show, user],
-  );
+    };
+
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [avatarPath, avatarStatus, avatarSelectionStartedAt]);
+
+  const renderAvatarStatus = () => {
+    if (!avatarPath && !avatarStatus) return null;
+
+    const status = avatarStatus ?? 'pending';
+    let color = '#fbbf24';
+    let label = 'Pending moderation…';
+
+    if (status === 'approved') {
+      color = '#10b981';
+      label = 'Approved';
+    } else if (status === 'rejected') {
+      color = '#ef4444';
+      label = 'Rejected';
+    }
+
+    return (
+      <Text style={{ marginTop: 8, color }}>
+        {label}
+      </Text>
+    );
+  };
 
   const handleAvatarSelection = useCallback(
     async (source: 'camera' | 'library') => {
@@ -182,6 +175,7 @@ const EditProfileScreen: React.FC = () => {
           source === 'camera'
             ? await ImagePicker.requestCameraPermissionsAsync()
             : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
         if (!permission.granted) {
           show(
             source === 'camera'
@@ -211,13 +205,27 @@ const EditProfileScreen: React.FC = () => {
         }
 
         const asset = result.assets[0];
-        await uploadAvatar(asset);
+
+        // Local preview
+        setAvatarPreviewUri(asset.uri);
+        setAvatarStatus('pending');
+        setAvatarPath(null);
+        setAvatarSelectionStartedAt(Date.now());
+
+        // Upload via shared moderation pipeline
+        const uploadRes = await uploadPhoto({ asset }, { kind: 'avatar' });
+        if (uploadRes.success && uploadRes.photo) {
+          setAvatarPath(uploadRes.photo.storagePath ?? null);
+          setAvatarStatus(uploadRes.status ?? 'pending');
+        } else {
+          show('We could not upload your photo. Please try again.');
+        }
       } catch (err) {
         console.error('Avatar selection failed', err);
         show('We could not open your camera roll. Please try again.');
       }
     },
-    [show, uploadAvatar],
+    [show, uploadPhoto],
   );
 
   const handleAvatarPress = useCallback(() => {
@@ -266,9 +274,17 @@ const EditProfileScreen: React.FC = () => {
       return;
     }
 
+    // If avatar is in-flight and not approved, block save
+    if (avatarStatus && avatarStatus !== 'approved') {
+      show('Your new profile photo must be approved before saving.');
+      return;
+    }
+
     setSaving(true);
     try {
       const trimmedLocation = location.trim();
+
+      // Apply profile field changes
       await updateUser({
         name: displayName.trim(),
         bio: bio.trim(),
@@ -277,6 +293,12 @@ const EditProfileScreen: React.FC = () => {
         gender,
         lookingFor,
       });
+
+      // If we have a newly approved avatarPath that differs from stored one, persist it
+      if (avatarPath && avatarStatus === 'approved' && avatarPath !== user.avatarStoragePath) {
+        await setAvatar(avatarPath);
+      }
+
       await refreshProfile();
       show('Profile updated.');
       navigation.goBack();
@@ -287,6 +309,8 @@ const EditProfileScreen: React.FC = () => {
       setSaving(false);
     }
   }, [
+    avatarPath,
+    avatarStatus,
     bio,
     displayName,
     gender,
@@ -294,8 +318,9 @@ const EditProfileScreen: React.FC = () => {
     lookingFor,
     navigation,
     normalizedInterests,
-    show,
     refreshProfile,
+    setAvatar,
+    show,
     updateUser,
     user,
   ]);
@@ -324,6 +349,11 @@ const EditProfileScreen: React.FC = () => {
   );
 
   const remaining = BIO_LIMIT - bio.length;
+  const avatarChanged = !!(avatarPath && avatarPath !== (user?.avatarStoragePath ?? null));
+  const disabledSave =
+    saving ||
+    (!hasChanges && !avatarChanged) ||
+    (avatarChanged && avatarStatus !== 'approved');
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -351,159 +381,144 @@ const EditProfileScreen: React.FC = () => {
                   style={({ pressed }) => [
                     styles.avatarAddButton,
                     pressed && styles.avatarAddButtonPressed,
-                    isUploadingAvatar && styles.avatarAddButtonDisabled,
+                    saving && styles.avatarAddButtonDisabled,
                   ]}
                   onPress={handleAvatarPress}
-                  disabled={isUploadingAvatar}
+                  disabled={saving}
                 >
-                  {isUploadingAvatar ? (
+                  {saving ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Ionicons name="add" size={20} color="#fff" />
+                    <Ionicons name="camera" size={18} color="#fff" />
                   )}
                 </Pressable>
               </View>
-              <Text style={styles.avatarHint}>Add a clear photo of you to help matches recognise you.</Text>
+              {renderAvatarStatus()}
             </View>
 
-            <View style={styles.fieldGroup}>
+            <View style={styles.section}>
               <Text style={styles.label}>Display name</Text>
               <TextInput
                 style={styles.input}
                 value={displayName}
                 onChangeText={setDisplayName}
                 placeholder="Your name"
-                placeholderTextColor={palette.muted}
-                maxLength={60}
-                autoCapitalize="words"
+                placeholderTextColor="#9CA3AF"
               />
             </View>
 
-            <View style={styles.fieldGroup}>
+            <View style={styles.section}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Bio</Text>
+                <Text style={styles.counter}>{remaining}</Text>
+              </View>
+              <TextInput
+                style={styles.textArea}
+                value={bio}
+                onChangeText={(text) => text.length <= BIO_LIMIT && setBio(text)}
+                placeholder="Tell people about yourself"
+                placeholderTextColor="#9CA3AF"
+                multiline
+              />
+            </View>
+
+            <View style={styles.section}>
               <Text style={styles.label}>Location</Text>
               <TextInput
                 style={styles.input}
                 value={location}
                 onChangeText={setLocation}
-                placeholder="City or neighborhood"
-                placeholderTextColor={palette.muted}
-                autoCapitalize="words"
+                placeholder="City, State"
+                placeholderTextColor="#9CA3AF"
               />
-              <Text style={styles.helper}>Share where you are based so we can surface nearby matches.</Text>
             </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>I am</Text>
-              <View style={styles.toggleGroup}>
-                {genderOptions.map((option) => {
-                  const key = option.key ?? 'unspecified';
-                  const isActive = gender === option.key;
-                  return (
-                    <Pressable
-                      key={key}
-                      accessibilityRole="button"
-                      style={({ pressed }) => [
-                        styles.toggleOption,
-                        isActive && styles.toggleOptionActive,
-                        pressed && styles.toggleOptionPressed,
-                      ]}
-                      onPress={() => setGender(option.key)}
-                    >
-                      <Text
-                        style={[
-                          styles.toggleOptionLabel,
-                          isActive && styles.toggleOptionLabelActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Show me</Text>
-              <Text style={styles.helper}>Choose whose posts appear in your feed.</Text>
-              <View style={styles.switchList}>
-                {lookingForOptions.map((option) => {
-                  const isActive = lookingFor === option.key;
-                  return (
-                    <View key={option.key} style={styles.switchRow}>
-                      <Text style={styles.switchLabel}>{option.label}</Text>
-                      <Switch
-                        value={isActive}
-                        onValueChange={(value) => {
-                          if (value) {
-                            setLookingFor(option.key);
-                          } else if (lookingFor === option.key) {
-                            setLookingFor('everyone');
-                          }
-                        }}
-                        trackColor={{ true: palette.accent, false: palette.border }}
-                        thumbColor={isActive ? '#f8fafc' : palette.muted}
-                      />
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Bio</Text>
-              <TextInput
-                style={[styles.input, styles.bioInput]}
-                value={bio}
-                onChangeText={(text) => {
-                  if (text.length <= BIO_LIMIT) {
-                    setBio(text);
-                  }
-                }}
-                placeholder={`${BIO_LIMIT} characters max`}
-                placeholderTextColor={palette.muted}
-                multiline
-                textAlignVertical="top"
-              />
-              <Text style={styles.counter}>{remaining} characters left</Text>
-            </View>
-
-            <View style={styles.fieldGroup}>
+            <View style={styles.section}>
               <Text style={styles.label}>Interests</Text>
               <TextInput
-                style={[styles.input, styles.multilineInput]}
+                style={styles.input}
                 value={interestsText}
                 onChangeText={setInterestsText}
-                placeholder="e.g., Hiking, Live music, Coffee shops"
-                placeholderTextColor={palette.muted}
-                multiline
-                textAlignVertical="top"
+                placeholder="Hiking, Music, Coffee…"
+                placeholderTextColor="#9CA3AF"
               />
-              <Text style={styles.helper}>Separate interests with commas to highlight your favorite things.</Text>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.label}>Gender</Text>
+              <View style={styles.pillRow}>
+                {genderOptions.map((opt) => (
+                  <Pressable
+                    key={String(opt.key)}
+                    onPress={() => setGender(opt.key)}
+                    style={[
+                      styles.pill,
+                      gender === opt.key && styles.pillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.pillText,
+                        gender === opt.key && styles.pillTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.label}>Looking for</Text>
+              <View style={styles.pillRow}>
+                {lookingForOptions.map((opt) => (
+                  <Pressable
+                    key={opt.key}
+                    onPress={() => setLookingFor(opt.key)}
+                    style={[
+                      styles.pill,
+                      lookingFor === opt.key && styles.pillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.pillText,
+                        lookingFor === opt.key && styles.pillTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.footer}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.saveButton,
+                  disabledSave && styles.saveButtonDisabled,
+                  pressed && !disabledSave && styles.saveButtonPressed,
+                ]}
+                disabled={disabledSave}
+                onPress={handleSave}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#111827" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save</Text>
+                )}
+              </Pressable>
             </View>
           </ScrollView>
-
-          <Pressable
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.saveButton,
-              (!hasChanges || saving) && styles.saveButtonDisabled,
-              pressed && styles.saveButtonPressed,
-            ]}
-            onPress={handleSave}
-            disabled={!hasChanges || saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.saveButtonLabel}>Save changes</Text>
-            )}
-          </Pressable>
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 };
+
+export default EditProfileScreen;
 
 function createStyles(palette: AppPalette) {
   return StyleSheet.create({
@@ -516,16 +531,24 @@ function createStyles(palette: AppPalette) {
     },
     content: {
       paddingHorizontal: 20,
-      paddingTop: 24,
-      paddingBottom: 120,
+      paddingTop: 16,
+      paddingBottom: 32,
     },
     avatarSection: {
       alignItems: 'center',
-      marginBottom: 32,
-      gap: 12,
+      marginBottom: 24,
     },
     avatarWrapper: {
-      position: 'relative',
+      width: 132,
+      height: 132,
+      borderRadius: 999,
+      backgroundColor: '#020617',
+      borderWidth: 2,
+      borderColor: '#111827',
+      overflow: 'visible',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 10,
     },
     avatarImage: {
       width: 120,
@@ -538,144 +561,123 @@ function createStyles(palette: AppPalette) {
       borderRadius: 60,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: palette.surface,
-      borderWidth: 1,
-      borderColor: palette.border,
+      backgroundColor: '#111827',
     },
     avatarInitials: {
       fontSize: 32,
       fontWeight: '700',
-      color: palette.muted,
+      color: '#F9FAFB',
     },
     avatarAddButton: {
       position: 'absolute',
-      bottom: 0,
-      right: 0,
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: '#f472b6',
+      bottom: 4,
+      right: 4,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: '#EC4899',
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: '#020617',
       shadowColor: '#000',
-      shadowOpacity: 0.25,
-      shadowRadius: 6,
+      shadowOpacity: 0.4,
+      shadowRadius: 4,
       shadowOffset: { width: 0, height: 2 },
       elevation: 4,
     },
     avatarAddButtonPressed: {
-      opacity: 0.85,
-    },
-    avatarAddButtonDisabled: {
       opacity: 0.7,
     },
-    avatarHint: {
-      color: palette.muted,
-      fontSize: 13,
-      textAlign: 'center',
-      paddingHorizontal: 12,
-      lineHeight: 18,
+    avatarAddButtonDisabled: {
+      opacity: 0.5,
     },
-    fieldGroup: {
-      marginBottom: 24,
+    section: {
+      marginBottom: 20,
     },
     label: {
-      color: palette.textPrimary,
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: '600',
-      marginBottom: 8,
+      color: '#E5E7EB',
+      marginBottom: 6,
     },
-    input: {
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.surface,
-      color: palette.textPrimary,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      fontSize: 16,
-    },
-    bioInput: {
-      minHeight: 140,
-    },
-    multilineInput: {
-      minHeight: 96,
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
     },
     counter: {
-      color: palette.muted,
       fontSize: 12,
-      marginTop: 6,
-      textAlign: 'right',
+      color: '#9CA3AF',
     },
-    helper: {
-      color: palette.muted,
-      fontSize: 13,
-      lineHeight: 18,
-      marginTop: 8,
+    input: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#374151',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: '#F9FAFB',
+      backgroundColor: '#020617',
     },
-    switchList: {
-      marginTop: 12,
-      gap: 16,
+    textArea: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#374151',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      minHeight: 80,
+      fontSize: 15,
+      color: '#F9FAFB',
+      backgroundColor: '#020617',
+      textAlignVertical: 'top',
     },
-    switchRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    switchLabel: {
-      color: palette.textPrimary,
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    toggleGroup: {
+    pillRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
-      marginTop: 12,
+      gap: 8,
     },
-    toggleOption: {
-      paddingVertical: 10,
-      paddingHorizontal: 16,
+    pill: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
       borderRadius: 999,
       borderWidth: 1,
-      borderColor: palette.border,
-      backgroundColor: palette.surface,
+      borderColor: '#4B5563',
+      backgroundColor: '#020617',
     },
-    toggleOptionActive: {
-      backgroundColor: palette.accent,
-      borderColor: palette.accent,
+    pillActive: {
+      backgroundColor: '#EC4899',
+      borderColor: '#EC4899',
     },
-    toggleOptionPressed: {
-      opacity: 0.85,
+    pillText: {
+      fontSize: 13,
+      color: '#E5E7EB',
     },
-    toggleOptionLabel: {
-      color: palette.textPrimary,
+    pillTextActive: {
+      color: '#0B1120',
       fontWeight: '600',
     },
-    toggleOptionLabelActive: {
-      color: '#ffffff',
+    footer: {
+      marginTop: 12,
     },
     saveButton: {
-      marginHorizontal: 20,
-      marginBottom: 24,
-      borderRadius: 14,
-      backgroundColor: palette.accent,
+      borderRadius: 999,
+      paddingVertical: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 16,
+      backgroundColor: '#EC4899',
     },
     saveButtonDisabled: {
       opacity: 0.5,
     },
     saveButtonPressed: {
-      opacity: 0.85,
+      opacity: 0.8,
     },
-    saveButtonLabel: {
-      color: '#ffffff',
+    saveButtonText: {
       fontSize: 16,
       fontWeight: '700',
+      color: '#0B1120',
     },
   });
 }
-
-export default EditProfileScreen;

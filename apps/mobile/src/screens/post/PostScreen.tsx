@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -25,9 +25,11 @@ import type { ModerationStatus } from '../../lib/photos';
 const POLL_INTERVAL_MS = 4000;
 
 const PostScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const mode = (route.params as { mode?: 'live' | 'upload' | 'take' } | undefined)?.mode;
   const session = useAuthStore(selectSession);
+  const setAvatar = useAuthStore((state) => state.setAvatar);
   const { uploadPhoto, isUploading } = usePhotoModeration();
   const { show } = useToast();
   const queryClient = useQueryClient();
@@ -40,6 +42,7 @@ const PostScreen: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [postKind, setPostKind] = useState<'live' | 'regular' | null>(null);
   const [isLiveMode, setIsLiveMode] = useState(false);
+  const [hasAutoLaunched, setHasAutoLaunched] = useState(false);
 
   const launchPicker = useCallback(
     async (fromCamera: boolean) => {
@@ -176,20 +179,23 @@ const PostScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!mode) return;
+    if (!mode || hasAutoLaunched) return;
     if (previewUri || hostedUri || isUploading) return;
 
     if (mode === 'live') {
       setPostKind('live');
+      setHasAutoLaunched(true);
       launchPicker(true);
     } else if (mode === 'take') {
       setPostKind('regular');
+      setHasAutoLaunched(true);
       launchPicker(true);
     } else if (mode === 'upload') {
       setPostKind('regular');
+      setHasAutoLaunched(true);
       launchPicker(false);
     }
-  }, [mode, previewUri, hostedUri, isUploading, launchPicker, setPostKind]);
+  }, [mode, previewUri, hostedUri, isUploading, launchPicker, setPostKind, hasAutoLaunched]);
 
   const showLibraryMenu = useCallback(() => {
     const options = ['Open Camera', 'Choose From Library', 'Cancel'];
@@ -220,6 +226,13 @@ const PostScreen: React.FC = () => {
       { text: 'Cancel', style: 'cancel' },
     ]);
   }, [launchPicker]);
+
+  const handleClose = useCallback(() => {
+    resetPhoto();
+    try {
+      navigation.goBack();
+    } catch {}
+  }, [navigation, resetPhoto]);
 
   const handlePost = useCallback(async () => {
     if (!session) {
@@ -258,36 +271,47 @@ const PostScreen: React.FC = () => {
           queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
         ]);
 
+        if (hostedPath) {
+          try {
+            await setAvatar(hostedPath);
+          } catch (err) {
+            console.warn('Failed to sync avatar from post', err);
+          }
+        }
+
         show('Photo posted!');
       }
 
       resetPhoto();
-    } catch (e) {
+      try {
+        navigation.navigate('Feed' as never);
+      } catch {}
+    } catch (e: any) {
       console.error('Failed to publish post', e);
-      show('Could not publish. Try again.');
+      if (postKind === 'live' && e && e.code === '23505') {
+        show('You already have a live photo today. Try again later.');
+      } else {
+        show('Could not publish. Try again.');
+      }
     } finally {
       setIsPublishing(false);
     }
-  }, [session, hostedUri, hostedPath, status, postKind, queryClient, resetPhoto, show]);
+  }, [session, hostedUri, hostedPath, status, postKind, queryClient, resetPhoto, show, navigation, setAvatar]);
 
 
   const disabled = isUploading || isPublishing || !hostedUri || status !== 'approved';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#050816' }}>
-      <ScrollView
-        contentContainerStyle={{ alignItems: 'center', padding: 24 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {previewUri ? (
+      {previewUri ? (
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           <View
             style={{
               backgroundColor: '#020617',
-              width: '100%',
+              marginHorizontal: 24,
+              marginBottom: 24,
               borderRadius: 20,
               padding: 16,
-              marginTop: 16,
               shadowColor: '#000',
               shadowOpacity: 0.4,
               shadowRadius: 12,
@@ -295,6 +319,23 @@ const PostScreen: React.FC = () => {
               elevation: 6,
             }}
           >
+            <Pressable
+              onPress={handleClose}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(15,23,42,0.9)',
+              }}
+            >
+              <Text style={{ color: '#e5e7eb', fontSize: 18 }}>×</Text>
+            </Pressable>
+
             <Image
               source={{ uri: previewUri }}
               style={{
@@ -363,7 +404,7 @@ const PostScreen: React.FC = () => {
               </Text>
             </Pressable>
 
-                        <Pressable
+            <Pressable
               onPress={handlePost}
               disabled={disabled}
               style={{
@@ -383,15 +424,22 @@ const PostScreen: React.FC = () => {
               )}
             </Pressable>
           </View>
-        ) : (
-          <View style={{ marginTop: 48, alignItems: 'center', gap: 12 }}>
-            <ActivityIndicator color="#60a5fa" />
-            <Text style={{ color: '#e5e7eb' }}>Preparing your photo…</Text>
-          </View>
-        )}
-      </ScrollView>
+        </View>
+      ) : (
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <ActivityIndicator color="#60a5fa" />
+          <Text style={{ color: '#e5e7eb', marginTop: 12 }}>Preparing your photo…</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
+
 };
 
 export default PostScreen;

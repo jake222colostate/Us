@@ -37,6 +37,7 @@ type FeedProfile = {
 type LiveCompareItem = {
   userId: string;
   livePostId: string;
+  livePhotoUrl: string;
 };
 
 const createStyles = (palette: AppPalette) =>
@@ -175,7 +176,12 @@ export default function FeedScreen() {
   }, [profiles, genderPreference]);
 
   const liveCompareItems = useMemo<LiveCompareItem[]>(
-    () => liveNow.map((item) => ({ userId: item.user_id, livePostId: item.id })),
+    () =>
+      liveNow.map((item) => ({
+        userId: item.user_id,
+        livePostId: item.id,
+        livePhotoUrl: item.photo_url,
+      })),
     [liveNow],
   );
 
@@ -277,6 +283,7 @@ export default function FeedScreen() {
                             name: item.profile?.name ?? undefined,
                             bio: item.profile?.bio ?? undefined,
                           },
+                          leftPhoto: item.photo_url,
                           context: {
                             type: 'live',
                             index,
@@ -343,6 +350,7 @@ export default function FeedScreen() {
                   name: item.name ?? undefined,
                   bio: item.bio ?? undefined,
                 },
+                leftPhoto: item.photo ?? null,
                 context: {
                   type: 'feed',
                   index,

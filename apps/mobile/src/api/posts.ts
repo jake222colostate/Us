@@ -112,10 +112,18 @@ export async function deletePost({
       .maybeSingle();
     if (!fetchError && row) {
       storagePath =
-        (row.storage_path as string | null | undefined) ?? extractStoragePathFromPublicUrl((row.photo_url as string | null) ?? null);
+        (row.storage_path as string | null | undefined) ??
+        extractStoragePathFromPublicUrl((row.photo_url as string | null) ?? null);
     }
   }
 
+  // 1) Delete the post row first so we never leave a zombie tile if DB delete fails
+  const { error: deleteError } = await client.from('posts').delete().eq('id', postId);
+  if (deleteError && deleteError.code !== 'PGRST116') {
+    throw deleteError;
+  }
+
+  // 2) Best-effort cleanup of storage object
   if (storagePath) {
     const { error: storageError } = await client.storage.from(POST_PHOTO_BUCKET).remove([storagePath]);
     if (storageError && storageError.message && !/not found/i.test(storageError.message)) {
@@ -123,11 +131,7 @@ export async function deletePost({
     }
   }
 
-  const { error } = await client.from('posts').delete().eq('id', postId);
-  if (error && error.code !== 'PGRST116') {
-    throw error;
-  }
-
+  // 3) Mirror delete in photos table (ignore if table missing)
   if (storagePath) {
     try {
       await client.from('photos').delete().eq('storage_path', storagePath);

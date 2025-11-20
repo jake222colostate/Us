@@ -196,7 +196,6 @@ const ProfileScreen: React.FC = () => {
               scrollEnabled={false}
               columnWrapperStyle={styles.photoRow}
               renderItem={renderPost}
-              ListFooterComponent={<View style={styles.photoFooterSpacer} />}
             />
           ) : (
             <Text style={styles.placeholderText}>Add a photo to start building your gallery.</Text>
@@ -214,8 +213,10 @@ function createStyles(palette: AppPalette) {
       backgroundColor: palette.background,
     },
     content: {
+      flexGrow: 1,
       paddingHorizontal: 20,
-      paddingVertical: 24,
+      paddingTop: 16,
+      paddingBottom: 0,
       gap: 20,
     },
     loadingContainer: {

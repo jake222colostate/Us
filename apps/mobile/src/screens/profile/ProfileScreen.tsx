@@ -102,7 +102,7 @@ const ProfileScreen: React.FC = () => {
     .join('')
     .slice(0, 2);
 
-  const avatarUri = user?.avatar ?? posts[0]?.photo_url ?? null;
+  const avatarUri = user?.avatar ?? null;
   const bioCopy = user?.bio?.trim().length ? user.bio.trim() : PLACEHOLDER_BIO;
 
   const handleDeletePost = useCallback(

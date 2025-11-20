@@ -77,7 +77,7 @@ export async function likeUser(
       return { matchCreated: false };
     }
     // Ignore unique-pair violations; match already exists.
-    if (!String(matchError.message).includes('matches_unique_pair')) {
+    if (!String(matchError.message).includes('matches_pair_unique')) {
       throw matchError;
     }
   }

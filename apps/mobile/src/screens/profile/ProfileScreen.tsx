@@ -128,10 +128,20 @@ const ProfileScreen: React.FC = () => {
     );
   }
 
-  const renderPost = ({ item }: { item: ProfilePost }) => {
+  const renderPost = ({ item, index }: { item: ProfilePost; index: number }) => {
     const isRemoving = removingPostIds.has(item.id);
+    const total = posts.length;
+    const remainder = total % 3 || 3;
+    const isLastRow = index >= total - remainder;
+
     return (
-      <View style={[styles.photoItem, isRemoving && styles.photoItemRemoving]}>
+      <View
+        style={[
+          styles.photoItem,
+          !isLastRow && styles.photoItemSpaced,
+          isRemoving && styles.photoItemRemoving,
+        ]}
+      >
         <Image source={{ uri: item.photo_url }} style={styles.photo} />
         <Pressable
           accessibilityLabel="Delete photo"
@@ -318,7 +328,6 @@ function createStyles(palette: AppPalette) {
     },
     photoRow: {
       justifyContent: 'space-between',
-      marginBottom: 12,
     },
     photoItem: {
       width: '31%',
@@ -327,6 +336,9 @@ function createStyles(palette: AppPalette) {
       overflow: 'hidden',
       position: 'relative',
       backgroundColor: palette.surface,
+    },
+    photoItemSpaced: {
+      marginBottom: 12,
     },
     photoItemRemoving: {
       opacity: 0.6,

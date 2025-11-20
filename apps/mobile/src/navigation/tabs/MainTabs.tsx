@@ -1,5 +1,5 @@
-import React, { useMemo, useCallback } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Pressable, StyleSheet, ActionSheetIOS, Alert, Platform } from 'react-native';
 import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import FeedScreen from '../../screens/feed/FeedScreen';
@@ -12,7 +12,7 @@ import { useThemeStore } from '../../state/themeStore';
 export type MainTabParamList = {
   Feed: undefined;
   Likes: undefined;
-  Post: undefined;
+  Post: { mode?: 'live' | 'upload' | 'take' } | undefined;
   Matches: undefined;
   Profile: undefined;
 };
@@ -87,13 +87,9 @@ export const MainTabs = () => {
   );
   PostTabBarButton.displayName = 'PostTabBarButton';
 
-  const renderPostButton = useCallback(
-    (props: BottomTabBarButtonProps) => (
-      // @ts-expect-error React Navigation mixes legacy refs that don't match Pressable's ref type
-      <PostTabBarButton {...props} />
-    ),
-    [PostTabBarButton],
-  );
+  const renderPostButton = (props: BottomTabBarButtonProps) =>
+    // @ts-expect-error React Navigation mixes legacy refs that don't match Pressable's ref type
+    <PostTabBarButton {...props} />;
 
   return (
     <Tab.Navigator
@@ -134,6 +130,47 @@ export const MainTabs = () => {
           tabBarLabel: () => null,
           tabBarButton: renderPostButton,
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Stop default tab switch; show the menu instead.
+            e.preventDefault();
+
+            const go = (mode: 'live' | 'upload' | 'take') => {
+              navigation.navigate('Post', { mode });
+            };
+
+            const options = [
+              'Live Photo (1 Hour)',
+              'Upload Photo (For Feed/Profile)',
+              'Take Photo (For Feed/Profile)',
+              'Cancel',
+            ];
+            const cancelButtonIndex = 3;
+
+            if (Platform.OS === 'ios') {
+              ActionSheetIOS.showActionSheetWithOptions(
+                {
+                  title: 'Post a photo',
+                  message: 'Choose how you would like to add a new photo.',
+                  options,
+                  cancelButtonIndex,
+                },
+                (buttonIndex) => {
+                  if (buttonIndex === 0) go('live');
+                  else if (buttonIndex === 1) go('upload');
+                  else if (buttonIndex === 2) go('take');
+                },
+              );
+            } else {
+              Alert.alert('Post a photo', undefined, [
+                { text: 'Live Photo (1 Hour)', onPress: () => go('live') },
+                { text: 'Upload Photo (For Feed/Profile)', onPress: () => go('upload') },
+                { text: 'Take Photo (For Feed/Profile)', onPress: () => go('take') },
+                { text: 'Cancel', style: 'cancel' },
+              ]);
+            }
+          },
+        })}
       />
       <Tab.Screen name="Matches" component={MatchesScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />

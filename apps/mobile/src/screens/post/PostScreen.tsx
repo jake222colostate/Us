@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRoute } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -17,12 +18,15 @@ import { useAuthStore, selectSession } from '../../state/authStore';
 import { useToast } from '../../providers/ToastProvider';
 import { getSupabaseClient } from '../../api/supabase';
 import { createPost } from '../../api/posts';
+import { createLivePost } from '../../api/livePosts';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ModerationStatus } from '../../lib/photos';
 
 const POLL_INTERVAL_MS = 4000;
 
 const PostScreen: React.FC = () => {
+  const route = useRoute<any>();
+  const mode = (route.params as { mode?: 'live' | 'upload' | 'take' } | undefined)?.mode;
   const session = useAuthStore(selectSession);
   const { uploadPhoto, isUploading } = usePhotoModeration();
   const { show } = useToast();
@@ -34,6 +38,8 @@ const PostScreen: React.FC = () => {
   const [status, setStatus] = useState<ModerationStatus>(null);
   const [selectionStartedAt, setSelectionStartedAt] = useState<number | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [postKind, setPostKind] = useState<'live' | 'regular' | null>(null);
+  const [isLiveMode, setIsLiveMode] = useState(false);
 
   const launchPicker = useCallback(
     async (fromCamera: boolean) => {
@@ -166,7 +172,24 @@ const PostScreen: React.FC = () => {
     setHostedUri(null);
     setStatus(null);
     setSelectionStartedAt(null);
+    setIsLiveMode(false);
   }, []);
+
+  useEffect(() => {
+    if (!mode) return;
+    if (previewUri || hostedUri || isUploading) return;
+
+    if (mode === 'live') {
+      setPostKind('live');
+      launchPicker(true);
+    } else if (mode === 'take') {
+      setPostKind('regular');
+      launchPicker(true);
+    } else if (mode === 'upload') {
+      setPostKind('regular');
+      launchPicker(false);
+    }
+  }, [mode, previewUri, hostedUri, isUploading, launchPicker, setPostKind]);
 
   const showLibraryMenu = useCallback(() => {
     const options = ['Open Camera', 'Choose From Library', 'Cancel'];
@@ -175,6 +198,8 @@ const PostScreen: React.FC = () => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
+          title: 'Update profile photo',
+          message: 'Choose how you would like to add a new profile picture.',
           options,
           cancelButtonIndex,
         },
@@ -190,14 +215,13 @@ const PostScreen: React.FC = () => {
     }
 
     Alert.alert('Select Option', undefined, [
-      { text: 'Open Camera', onPress: () => launchPicker(true) },
-      { text: 'Choose From Library', onPress: () => launchPicker(false) },
+      { text: 'Open Camera', onPress: () => { setPostKind('regular'); launchPicker(true); } },
+      { text: 'Choose From Library', onPress: () => { setPostKind('regular'); launchPicker(false); } },
       { text: 'Cancel', style: 'cancel' },
     ]);
   }, [launchPicker]);
 
   const handlePost = useCallback(async () => {
-    // 🚫 No auto-posting anywhere: only this function creates posts.
     if (!session) {
       show('Sign in to post.');
       return;
@@ -214,18 +238,29 @@ const PostScreen: React.FC = () => {
     try {
       setIsPublishing(true);
 
-      await createPost({
-        userId: session.user.id,
-        photoUrl: hostedUri,
-        storagePath: hostedPath ?? undefined,
-      });
+      if (postKind === 'live') {
+        const liveExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        await createLivePost({
+          userId: session.user.id,
+          photoUrl: hostedUri,
+          liveExpiresAt,
+        });
+        show('Live Photo posted! You are featured for the next hour.');
+      } else {
+        await createPost({
+          userId: session.user.id,
+          photoUrl: hostedUri,
+          storagePath: hostedPath ?? undefined,
+        });
 
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['feed'] }),
-        queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
-      ]);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['feed'] }),
+          queryClient.invalidateQueries({ queryKey: ['profile-posts', session.user.id] }),
+        ]);
 
-      show('Photo posted!');
+        show('Photo posted!');
+      }
+
       resetPhoto();
     } catch (e) {
       console.error('Failed to publish post', e);
@@ -233,7 +268,8 @@ const PostScreen: React.FC = () => {
     } finally {
       setIsPublishing(false);
     }
-  }, [session, hostedUri, hostedPath, status, queryClient, resetPhoto, show]);
+  }, [session, hostedUri, hostedPath, status, postKind, queryClient, resetPhoto, show]);
+
 
   const disabled = isUploading || isPublishing || !hostedUri || status !== 'approved';
 
@@ -244,41 +280,7 @@ const PostScreen: React.FC = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {!previewUri && (
-          <View style={{ width: '100%', gap: 16 }}>
-            <Pressable
-              onPress={() => launchPicker(true)}
-              style={{
-                backgroundColor: '#2563eb',
-                paddingVertical: 16,
-                borderRadius: 16,
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ fontSize: 18, color: '#fff', fontWeight: 'bold' }}>
-                Live Photo (1 Hour)
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={showLibraryMenu}
-              style={{
-                backgroundColor: '#111827',
-                paddingVertical: 16,
-                borderRadius: 16,
-                alignItems: 'center',
-                borderWidth: 1,
-                borderColor: '#374151',
-              }}
-            >
-              <Text style={{ fontSize: 18, color: '#e5e7eb', fontWeight: 'bold' }}>
-                Pick From Library
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
-        {previewUri && (
+        {previewUri ? (
           <View
             style={{
               backgroundColor: '#020617',
@@ -361,7 +363,7 @@ const PostScreen: React.FC = () => {
               </Text>
             </Pressable>
 
-            <Pressable
+                        <Pressable
               onPress={handlePost}
               disabled={disabled}
               style={{
@@ -376,10 +378,15 @@ const PostScreen: React.FC = () => {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
-                  Upload to Live Feed
+                  {postKind === 'live' ? 'Upload to Live Feed' : 'Upload'}
                 </Text>
               )}
             </Pressable>
+          </View>
+        ) : (
+          <View style={{ marginTop: 48, alignItems: 'center', gap: 12 }}>
+            <ActivityIndicator color="#60a5fa" />
+            <Text style={{ color: '#e5e7eb' }}>Preparing your photo…</Text>
           </View>
         )}
       </ScrollView>

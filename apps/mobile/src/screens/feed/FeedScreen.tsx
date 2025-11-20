@@ -1,10 +1,13 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   Alert,
   FlatList,
   RefreshControl,
   Text,
   View,
+  Image,
+  Pressable,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Card from '../../components/Card';
@@ -21,6 +24,7 @@ import { useToast } from '../../providers/ToastProvider';
 import { likeUser } from '../../api/likes';
 import { useNavigation } from '@react-navigation/native';
 import type { Gender } from '@us/types';
+import { fetchLiveNow, type LiveNowItem } from '../../api/livePosts';
 
 type FeedProfile = {
   id: string;
@@ -28,6 +32,11 @@ type FeedProfile = {
   bio: string | null;
   photo: string | null;
   gender: Gender | null;
+};
+
+type LiveCompareItem = {
+  userId: string;
+  livePostId: string;
 };
 
 const createStyles = (palette: AppPalette) =>
@@ -74,6 +83,62 @@ const createStyles = (palette: AppPalette) =>
       textAlign: 'center' as const,
       color: palette.muted,
     },
+
+    // LIVE STRIP
+    liveSection: {
+      paddingTop: 12,
+      paddingBottom: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: palette.border,
+    },
+    liveLabel: {
+      paddingHorizontal: 20,
+      fontSize: 14,
+      fontWeight: '600' as const,
+      color: palette.accent,
+      marginBottom: 8,
+    },
+    liveStrip: {
+      paddingHorizontal: 16,
+    },
+    liveCard: {
+      width: 180,
+      marginRight: 16,
+    },
+    liveImageWrapper: {
+      width: '100%',
+      height: 220,
+      borderRadius: 18,
+      overflow: 'hidden',
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: palette.accent,
+      backgroundColor: palette.background,
+    },
+    livePhoto: {
+      width: '100%',
+      height: '100%',
+      resizeMode: 'cover',
+    },
+    liveBadge: {
+      position: 'absolute' as const,
+      bottom: 4,
+      left: 4,
+      backgroundColor: '#ef4444',
+      borderRadius: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    liveBadgeText: {
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: '700' as const,
+    },
+    liveName: {
+      fontSize: 12,
+      color: palette.textPrimary,
+      maxWidth: 96,
+    },
   } as const);
 
 export default function FeedScreen() {
@@ -93,6 +158,8 @@ export default function FeedScreen() {
   const [likingUserIds, setLikingUserIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
+  const [liveNow, setLiveNow] = useState<LiveNowItem[]>([]);
+
   const genderPreference: 'everyone' | 'women' | 'men' | 'nonbinary' =
     (currentUser?.lookingFor as any) ?? 'everyone';
 
@@ -107,10 +174,47 @@ export default function FeedScreen() {
     });
   }, [profiles, genderPreference]);
 
-  const feedCompareItems = useMemo(
-    () => filteredProfiles.map((p) => ({ userId: p.id })),
-    [filteredProfiles],
+  const liveCompareItems = useMemo<LiveCompareItem[]>(
+    () => liveNow.map((item) => ({ userId: item.user_id, livePostId: item.id })),
+    [liveNow],
   );
+
+  // Exclude any photos that are currently live from the main feed
+  const visibleProfiles = useMemo(() => {
+    if (!liveNow.length) return filteredProfiles;
+    const livePhotos = new Set(liveNow.map((item) => item.photo_url));
+    return filteredProfiles.filter((p) => !p.photo || !livePhotos.has(p.photo));
+  }, [filteredProfiles, liveNow]);
+
+  const feedCompareItems = useMemo(
+    () => visibleProfiles.map((p) => ({ userId: p.id })),
+    [visibleProfiles],
+  );
+
+  const loadLiveNow = useCallback(async () => {
+    if (!isAuthenticated || !session) {
+      setLiveNow([]);
+      return;
+    }
+    try {
+      const items = await fetchLiveNow();
+      setLiveNow(items);
+    } catch (err) {
+      console.error('Failed to load live now', err);
+    }
+  }, [isAuthenticated, session]);
+
+  useEffect(() => {
+    loadLiveNow().catch(() => undefined);
+  }, [loadLiveNow]);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      await Promise.all([refresh(), loadLiveNow()]);
+    } catch {
+      // ignore
+    }
+  }, [refresh, loadLiveNow]);
 
   const handleLike = useCallback(
     async (toUserId: string) => {
@@ -143,21 +247,65 @@ export default function FeedScreen() {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <FlatList
-        data={filteredProfiles}
+        data={visibleProfiles}
         keyExtractor={(item, index) => `${item.id}:${index}`}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={!!refreshing} onRefresh={refresh} />
+          <RefreshControl refreshing={!!refreshing} onRefresh={handleRefresh} />
         }
         onEndReached={hasMore ? loadMore : undefined}
         onEndReachedThreshold={0.5}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>Explore nearby</Text>
-            <Text style={styles.subtitle}>
-              Only approved photos appear here so you can browse safely.
-            </Text>
+          <View>
+            {liveNow.length ? (
+              <View style={styles.liveSection}>
+                <Text style={styles.liveLabel}>Live now (1 hour)</Text>
+                <FlatList
+                  data={liveNow}
+                  keyExtractor={(item) => item.id}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.liveStrip}
+                  renderItem={({ item, index }) => (
+                    <Pressable
+                      style={styles.liveCard}
+                      onPress={() =>
+                        navigation.navigate('Compare', {
+                          profile: {
+                            id: item.user_id,
+                            name: item.profile?.name ?? undefined,
+                            bio: item.profile?.bio ?? undefined,
+                          },
+                          context: {
+                            type: 'live',
+                            index,
+                            items: liveCompareItems,
+                          },
+                        })
+                      }
+                    >
+                      <View style={styles.liveImageWrapper}>
+                        <Image source={{ uri: item.photo_url }} style={styles.livePhoto} />
+                        <View style={styles.liveBadge}>
+                          <Text style={styles.liveBadgeText}>LIVE</Text>
+                        </View>
+                      </View>
+                      <Text numberOfLines={1} style={styles.liveName}>
+                        {item.profile?.name ?? 'Member'}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
+              </View>
+            ) : null}
+
+            <View style={styles.header}>
+              <Text style={styles.title}>Explore nearby</Text>
+              <Text style={styles.subtitle}>
+                Only approved photos appear here so you can browse safely.
+              </Text>
+            </View>
           </View>
         }
         ListFooterComponent={
@@ -169,7 +317,7 @@ export default function FeedScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            filteredProfiles.length ? (
+            visibleProfiles.length ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>No profiles match your preferences</Text>
                 <Text style={styles.emptyCopy}>

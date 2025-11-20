@@ -11,6 +11,7 @@ import {
   ActionSheetIOS,
   Platform,
   Alert,
+  StyleSheet,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { usePhotoModeration } from '../../hooks/usePhotoModeration';
@@ -230,8 +231,14 @@ const PostScreen: React.FC = () => {
   const handleClose = useCallback(() => {
     resetPhoto();
     try {
-      navigation.goBack();
-    } catch {}
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Feed' as never);
+      }
+    } catch {
+      navigation.navigate('Feed' as never);
+    }
   }, [navigation, resetPhoto]);
 
   const handlePost = useCallback(async () => {
@@ -302,78 +309,36 @@ const PostScreen: React.FC = () => {
   const disabled = isUploading || isPublishing || !hostedUri || status !== 'approved';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#050816' }}>
-      {previewUri ? (
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <View
-            style={{
-              backgroundColor: '#020617',
-              marginHorizontal: 24,
-              marginBottom: 24,
-              borderRadius: 20,
-              padding: 16,
-              shadowColor: '#000',
-              shadowOpacity: 0.4,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 8 },
-              elevation: 6,
-            }}
-          >
-            <Pressable
-              onPress={handleClose}
-              style={{
-                position: 'absolute',
-                top: 8,
-                right: 8,
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(15,23,42,0.9)',
-              }}
-            >
-              <Text style={{ color: '#e5e7eb', fontSize: 18 }}>×</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {previewUri ? (
+          <View style={styles.panel}>
+            <Pressable onPress={handleClose} style={styles.closeButton} accessibilityLabel="Close">
+              <Text style={styles.closeIcon}>×</Text>
             </Pressable>
 
-            <Image
-              source={{ uri: previewUri }}
-              style={{
-                width: '100%',
-                height: 420,
-                borderRadius: 16,
-                marginBottom: 16,
-                backgroundColor: '#020617',
-              }}
-            />
+            <Image source={{ uri: previewUri }} style={styles.previewImage} />
 
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 12,
-              }}
-            >
+            <View style={styles.statusRow}>
               <View
-                style={{
-                  backgroundColor:
-                    status === 'approved'
-                      ? '#22c55e'
-                      : status === 'rejected'
-                      ? '#ef4444'
-                      : '#eab308',
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 999,
-                }}
+                style={[
+                  styles.statusPill,
+                  status === 'approved'
+                    ? styles.statusApproved
+                    : status === 'rejected'
+                    ? styles.statusRejected
+                    : styles.statusPending,
+                ]}
               >
                 <Text
-                  style={{
-                    fontWeight: 'bold',
-                    color: status === 'pending' ? '#111827' : '#020617',
-                    fontSize: 14,
-                  }}
+                  style={[
+                    styles.statusLabel,
+                    status === 'pending' ? styles.statusLabelPending : styles.statusLabelDefault,
+                  ]}
                 >
                   {status === 'approved'
                     ? 'Approved'
@@ -384,62 +349,161 @@ const PostScreen: React.FC = () => {
               </View>
 
               {isUploading && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={styles.uploadingRow}>
                   <ActivityIndicator color="#e5e7eb" />
-                  <Text style={{ color: '#9ca3af', fontSize: 12 }}>Uploading…</Text>
+                  <Text style={styles.uploadingLabel}>Uploading…</Text>
                 </View>
               )}
             </View>
 
-            <Pressable onPress={resetPhoto} style={{ marginBottom: 8 }}>
-              <Text
-                style={{
-                  paddingVertical: 8,
-                  color: '#60a5fa',
-                  fontWeight: 'bold',
-                  fontSize: 14,
-                }}
-              >
-                Retake / Pick New Photo
-              </Text>
+            <Pressable onPress={resetPhoto} style={styles.retakeButton}>
+              <Text style={styles.retakeLabel}>Retake / Pick New Photo</Text>
             </Pressable>
 
-            <Pressable
-              onPress={handlePost}
-              disabled={disabled}
-              style={{
-                marginTop: 8,
-                paddingVertical: 14,
-                borderRadius: 999,
-                alignItems: 'center',
-                backgroundColor: disabled ? '#4b5563' : '#2563eb',
-              }}
-            >
+            <Pressable onPress={handlePost} disabled={disabled} style={[styles.ctaButton, disabled && styles.ctaButtonDisabled]}>
               {isPublishing ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                <Text style={styles.ctaLabel}>
                   {postKind === 'live' ? 'Upload to Live Feed' : 'Upload'}
                 </Text>
               )}
             </Pressable>
           </View>
-        </View>
-      ) : (
-        <View
-          style={{
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <ActivityIndicator color="#60a5fa" />
-          <Text style={{ color: '#e5e7eb', marginTop: 12 }}>Preparing your photo…</Text>
-        </View>
-      )}
+        ) : (
+          <View style={styles.panel}>
+            <Pressable onPress={handleClose} style={styles.closeButton} accessibilityLabel="Close">
+              <Text style={styles.closeIcon}>×</Text>
+            </Pressable>
+            <View style={styles.loadingContent}>
+              <ActivityIndicator color="#60a5fa" />
+              <Text style={styles.loadingLabel}>Preparing your photo…</Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 
 };
 
 export default PostScreen;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#050816',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    paddingTop: 32,
+  },
+  panel: {
+    backgroundColor: '#020617',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.9)',
+    zIndex: 1,
+  },
+  closeIcon: {
+    color: '#e5e7eb',
+    fontSize: 18,
+  },
+  previewImage: {
+    width: '100%',
+    height: 420,
+    borderRadius: 16,
+    marginBottom: 16,
+    backgroundColor: '#020617',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  statusPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  statusApproved: {
+    backgroundColor: '#22c55e',
+  },
+  statusRejected: {
+    backgroundColor: '#ef4444',
+  },
+  statusPending: {
+    backgroundColor: '#eab308',
+  },
+  statusLabel: {
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  statusLabelDefault: {
+    color: '#020617',
+  },
+  statusLabelPending: {
+    color: '#111827',
+  },
+  uploadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  uploadingLabel: {
+    color: '#9ca3af',
+    fontSize: 12,
+  },
+  retakeButton: {
+    marginBottom: 8,
+  },
+  retakeLabel: {
+    paddingVertical: 8,
+    color: '#60a5fa',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  ctaButton: {
+    marginTop: 8,
+    paddingVertical: 14,
+    borderRadius: 999,
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+  },
+  ctaButtonDisabled: {
+    backgroundColor: '#4b5563',
+  },
+  ctaLabel: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    gap: 12,
+  },
+  loadingLabel: {
+    color: '#e5e7eb',
+  },
+});

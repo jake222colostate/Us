@@ -69,7 +69,7 @@ export async function fetchLikes(userId: string) {
           message,
           created_at,
           post:posts(id, user_id, photo_url, caption, created_at),
-          profile:profiles!hearts_from_user_fkey(user_id, display_name, photo_urls)
+          profile:profiles!hearts_from_user_fkey(user_id, display_name, photo_urls, avatar_url)
         `,
       )
       .eq('to_user', userId)

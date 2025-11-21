@@ -1,16 +1,25 @@
 {
   "expo": {
+    "name": "Us",
+    "slug": "us-monorepo",
+    "sdkVersion": "54.0.0",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "jsEngine": "jsc",
+      "bundleIdentifier": "com.jakeypoov.usmonorepo",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "icon": "./apps/mobile/assets/frontimage.png"
+    },
     "extra": {
       "eas": {
         "projectId": "e56e9aba-78a7-43fe-9aef-ad52ed92e464"
       }
     },
     "owner": "jakeypoov",
-    "ios": {
-      "bundleIdentifier": "com.jakeypoov.usmonorepo",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    }
+    "icon": "./apps/mobile/assets/frontimage.png"
   }
 }

@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "e56e9aba-78a7-43fe-9aef-ad52ed92e464"
+      }
+    },
+    "owner": "jakeypoov",
+    "ios": {
+      "bundleIdentifier": "com.jakeypoov.usmonorepo",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

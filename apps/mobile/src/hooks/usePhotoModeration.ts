@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Crypto from 'expo-crypto';
 import type { ImagePickerAsset } from 'expo-image-picker';
-import { Buffer } from 'buffer';
+import { decode as base64Decode } from 'base-64';
 import { getSupabaseClient } from '../api/supabase';
 import { isTableMissingError, logTableMissingWarning } from '../api/postgrestErrors';
 import {
@@ -41,16 +40,13 @@ type NormalizedAsset = {
 };
 
 function toBytes(base64: string): Uint8Array {
-  if (typeof globalThis.atob === 'function') {
-    const binary = globalThis.atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
+  const decode = typeof globalThis.atob === 'function' ? globalThis.atob : base64Decode;
+  const binary = decode(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
   }
-  const buffer = Buffer.from(base64, 'base64');
-  return new Uint8Array(buffer);
+  return bytes;
 }
 
 function normalizeAsset(input: UploadPhotoArgs): NormalizedAsset {
@@ -74,13 +70,18 @@ function normalizeAsset(input: UploadPhotoArgs): NormalizedAsset {
 }
 
 function guessContentType(asset: NormalizedAsset): string {
-  if (asset.mimeType) return asset.mimeType;
+  if (asset.mimeType && typeof asset.mimeType === 'string') {
+    const mt = asset.mimeType.toLowerCase();
+    if (mt.startsWith('image/')) return mt;
+  }
+
   const fileName = asset.fileName ?? asset.uri.split('/').pop() ?? '';
   const extension = fileName.split('.').pop()?.toLowerCase();
   if (!extension) return FALLBACK_TYPE;
   if (extension === 'png') return 'image/png';
   if (extension === 'webp') return 'image/webp';
   if (extension === 'heic' || extension === 'heif') return 'image/heic';
+  if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg';
   return `image/${extension}`;
 }
 
@@ -88,7 +89,11 @@ function ensureUuid(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
-  return Crypto.randomUUID();
+  const random = () =>
+    Math.floor((1 + Math.random()) * 0x10000)
+      .toString(16)
+      .slice(1);
+  return `${random()}${random()}-${random()}-${random()}-${random()}-${random()}${random()}${random()}`;
 }
 
 export function usePhotoModeration() {
@@ -228,8 +233,6 @@ export function usePhotoModeration() {
   );
 
   const noopAsync = useCallback(async () => undefined, []);
-  const noop = useCallback(() => undefined, []);
-
   const clearError = useCallback(() => setError(null), []);
 
   return {
@@ -259,7 +262,7 @@ export async function fetchPhotoStatusFixed(photoId: string | null, storagePath?
 
     let query = getSupabaseClient()
       .from('photos')
-      .select('id,status,storage_path');
+      .select('id, status, storage_path, created_at');
 
     if (photoId) {
       query = query.eq('id', photoId);
@@ -270,15 +273,17 @@ export async function fetchPhotoStatusFixed(photoId: string | null, storagePath?
     const { data, error } = await query.maybeSingle();
     console.log('📡 RAW fetchPhotoStatusFixed:', { data, error, photoId, storagePath });
 
-    if (error || !data) return null;
+    if (error) {
+      if (isTableMissingError(error, 'photos')) {
+        logTableMissingWarning('photos', error);
+        return null;
+      }
+      throw error;
+    }
 
-    return {
-      id: data.id ?? null,
-      status: data.status ?? null,
-      storagePath: data.storage_path ?? null,
-    };
+    return data;
   } catch (err) {
-    console.error('❌ fetchPhotoStatusFixed error', err);
+    console.warn('fetchPhotoStatusFixed error', err);
     return null;
   }
 }

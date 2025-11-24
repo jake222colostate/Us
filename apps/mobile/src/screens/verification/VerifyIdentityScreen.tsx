@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { selectVerificationStatus, useAuthStore } from '../../state/authStore';
@@ -48,13 +48,15 @@ export default function VerifyIdentityScreen(_props: Props) {
           )}
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => navigate('MainTabs')}
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
-        >
-          <Text style={styles.secondaryButtonLabel}>Continue to the app</Text>
-        </Pressable>
+        {status === 'verified' && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigate('MainTabs')}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+          >
+            <Text style={styles.secondaryButtonLabel}>Continue to the app</Text>
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );

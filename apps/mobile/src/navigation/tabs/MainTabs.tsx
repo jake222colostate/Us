@@ -1,179 +1,180 @@
-import React, { useMemo } from 'react';
-import { View, Pressable, StyleSheet, ActionSheetIOS, Alert, Platform } from 'react-native';
-import { createBottomTabNavigator, type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import React from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Platform,
+  ActionSheetIOS,
+  Alert,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+
 import FeedScreen from '../../screens/feed/FeedScreen';
 import LikesScreen from '../../screens/likes/LikesScreen';
 import MatchesScreen from '../../screens/matches/MatchesScreen';
 import ProfileScreen from '../../screens/profile/ProfileScreen';
-import PostScreen from '../../screens/post/PostScreen';
-import { useThemeStore } from '../../state/themeStore';
 
-export type MainTabParamList = {
-  Feed: undefined;
-  Likes: undefined;
-  Post: { mode?: 'live' | 'upload' | 'take' } | undefined;
-  Matches: undefined;
-  Profile: undefined;
-};
+const Tab = createBottomTabNavigator();
 
-const Tab = createBottomTabNavigator<MainTabParamList>();
-
-export const MainTabs = () => {
-  const isDarkMode = useThemeStore((state) => state.isDarkMode);
-  const tabBackground = isDarkMode ? '#0b1220' : '#f4e6ff';
-  const borderColor = isDarkMode ? '#1f2937' : '#e5def6';
-  const activeTint = '#f472b6';
-  const inactiveTint = isDarkMode ? '#94a3b8' : '#7c699b';
-  const styles = useMemo(
-    () =>
-      StyleSheet.create({
-        tabBar: {
-          backgroundColor: tabBackground,
-          borderTopColor: borderColor,
-          height: 72,
-          paddingBottom: 12,
-          paddingTop: 8,
-        },
-        postButtonContainer: {
-          top: -22,
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        postButtonPressed: {
-          opacity: 0.85,
-        },
-        postButton: {
+const PlusButton: React.FC<{ onPress: () => void; focused: boolean }> = ({
+  onPress,
+  focused,
+}) => {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.9}
+      style={{
+        top: -16,
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <View
+        style={{
           width: 64,
           height: 64,
           borderRadius: 32,
-          alignItems: 'center',
+          backgroundColor: '#fb4fa7',
           justifyContent: 'center',
-          backgroundColor: '#f472b6',
+          alignItems: 'center',
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: isDarkMode ? 0.45 : 0.2,
+          shadowOpacity: 0.3,
           shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
           elevation: 6,
-        },
-        postButtonFocused: {
-          shadowOpacity: isDarkMode ? 0.6 : 0.3,
-        },
-      }),
-    [borderColor, isDarkMode, tabBackground],
+        }}
+      >
+        <Ionicons name="add" size={32} color="#ffffff" />
+      </View>
+    </TouchableOpacity>
   );
+};
 
-  const PostTabBarButton = useMemo(
-    () =>
-      React.forwardRef<View, BottomTabBarButtonProps>(
-        ({ children, style, ...props }, ref) => (
-          <Pressable
-            {...props}
-            ref={ref}
-            style={({ pressed }) =>
-              StyleSheet.flatten([
-                styles.postButtonContainer,
-                style,
-                pressed && styles.postButtonPressed,
-              ])
-            }
-            accessibilityRole="button"
-          >
-            {children}
-          </Pressable>
-        ),
-      ),
-    [styles],
-  );
-  PostTabBarButton.displayName = 'PostTabBarButton';
+export const MainTabs: React.FC = () => {
+  const navigation = useNavigation<any>();
 
-  const renderPostButton = (props: BottomTabBarButtonProps) =>
-    // @ts-expect-error React Navigation mixes legacy refs that don't match Pressable's ref type
-    <PostTabBarButton {...props} />;
+  const goToPost = (mode: 'live' | 'take' | 'upload') => {
+    // Navigate to PostScreen with the correct mode; the ActionSheet closes automatically.
+    navigation.navigate('Post', { mode });
+  };
+
+  const handlePlusPress = () => {
+    const handleChoice = (index: number) => {
+      if (index === 0) {
+        goToPost('live');
+      } else if (index === 1) {
+        goToPost('take');
+      } else if (index === 2) {
+        goToPost('upload');
+      }
+      // index 3 = Cancel → do nothing
+    };
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: 'Share a photo',
+          message: 'Choose how you want to add a photo.',
+          options: [
+            'Post Live (1 Hour)',
+            'Take Photo (For Feed/Profile)',
+            'Upload Photo (For Feed/Profile)',
+            'Cancel',
+          ],
+          cancelButtonIndex: 3,
+        },
+        handleChoice,
+      );
+    } else {
+      Alert.alert('Share a photo', 'Choose how you want to add a photo.', [
+        {
+          text: 'Post Live (1 Hour)',
+          onPress: () => goToPost('live'),
+        },
+        {
+          text: 'Take Photo (For Feed/Profile)',
+          onPress: () => goToPost('take'),
+        },
+        {
+          text: 'Upload Photo (For Feed/Profile)',
+          onPress: () => goToPost('upload'),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]);
+    }
+  };
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: activeTint,
-        tabBarInactiveTintColor: inactiveTint,
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: '#ffffff',
+        tabBarInactiveTintColor: '#9ca3af',
+        tabBarStyle: {
+          backgroundColor: '#020617',
+          borderTopColor: '#111827',
+          borderTopWidth: 1,
+          height: 72,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
         tabBarIcon: ({ color, size, focused }) => {
-          switch (route.name) {
-            case 'Feed':
-              return <Ionicons name={focused ? 'grid' : 'grid-outline'} size={size} color={color} />;
-            case 'Likes':
-              return <Ionicons name={focused ? 'heart' : 'heart-outline'} size={size} color={color} />;
-            case 'Post':
-              return (
-                <View style={[styles.postButton, focused && styles.postButtonFocused]}>
-                  <Ionicons name="add" size={32} color="#fff" />
-                </View>
-              );
-            case 'Matches':
-              return <Ionicons name={focused ? 'chatbubble' : 'chatbubble-outline'} size={size} color={color} />;
-            case 'Profile':
-              return <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />;
-            default:
-              return null;
+          if (route.name === 'PostTab') {
+            // Icon handled by custom button
+            return null;
           }
+
+          let iconName: keyof typeof Ionicons.glyphMap = 'grid-outline';
+
+          if (route.name === 'Feed') {
+            iconName = focused ? 'grid' : 'grid-outline';
+          } else if (route.name === 'Likes') {
+            iconName = focused ? 'heart' : 'heart-outline';
+          } else if (route.name === 'Matches') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Feed" component={FeedScreen} />
-      <Tab.Screen name="Likes" component={LikesScreen} />
+      <Tab.Screen name="Feed" component={FeedScreen} options={{ title: 'Feed' }} />
+      <Tab.Screen name="Likes" component={LikesScreen} options={{ title: 'Likes' }} />
       <Tab.Screen
-        name="Post"
-        component={PostScreen}
+        name="PostTab"
+        component={FeedScreen}
         options={{
-          tabBarLabel: () => null,
-          tabBarButton: renderPostButton,
+          title: '',
+          tabBarLabel: '',
+          tabBarButton: (props) => (
+            <PlusButton
+              onPress={handlePlusPress}
+              focused={Boolean(props.accessibilityState?.selected)}
+            />
+          ),
         }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            // Stop default tab switch; show the menu instead.
-            e.preventDefault();
-
-            const go = (mode: 'live' | 'upload' | 'take') => {
-              navigation.navigate('Post', { mode });
-            };
-
-            const options = [
-              'Live Photo (1 Hour)',
-              'Upload Photo (For Feed/Profile)',
-              'Take Photo (For Feed/Profile)',
-              'Cancel',
-            ];
-            const cancelButtonIndex = 3;
-
-            if (Platform.OS === 'ios') {
-              ActionSheetIOS.showActionSheetWithOptions(
-                {
-                  title: 'Post a photo',
-                  message: 'Choose how you would like to add a new photo.',
-                  options,
-                  cancelButtonIndex,
-                },
-                (buttonIndex) => {
-                  if (buttonIndex === 0) go('live');
-                  else if (buttonIndex === 1) go('upload');
-                  else if (buttonIndex === 2) go('take');
-                },
-              );
-            } else {
-              Alert.alert('Post a photo', undefined, [
-                { text: 'Live Photo (1 Hour)', onPress: () => go('live') },
-                { text: 'Upload Photo (For Feed/Profile)', onPress: () => go('upload') },
-                { text: 'Take Photo (For Feed/Profile)', onPress: () => go('take') },
-                { text: 'Cancel', style: 'cancel' },
-              ]);
-            }
-          },
-        })}
       />
-      <Tab.Screen name="Matches" component={MatchesScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen
+        name="Matches"
+        component={MatchesScreen}
+        options={{ title: 'Matches' }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ title: 'Profile' }}
+      />
     </Tab.Navigator>
   );
 };
+
+export default MainTabs;

@@ -17,7 +17,9 @@
     "extra": {
       "eas": {
         "projectId": "e56e9aba-78a7-43fe-9aef-ad52ed92e464"
-      }
+      },
+      "supabaseUrl": "https://qddfgrqomcmifuoikbpt.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFkZGZncnFvbWNtaWZ1b2lrYnB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIyNjM0OTMsImV4cCI6MjA3NzgzOTQ5M30.vFrTBvMG4COFUiCP74thA_n7bJxMsWPUguwesZGBeDs"
     },
     "owner": "jakeypoov",
     "icon": "./assets/frontimage.png"

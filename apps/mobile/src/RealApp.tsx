@@ -1,5 +1,5 @@
+import { SafeAreaView } from 'react-native';
 import React from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppState, type AppStateStatus, View } from 'react-native';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import RootNavigator from './navigation/RootNavigator';
@@ -28,12 +28,12 @@ export default function RealApp() {
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
-          <SafeAreaProvider>
+          
             <View style={{ flex: 1 }}>
               <OfflineNotice />
               <RootNavigator />
             </View>
-          </SafeAreaProvider>
+          
         </ToastProvider>
       </QueryClientProvider>
     </AuthProvider>

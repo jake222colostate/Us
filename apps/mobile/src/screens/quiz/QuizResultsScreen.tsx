@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import type { RootStackParamList } from '../../navigation/RootNavigator';

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native';
 import {
   View,
   Text,

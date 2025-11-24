@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import React, {useLayoutEffect, useCallback, useMemo, useState, useEffect} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,7 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -31,10 +32,35 @@ type DeletePayload = { postId: string; photoUrl?: string | null };
 const keyExtractor = (item: ProfilePost) => item.id;
 
 const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('Settings' as never)}
+          style={({ pressed }) => [
+            {
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              flexDirection: 'row',
+              alignItems: 'center',
+            },
+            pressed && { opacity: 0.6 },
+          ]}
+          hitSlop={12}
+        >
+          <Ionicons name="settings-outline" size={22} color="#f8fafc" />
+        </Pressable>
+      ),
+    });
+  }, [navigation]);
+
   const user = useAuthStore(selectCurrentUser);
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const navigation = useNavigation<Navigation>();
+  
   const { show } = useToast();
   const queryClient = useQueryClient();
   const [removingPostIds, setRemovingPostIds] = useState<Set<string>>(new Set());
@@ -158,6 +184,15 @@ const ProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => navigation.navigate('Settings' as never)}
+        style={({ pressed }) => [styles.settingsButton, pressed && styles.settingsButtonPressed]}
+        hitSlop={12}
+      >
+        <Ionicons name="settings-outline" size={22} color="#f8fafc" />
+      </Pressable>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <View style={styles.avatarWrapper}>
@@ -228,6 +263,19 @@ function createStyles(palette: AppPalette) {
       paddingTop: 16,
       paddingBottom: 0,
       gap: 20,
+    },
+    settingsButton: {
+      position: 'absolute',
+      top: 52,
+      right: 16,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor: 'rgba(15,23,42,0.9)',
+      zIndex: 20,
+    },
+    settingsButtonPressed: {
+      opacity: 0.7,
     },
     loadingContainer: {
       flex: 1,

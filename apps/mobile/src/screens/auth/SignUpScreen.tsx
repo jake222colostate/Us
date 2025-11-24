@@ -63,6 +63,12 @@ export default function SignUpScreen({ navigation }: Props) {
       return;
     }
 
+    const numericAge = Number(age);
+    if (!Number.isFinite(numericAge) || numericAge < 18) {
+      setError('You must be at least 18 years old to create an account.');
+      return;
+    }
+
     setError(null);
     setInfoMessage(null);
     setSubmitting(true);
@@ -75,7 +81,7 @@ export default function SignUpScreen({ navigation }: Props) {
           .split(',')
           .map((entry) => entry.trim())
           .filter(Boolean) ?? [];
-      const birthday = computeBirthdayFromAge(age);
+      const dateOfBirth = computeBirthdayFromAge(age);
 
       console.log('🆕 Signing up with Supabase', { email: normalizedEmail });
       const { data, error: signUpError } = await client.auth.signUp({
@@ -101,15 +107,16 @@ export default function SignUpScreen({ navigation }: Props) {
             bio: bio.trim() || null,
             interests: parsedInterests,
             location: location.trim() || null,
-            birthday,
+            date_of_birth: dateOfBirth,
           }, { onConflict: 'id' });
       }
 
-      if (data.session) {
-        navigate('MainTabs');
+            if (data.session) {
+        navigate('VerifyIdentity');
       } else {
         setInfoMessage('Account created! Check your email to confirm before signing in.');
       }
+
     } catch (err) {
       console.error(err);
       const message = (err as Error)?.message ?? 'Unable to create your account right now.';

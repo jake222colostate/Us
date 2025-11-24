@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native';
 import React from 'react';
 import {
   Image,
@@ -10,7 +11,6 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 

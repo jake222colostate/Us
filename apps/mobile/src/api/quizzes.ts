@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
 import { getSupabaseClient } from './supabase';
 import { isTableMissingError, logTableMissingWarning } from './postgrestErrors';
 
@@ -65,7 +64,11 @@ function generateId() {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
-  return Crypto.randomUUID();
+  const random = () =>
+    Math.floor((1 + Math.random()) * 0x10000)
+      .toString(16)
+      .slice(1);
+  return `${random()}${random()}-${random()}-${random()}-${random()}-${random()}${random()}${random()}`;
 }
 
 async function readQuizFromStorage(key: string): Promise<Quiz | null> {

@@ -15,6 +15,7 @@ import SettingsScreen from '../screens/settings/SettingsScreen';
 import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
 import QuizScreen from '../screens/quiz/QuizScreen';
 import QuizResultsScreen from '../screens/quiz/QuizResultsScreen';
+import PostScreen from '../screens/post/PostScreen';
 import MyQuizBuilderScreen from '../screens/quiz/MyQuizBuilderScreen';
 import {
   selectIsAuthenticated,
@@ -23,7 +24,7 @@ import {
   useAuthStore,
 } from '../state/authStore';
 import { useThemeStore } from '../state/themeStore';
-import { MainTabs, type MainTabParamList } from './tabs/MainTabs';
+import MainTabs, { type MainTabParamList } from './tabs/MainTabs';
 
 export type { MainTabParamList } from './tabs/MainTabs';
 
@@ -75,6 +76,7 @@ export type RootStackParamList = {
       }
     | undefined;
   Settings: undefined;
+  Post: { mode?: 'live' | 'take' | 'upload' } | undefined;
   ProfileDetail: { userId: string };
   EditProfile: undefined;
   MyQuizBuilder: undefined;
@@ -220,6 +222,13 @@ export default function RootNavigator() {
             component={SettingsScreen}
             options={{
               title: 'Settings',
+            }}
+          />
+          <RootStack.Screen
+            name="Post"
+            component={PostScreen}
+            options={{
+              title: 'Share a photo',
             }}
           />
           <RootStack.Screen

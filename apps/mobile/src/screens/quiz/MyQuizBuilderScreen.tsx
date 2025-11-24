@@ -11,8 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Crypto from 'expo-crypto';
+import { SafeAreaView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useToast } from '../../providers/ToastProvider';
@@ -28,7 +27,11 @@ function uuid() {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
-  return Crypto.randomUUID();
+  const random = () =>
+    Math.floor((1 + Math.random()) * 0x10000)
+      .toString(16)
+      .slice(1);
+  return `${random()}${random()}-${random()}-${random()}-${random()}-${random()}${random()}${random()}`;
 }
 
 type BuilderOption = { id: string; label: string; isCorrect: boolean };

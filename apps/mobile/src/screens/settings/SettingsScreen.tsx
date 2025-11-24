@@ -1,3 +1,4 @@
+import { getSupabaseClient } from '../../api/supabase';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
@@ -9,6 +10,26 @@ import { useAppTheme, type AppPalette } from '../../theme/palette';
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
+
+  const handleLogout = async () => {
+    try {
+      const client = getSupabaseClient();
+      await client.auth.signOut();
+    } catch (err) {
+      console.error('Failed to sign out from Supabase', err);
+    } finally {
+      try {
+        const store = useAuthStore.getState();
+        if (typeof store.signOut === 'function') {
+          store.signOut();
+        }
+      } catch (e) {
+        console.warn('Auth store signOut not available', e);
+      }
+    }
+  };
+
+
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
@@ -127,7 +148,25 @@ export default function SettingsScreen() {
           </View>
         </View>
       </View>
-    </ScrollView>
+    
+        <Pressable
+          accessibilityRole="button"
+          onPress={handleLogout}
+          style={({ pressed }) => [
+            {
+              marginTop: 24,
+              paddingVertical: 14,
+              borderRadius: 999,
+              backgroundColor: '#ef4444',
+              alignItems: 'center',
+            },
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Log out</Text>
+        </Pressable>
+
+</ScrollView>
   );
 }
 

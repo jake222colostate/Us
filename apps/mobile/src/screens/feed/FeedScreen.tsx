@@ -9,7 +9,7 @@ import {
   Pressable,
   StyleSheet,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native';
 import Card from '../../components/Card';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { usePagedFeed } from '../../hooks/usePagedFeed';

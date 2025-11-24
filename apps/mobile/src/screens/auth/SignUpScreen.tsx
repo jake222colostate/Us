@@ -1,3 +1,4 @@
+// Sign-up screen now enforces age validation and routes newly authenticated users to identity verification before the main app.
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,7 +15,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../navigation/RootNavigator';
 import { getSupabaseClient } from '../../api/supabase';
 import { navigate, navigationRef } from '../../navigation/navigationService';
-import { selectIsAuthenticated, useAuthStore } from '../../state/authStore';
+import { selectIsAuthenticated, selectVerificationStatus, useAuthStore } from '../../state/authStore';
 
 function computeBirthdayFromAge(ageInput?: string): string | null {
   if (!ageInput) return null;
@@ -42,20 +43,22 @@ export default function SignUpScreen({ navigation }: Props) {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
+  const verificationStatus = useAuthStore(selectVerificationStatus);
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    const targetRoute = verificationStatus === 'verified' ? 'MainTabs' : 'VerifyIdentity';
     if (!navigationRef.isReady()) {
-      setTimeout(() => navigate('MainTabs'), 0);
+      setTimeout(() => navigate(targetRoute), 0);
       return;
     }
     const routeNames = navigationRef.getRootState()?.routeNames;
-    if (routeNames && !routeNames.includes('MainTabs')) {
-      setTimeout(() => navigate('MainTabs'), 0);
+    if (routeNames && !routeNames.includes(targetRoute)) {
+      setTimeout(() => navigate(targetRoute), 0);
       return;
     }
-    navigate('MainTabs');
-  }, [isAuthenticated]);
+    navigate(targetRoute);
+  }, [isAuthenticated, verificationStatus]);
 
   const handleSubmit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -101,17 +104,21 @@ export default function SignUpScreen({ navigation }: Props) {
       if (userId) {
         await client
           .from('profiles')
-          .upsert({
-            id: userId,
-            display_name: displayName,
-            bio: bio.trim() || null,
-            interests: parsedInterests,
-            location: location.trim() || null,
-            date_of_birth: dateOfBirth,
-          }, { onConflict: 'id' });
+          .upsert(
+            {
+              id: userId,
+              display_name: displayName,
+              bio: bio.trim() || null,
+              interests: parsedInterests,
+              location: location.trim() || null,
+              date_of_birth: dateOfBirth,
+              verification_status: 'unverified',
+            },
+            { onConflict: 'id' },
+          );
       }
 
-            if (data.session) {
+      if (data.session) {
         navigate('VerifyIdentity');
       } else {
         setInfoMessage('Account created! Check your email to confirm before signing in.');

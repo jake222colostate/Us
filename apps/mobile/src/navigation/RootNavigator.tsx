@@ -1,4 +1,6 @@
-import React, { useCallback, useMemo } from 'react';
+// Root navigator enforces identity verification so authenticated users who are not verified
+// are routed to the verification flow before they can access the main application tabs.
+import React, { useMemo } from 'react';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
@@ -25,6 +27,7 @@ import {
 } from '../state/authStore';
 import { useThemeStore } from '../state/themeStore';
 import MainTabs, { type MainTabParamList } from './tabs/MainTabs';
+import { navigationRef } from './navigationService';
 
 export type { MainTabParamList } from './tabs/MainTabs';
 
@@ -121,6 +124,8 @@ export default function RootNavigator() {
   const verificationStatus = useAuthStore(selectVerificationStatus);
   const isInitialized = useAuthStore(selectIsInitialized);
   const navKey = `${isAuthenticated ? 'auth' : 'guest'}-${verificationStatus}`;
+  const shouldShowMainApp = verificationStatus === 'verified';
+  const initialRouteName = shouldShowMainApp ? 'MainTabs' : 'VerifyIdentity';
   const isDarkMode = useThemeStore((state) => state.isDarkMode);
 
   const navigationTheme = useMemo(() => {
@@ -167,38 +172,38 @@ export default function RootNavigator() {
   return (
     <>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <NavigationContainer theme={navigationTheme}>
-      {isAuthenticated ? (
-        <RootStack.Navigator
-          key={navKey}
-          screenOptions={({ navigation }) => ({
-            headerStyle: { backgroundColor: headerBackground },
-            headerTintColor: headerTint,
-            headerTitleStyle: { color: headerTint },
-            headerBackTitleVisible: false,
-            presentation: 'card',
-            headerLeft: ({ canGoBack, tintColor }) =>
-              canGoBack ? (
-                <Pressable
-                  onPress={() => navigation.goBack()}
-                  style={({ pressed }) => [
-                    {
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 6,
-                      paddingHorizontal: 4,
-                    },
-                    pressed && { opacity: 0.6 },
-                  ]}
-                  hitSlop={12}
-                >
-                  <Ionicons name="chevron-back" size={24} color={tintColor ?? headerTint} />
-                  <Text style={{ color: tintColor ?? headerTint, fontWeight: '600' }}>Back</Text>
-                </Pressable>
-              ) : null,
-          })}
-        >
-          {verificationStatus !== 'verified' && (
+      <NavigationContainer theme={navigationTheme} ref={navigationRef}>
+        {isAuthenticated ? (
+          <RootStack.Navigator
+            key={navKey}
+            initialRouteName={initialRouteName}
+            screenOptions={({ navigation }) => ({
+              headerStyle: { backgroundColor: headerBackground },
+              headerTintColor: headerTint,
+              headerTitleStyle: { color: headerTint },
+              headerBackTitleVisible: false,
+              presentation: 'card',
+              headerLeft: ({ canGoBack, tintColor }) =>
+                canGoBack ? (
+                  <Pressable
+                    onPress={() => navigation.goBack()}
+                    style={({ pressed }) => [
+                      {
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                        paddingHorizontal: 4,
+                      },
+                      pressed && { opacity: 0.6 },
+                    ]}
+                    hitSlop={12}
+                  >
+                    <Ionicons name="chevron-back" size={24} color={tintColor ?? headerTint} />
+                    <Text style={{ color: tintColor ?? headerTint, fontWeight: '600' }}>Back</Text>
+                  </Pressable>
+                ) : null,
+            })}
+          >
             <RootStack.Screen
               name="VerifyIdentity"
               component={VerifyIdentityScreen}
@@ -208,8 +213,9 @@ export default function RootNavigator() {
                 presentation: 'modal',
               }}
             />
-          )}
-          <RootStack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+            {shouldShowMainApp && (
+              <RootStack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+            )}
           <RootStack.Screen
             name="Compare"
             component={CompareScreen}

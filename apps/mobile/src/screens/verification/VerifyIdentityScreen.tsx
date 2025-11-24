@@ -1,3 +1,4 @@
+// Verification screen forces users to complete identity checks before entering the main app.
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native';

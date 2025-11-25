@@ -1,8 +1,8 @@
 // Verification screen forces users to complete identity checks before entering the main app.
 import React, { useEffect } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native';
+import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { getSupabaseClient } from '../../api/supabase';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { selectVerificationStatus, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
@@ -66,6 +66,8 @@ export default function VerifyIdentityScreen(_props: Props) {
   const latestImageUrl = latestVerification?.photoUrl ?? null;
   const latestReason = latestVerification?.rejectionReason ?? null;
 
+  console.log('🪪 ID preview', { latestImageUrl, latestVerification });
+
   let pillLabel = 'Not started';
   if (latestStatus === 'approved') pillLabel = 'Approved';
   else if (latestStatus === 'pending') pillLabel = 'Pending review';
@@ -89,22 +91,48 @@ export default function VerifyIdentityScreen(_props: Props) {
       ? 'Try verification again'
       : 'Start verification';
 
+  const handleClose = () => {
+    const client = getSupabaseClient();
+    client.auth.signOut().catch(() => undefined);
+  };
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={handleClose}
+        style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
+      >
+        <Text style={styles.closeText}>×</Text>
+      </Pressable>
       <View style={styles.inner}>
         <Text style={styles.title}>{effectiveHeadline}</Text>
         <Text style={styles.copy}>{effectiveDetail}</Text>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+        <View style={styles.previewContainer}>
+          {latestImageUrl ? (
+            <Image
+              source={{ uri: latestImageUrl }}
+              style={styles.preview}
+              onError={(e) => {
+                console.log('🪪 ID preview image error', e.nativeEvent);
+              }}
+            />
+          ) : (
+            <View style={[styles.preview, styles.previewPlaceholder]}>
+              <Text style={styles.previewPlaceholderText}>
+                Photo will appear here
+              </Text>
+            </View>
+          )}
+          <Text style={styles.previewDebugText}>
+            Preview debug: {latestImageUrl ? 'has image' : 'no image'}
+          </Text>
+        </View>
+
         {latestVerification && (
           <View style={styles.card}>
-            {latestImageUrl ? (
-              <Image source={{ uri: latestImageUrl }} style={styles.preview} />
-            ) : (
-              <View style={[styles.preview, styles.previewPlaceholder]}>
-                <Text style={styles.previewPlaceholderText}>ID photo</Text>
-              </View>
-            )}
             <View style={styles.cardBody}>
               <View style={styles.cardHeaderRow}>
                 <Text style={styles.cardTitle}>Latest ID submission</Text>
@@ -183,12 +211,21 @@ const styles = StyleSheet.create({
     borderColor: '#1f2937',
   },
   preview: {
-    width: 110,
-    height: 110,
+    width: 220,
+    height: 140,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  previewContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
   },
   previewPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    backgroundColor: '#020617',
   },
   previewPlaceholderText: {
     color: '#64748b',
@@ -268,6 +305,27 @@ const styles = StyleSheet.create({
   },
   secondaryButtonLabel: {
     color: '#f1f5f9',
+    fontWeight: '600',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+  },
+  closeButtonPressed: {
+    opacity: 0.85,
+  },
+  closeText: {
+    color: '#e5e7eb',
+    fontSize: 18,
     fontWeight: '600',
   },
 });

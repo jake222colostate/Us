@@ -9,6 +9,7 @@ import { useAuth } from '../../../providers/AuthProvider';
 import { useToast } from '../../../providers/ToastProvider';
 import type { FeedPost } from '../api';
 import { likePost, unlikePost } from '../../../api/postLikes';
+import { likeUser } from '../../../api/likes';
 
 export type FeedCardProps = {
   post: FeedPost;
@@ -68,6 +69,8 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, distanceText, onOpenPr
       }
       if (nextLiked) {
         await likePost({ postId: post.id, fromUserId: session.user.id, toUserId: post.user_id });
+        // also send a profile-level like to this user (best-effort)
+        likeUser(session.user.id, post.user_id).catch(() => undefined);
       } else {
         await unlikePost({ postId: post.id, fromUserId: session.user.id });
       }

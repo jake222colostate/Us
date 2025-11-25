@@ -256,7 +256,7 @@ const PublicProfileScreen: React.FC = () => {
         matchId: matchedProfile.matchId,
         userId: matchedProfile.userId,
         name: matchedProfile.name ?? profile?.display_name ?? 'Member',
-        avatar: matchedProfile.avatar ?? photos[0] ?? null,
+        avatar: matchedProfile.avatar ?? profile.avatar_url ?? photos[0] ?? null,
         createdAt: matchedProfile.createdAt,
       });
       return;
@@ -288,7 +288,7 @@ const PublicProfileScreen: React.FC = () => {
     );
   }
 
-  const heroPhoto = photos[0] ?? null;
+  const heroPhoto = profile.avatar_url ?? photos[0] ?? null;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>

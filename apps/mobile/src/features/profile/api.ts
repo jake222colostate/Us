@@ -2,6 +2,7 @@ import { supabase } from '../../api/supabase';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { Profile, Post, Heart } from '@us/types';
 import { loadDevManifest } from '../../lib/devAssets';
+import { listUserPosts } from '../../api/posts';
 import type { PhotoRow } from '../../lib/photos';
 
 export async function fetchProfile(userId: string) {
@@ -16,31 +17,10 @@ export async function fetchProfile(userId: string) {
 }
 
 export async function fetchProfilePosts(userId: string) {
-  const { data, error } = await supabase
-    .from('photos')
-    .select('id, user_id, url, status, created_at')
-    .eq('user_id', userId)
-    .eq('status', 'approved')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-
-  const rows = ((data ?? []) as PhotoRow[]).filter((row) => row.status === 'approved');
+  const posts = await listUserPosts(userId, 50);
   const manifest = await loadDevManifest();
-  let index = 0;
 
-  const mapped: Post[] = rows.map((row) => {
-    const photoUrl = row.url ?? (manifest.length ? manifest[index++ % manifest.length] : null);
-    return {
-      id: row.id,
-      user_id: row.user_id,
-      photo_url: photoUrl ?? '',
-      caption: null,
-      location: null,
-      created_at: row.created_at ?? new Date().toISOString(),
-    };
-  });
-
-  if (!mapped.length && manifest.length) {
+  if (!posts.length && manifest.length) {
     return manifest.map((uri, i) => ({
       id: `${userId}-fallback-${i}`,
       user_id: userId,
@@ -51,7 +31,17 @@ export async function fetchProfilePosts(userId: string) {
     }));
   }
 
-  return mapped;
+  if (!manifest.length) {
+    return posts;
+  }
+
+  let index = 0;
+  return posts.map((post) => {
+    if (post.photo_url) return post;
+    const fallback = manifest[index % manifest.length];
+    index += 1;
+    return { ...post, photo_url: fallback };
+  });
 }
 
 export async function fetchLikes(userId: string) {

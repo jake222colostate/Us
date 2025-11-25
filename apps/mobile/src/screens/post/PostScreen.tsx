@@ -59,7 +59,7 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
   }, []);
 
   const openCamera = useCallback(
-    async (kind: 'live' | 'regular') => {
+    async (kind: 'live' | 'regular', autoCloseOnCancel: boolean = false) => {
       if (!session) {
         show('Sign in to post.');
         return;
@@ -78,6 +78,17 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
       });
 
       if (!result || result.canceled || !result.assets?.length) {
+        if (autoCloseOnCancel) {
+          try {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('MainTabs' as never, { screen: 'Feed' } as never);
+            }
+          } catch (e) {
+            navigation.navigate('MainTabs' as never, { screen: 'Feed' } as never);
+          }
+        }
         return;
       }
 
@@ -100,51 +111,63 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
       setHostedUri(uploadResult.photo.url ?? null);
       setStatus(uploadResult.photo.status ?? 'pending');
     },
-    [session, show, uploadPhoto, reset],
+    [session, show, uploadPhoto, reset, navigation],
   );
+  const openLibrary = useCallback(
+    async (autoCloseOnCancel: boolean = false) => {
+      if (!session) {
+        show('Sign in to post.');
+        return;
+      }
 
-  const openLibrary = useCallback(async () => {
-    if (!session) {
-      show('Sign in to post.');
-      return;
-    }
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        show('Library permission denied.');
+        return;
+      }
 
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      show('Library permission denied.');
-      return;
-    }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+        allowsEditing: false,
+      });
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
-      allowsEditing: false,
-    });
+      if (!result || result.canceled || !result.assets?.length) {
+        if (autoCloseOnCancel) {
+          try {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('MainTabs' as never, { screen: 'Feed' } as never);
+            }
+          } catch (e) {
+            navigation.navigate('MainTabs' as never, { screen: 'Feed' } as never);
+          }
+        }
+        return;
+      }
 
-    if (!result || result.canceled || !result.assets?.length) {
-      return;
-    }
+      const asset = result.assets[0];
+      setPreviewUri(asset.uri);
+      setStatus('pending');
+      setPostKind('regular');
+      createdAtRef.current = new Date().toISOString();
 
-    const asset = result.assets[0];
-    setPreviewUri(asset.uri);
-    setStatus('pending');
-    setPostKind('regular');
-    createdAtRef.current = new Date().toISOString();
+      const uploadResult = await uploadPhoto({ asset }, { kind: 'post' });
+      console.log('📤 uploadPhoto result', uploadResult);
 
-    const uploadResult = await uploadPhoto({ asset }, { kind: 'post' });
-    console.log('📤 uploadPhoto result', uploadResult);
+      if (!uploadResult.success || !uploadResult.photo) {
+        show('Upload failed. Try again.');
+        reset();
+        return;
+      }
 
-    if (!uploadResult.success || !uploadResult.photo) {
-      show('Upload failed. Try again.');
-      reset();
-      return;
-    }
-
-    setStoragePath(uploadResult.photo.storagePath);
-    setHostedUri(uploadResult.photo.url ?? null);
-    setStatus(uploadResult.photo.status ?? 'pending');
-  }, [session, show, uploadPhoto, reset]);
-
+      setStoragePath(uploadResult.photo.storagePath);
+      setHostedUri(uploadResult.photo.url ?? null);
+      setStatus(uploadResult.photo.status ?? 'pending');
+    },
+    [session, show, uploadPhoto, reset, navigation],
+  );
   // Auto-launch based on incoming mode (live / take / upload)
   useEffect(() => {
     const mode = route.params?.mode;
@@ -152,11 +175,11 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
     setHasAutoLaunched(true);
 
     if (mode === 'live') {
-      void openCamera('live');
+      void openCamera('live', true);
     } else if (mode === 'take') {
-      void openCamera('regular');
+      void openCamera('regular', true);
     } else if (mode === 'upload') {
-      void openLibrary();
+      void openLibrary(true);
     }
   }, [route.params?.mode, hasAutoLaunched, openCamera, openLibrary]);
 
@@ -229,6 +252,8 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   }, [navigation, reset]);
 
+
+  
   const handlePublish = useCallback(async () => {
     if (!session) {
       show('Sign in to post.');
@@ -348,17 +373,7 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
                 )}
               </View>
 
-              <Pressable
-                style={styles.retakeButton}
-                onPress={() => {
-                  reset();
-                  void openLibrary();
-                }}
-              >
-                <Text style={styles.retakeLabel}>Pick a different photo</Text>
-              </Pressable>
-
-              <Pressable
+                        <Pressable
                 onPress={handlePublish}
                 disabled={isCtaDisabled}
                 style={[
@@ -409,17 +424,21 @@ function createStyles(palette: AppPalette) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#050816',
+      backgroundColor: palette.background,
     },
     scrollContent: {
       flexGrow: 1,
-      justifyContent: 'flex-end',
-      paddingHorizontal: 24,
-      paddingBottom: 24,
-      paddingTop: 32,
+      paddingTop: 24,
+      paddingHorizontal: 16,
+      paddingBottom: 32,
+      alignItems: 'center',
+      justifyContent: 'flex-start',
     },
     panel: {
-      backgroundColor: '#020617',
+      marginTop: 8,
+      marginBottom: 16,
+      alignSelf: 'stretch',
+backgroundColor: palette.background,
       borderRadius: 20,
       padding: 16,
       shadowColor: '#000',
@@ -449,7 +468,7 @@ function createStyles(palette: AppPalette) {
       height: 420,
       borderRadius: 16,
       marginBottom: 16,
-      backgroundColor: '#020617',
+      backgroundColor: palette.background,
     },
     statusRow: {
       flexDirection: 'row',

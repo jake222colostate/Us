@@ -73,8 +73,11 @@ export default function MatchesScreen() {
               onPress={() => navigation.navigate('ProfileDetail', { userId: item.userId })}
               style={({ pressed }) => [styles.profileButton, pressed && styles.profileButtonPressed]}
             >
-              {item.avatar ? (
-                <Image source={{ uri: item.avatar }} style={styles.avatar} />
+              {(item.avatar ?? (item.photos?.[0]?.url ?? null)) ? (
+                <Image
+                  source={{ uri: item.avatar ?? (item.photos?.[0]?.url ?? '') }}
+                  style={styles.avatar}
+                />
               ) : (
                 <View style={[styles.avatar, styles.avatarPlaceholder]}>
                   <Text style={styles.avatarPlaceholderText}>No photo</Text>

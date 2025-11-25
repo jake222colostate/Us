@@ -103,7 +103,15 @@ export default function MatchesScreen() {
                     day: 'numeric',
                   })}
                 </Text>
-                <Text style={styles.matchMessage}>{item.bio ?? 'No bio yet.'}</Text>
+                <Text style={styles.matchMessage}>
+                  {item.lastMessage
+                    ? (item.lastMessageFromSelf
+                        ? 'Message From You: ' + item.lastMessage
+                        : 'Message From ' + (item.name?.split(' ')?.[0] ?? 'Them') + ': ' + item.lastMessage)
+                    : item.bio
+                      ? 'Bio: ' + item.bio
+                      : 'No messages yet.'}
+                </Text>
               </View>
             </Pressable>
           </View>

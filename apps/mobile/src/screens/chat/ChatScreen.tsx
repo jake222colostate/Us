@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -15,12 +15,15 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
+import { getSupabaseClient } from '../../api/supabase';
+import { selectSession, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import {
   conversationContinuers,
   conversationOpeners,
   getRandomPrompts,
 } from '../../data/conversationPrompts';
+import { fetchMessagesForMatch, sendMessageForMatch, type MessageRow } from '../../api/messages';
 
 type ChatRoute = RouteProp<RootStackParamList, 'Chat'>;
 type ChatNavigation = NativeStackNavigationProp<RootStackParamList>;
@@ -37,22 +40,18 @@ export default function ChatScreen() {
   const styles = useMemo(() => createStyles(palette), [palette]);
   const route = useRoute<ChatRoute>();
   const navigation = useNavigation<ChatNavigation>();
-  const { name, createdAt, avatar } = route.params;
+  const session = useAuthStore(selectSession);
+  const currentUserId = session?.user?.id ?? null;
+
+  const { matchId, userId: partnerUserId, name, createdAt, avatar } = route.params;
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<LocalMessage[]>(() => {
-    const intro = name ? `You matched with ${name}. Say hello!` : 'You have a new match. Start the conversation!';
-    const timestamp = createdAt ? new Date(createdAt).getTime() : Date.now();
-    return [
-      {
-        id: 'intro',
-        body: intro,
-        sender: 'them',
-        timestamp,
-      },
-    ];
-  });
-  const [starterSuggestions, setStarterSuggestions] = useState(() => getRandomPrompts(conversationOpeners, 3));
-  const [followUpSuggestions, setFollowUpSuggestions] = useState(() => getRandomPrompts(conversationContinuers, 3));
+  const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [starterSuggestions, setStarterSuggestions] = useState(() =>
+    getRandomPrompts(conversationOpeners, 3),
+  );
+  const [followUpSuggestions, setFollowUpSuggestions] = useState(() =>
+    getRandomPrompts(conversationContinuers, 3),
+  );
   const [activeSuggestions, setActiveSuggestions] = useState<'openers' | 'continuers' | null>(null);
   const matchedDate = useMemo(() => (createdAt ? new Date(createdAt) : new Date()), [createdAt]);
 
@@ -60,20 +59,89 @@ export default function ChatScreen() {
     navigation.setOptions({ title: name ? `Chat with ${name}` : 'Chat' });
   }, [navigation, name]);
 
-  const handleSend = () => {
+  useEffect(() => {
+    if (!matchId || !currentUserId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const rows = await fetchMessagesForMatch(matchId);
+        if (cancelled) return;
+
+        if (!rows.length) {
+          const intro = name
+            ? `You matched with ${name}. Say hello!`
+            : 'You have a new match. Start the conversation!';
+          const timestamp = matchedDate.getTime();
+          setMessages([
+            {
+              id: 'intro',
+              body: intro,
+              sender: 'them',
+              timestamp,
+            },
+          ]);
+          return;
+        }
+
+        const mapped: LocalMessage[] = rows.map((row: MessageRow) => ({
+          id: row.id,
+          body: row.body,
+          sender: row.sender_id === currentUserId ? 'me' : 'them',
+          timestamp: new Date(row.created_at).getTime(),
+        }));
+        setMessages(mapped);
+      } catch (error) {
+        console.error('Failed to load messages for match', { matchId, error });
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [matchId, currentUserId, name, matchedDate]);
+
+  const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
+
     const now = Date.now();
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `${now}`,
-        body: trimmed,
-        sender: 'me',
-        timestamp: now,
-      },
-    ]);
+    const optimistic: LocalMessage = {
+      id: `${now}`,
+      body: trimmed,
+      sender: 'me',
+      timestamp: now,
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
     setInput('');
+
+    if (!matchId || !currentUserId) {
+      return;
+    }
+
+    try {
+      const saved = await sendMessageForMatch(matchId, currentUserId, trimmed);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === optimistic.id
+            ? {
+                ...msg,
+                id: saved.id,
+                timestamp: new Date(saved.created_at).getTime(),
+              }
+            : msg,
+        ),
+      );
+    } catch (error) {
+      console.error('Failed to send message', { matchId, error });
+      // keep optimistic for now; could add retry UI later
+    }
   };
 
   const handleInsertSuggestion = (suggestion: string) => {
@@ -113,8 +181,8 @@ export default function ChatScreen() {
     activeSuggestions === 'openers'
       ? starterSuggestions
       : activeSuggestions === 'continuers'
-        ? followUpSuggestions
-        : [];
+      ? followUpSuggestions
+      : [];
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -133,7 +201,9 @@ export default function ChatScreen() {
                   <Image source={{ uri: avatar }} style={styles.headerAvatar} />
                 ) : (
                   <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
-                    <Text style={styles.headerAvatarPlaceholderText}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+                    <Text style={styles.headerAvatarPlaceholderText}>
+                      {name?.[0]?.toUpperCase() ?? '?'}
+                    </Text>
                   </View>
                 )}
                 <View style={styles.threadHeaderText}>
@@ -259,7 +329,9 @@ export default function ChatScreen() {
                 <Text
                   style={[
                     styles.messageText,
-                    item.sender === 'me' ? styles.messageTextOutgoing : styles.messageTextIncoming,
+                    item.sender === 'me'
+                      ? styles.messageTextOutgoing
+                      : styles.messageTextIncoming,
                   ]}
                 >
                   {item.body}
@@ -517,4 +589,3 @@ const createStyles = (palette: AppPalette) =>
       fontWeight: '600',
     },
   });
-

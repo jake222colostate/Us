@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   screen: {
     flex: 1,
-    backgroundColor: '#0b1220',
+    backgroundColor: '#fdf8ff',
   },
   content: {
     paddingHorizontal: 20,
@@ -271,22 +271,22 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   title: {
-    color: '#f8fafc',
+    color: '#2f0c4d',
     fontSize: 28,
     fontWeight: '700',
   },
   subtitle: {
-    color: '#94a3b8',
+    color: '#7c699b',
     fontSize: 15,
     marginTop: 8,
   },
   card: {
-    backgroundColor: '#111b2e',
+    backgroundColor: '#ffffff',
     marginTop: 24,
     padding: 20,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: '#e5def6',
   },
   fieldGroup: {
     marginBottom: 18,
@@ -302,18 +302,18 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   label: {
-    color: '#e2e8f0',
+    color: '#2f0c4d',
     marginBottom: 6,
     fontWeight: '600',
   },
   input: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: '#e5def6',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#0f172a',
-    color: '#f8fafc',
+    backgroundColor: '#f4e6ff',
+    color: '#2f0c4d',
   },
   multiline: {
     minHeight: 100,

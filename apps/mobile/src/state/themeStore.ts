@@ -6,7 +6,7 @@ type ThemeState = {
   toggle: () => void;
 };
 
-const defaultDarkMode = true;
+const defaultDarkMode = false;
 
 export const useThemeStore = create<ThemeState>((set) => ({
   isDarkMode: defaultDarkMode,

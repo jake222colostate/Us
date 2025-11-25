@@ -27,6 +27,9 @@ type MatchProfile = {
   verificationStatus: VerificationStatus;
   photos: UserPhoto[];
   createdAt: string;
+  lastMessage: string | null;
+  lastMessageAt: string | null;
+  lastMessageFromSelf: boolean | null;
 };
 
 type MatchesState = {
@@ -85,6 +88,25 @@ async function fetchMatchesFromSupabase(userId: string): Promise<MatchProfile[]>
       const photos = await mapPhotoRows(photoRows);
       const approvedPhotos = photos.filter((photo) => photo.status === 'approved' && photo.url);
       const firstPhoto = approvedPhotos[0] ?? null;
+
+      let lastMessageRow: { body: string; created_at: string } | null = null;
+      const { data: lastMessages, error: lastError } = await client
+        .from('messages')
+        .select('body, created_at')
+        .eq('match_id', row.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (lastError) {
+        if (isTableMissingError(lastError, 'messages')) {
+          logTableMissingWarning('messages', lastError);
+        } else {
+          throw lastError;
+        }
+      } else if (lastMessages && lastMessages.length > 0) {
+        lastMessageRow = lastMessages[0] as { body: string; created_at: string };
+      }
+
       return {
         matchId: row.id,
         userId: partnerId,
@@ -94,6 +116,8 @@ async function fetchMatchesFromSupabase(userId: string): Promise<MatchProfile[]>
         verificationStatus: profile?.verification_status ?? 'unverified',
         photos: approvedPhotos,
         createdAt: row.created_at,
+        lastMessage: lastMessageRow?.body ?? null,
+        lastMessageAt: lastMessageRow?.created_at ?? null,
       } satisfies MatchProfile;
     }),
   );

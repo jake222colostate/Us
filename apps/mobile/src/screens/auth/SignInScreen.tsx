@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  Image,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../navigation/RootNavigator';
@@ -81,8 +82,18 @@ export default function SignInScreen({ navigation }: Props) {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>Sign in to keep exploring the feed.</Text>
+        <View style={styles.header}>
+          <View style={styles.logoWrapper}>
+            <Image
+              source={require('../../../assets/usimage.png')}
+              style={styles.logo}
+              resizeMode="cover"
+            />
+          </View>
+          <Text style={styles.appName}>Us</Text>
+          <Text style={styles.title}>Welcome back</Text>
+          <Text style={styles.subtitle}>Sign in to keep exploring the feed.</Text>
+        </View>
 
         <View style={styles.card}>
           <View style={styles.fieldGroup}>
@@ -147,10 +158,35 @@ export default function SignInScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  header: {
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  logoWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    overflow: 'hidden',
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
+  },
+  appName: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: '#a855f7',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
   flex: { flex: 1 },
   screen: {
     flex: 1,
-    backgroundColor: '#0b1220',
+    backgroundColor: '#fdf8ff',
   },
   content: {
     paddingHorizontal: 20,
@@ -158,39 +194,39 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   title: {
-    color: '#f8fafc',
+    color: '#2f0c4d',
     fontSize: 28,
     fontWeight: '700',
   },
   subtitle: {
-    color: '#94a3b8',
+    color: '#7c699b',
     fontSize: 15,
     marginTop: 8,
   },
   card: {
-    backgroundColor: '#111b2e',
+    backgroundColor: '#ffffff',
     marginTop: 32,
     padding: 20,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: '#e5def6',
   },
   fieldGroup: {
     marginBottom: 18,
   },
   label: {
-    color: '#e2e8f0',
+    color: '#2f0c4d',
     marginBottom: 6,
     fontWeight: '600',
   },
   input: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: '#e5def6',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#0f172a',
-    color: '#f8fafc',
+    backgroundColor: '#f4e6ff',
+    color: '#2f0c4d',
   },
   errorText: {
     color: '#f87171',

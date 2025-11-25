@@ -57,7 +57,7 @@ export async function fetchProfilePosts(userId: string) {
 export async function fetchLikes(userId: string) {
   try {
     const { data, error } = await supabase
-      .from('hearts')
+      .from('likes')
       .select(
         `
           id,
@@ -65,14 +65,12 @@ export async function fetchLikes(userId: string) {
           from_user,
           to_user,
           kind,
-          paid,
-          message,
           created_at,
-          post:posts(id, user_id, photo_url, caption, created_at),
-          profile:profiles!hearts_from_user_fkey(user_id, display_name, photo_urls, avatar_url)
+          post:posts(id, user_id, photo_url, caption, created_at)
         `,
       )
       .eq('to_user', userId)
+      .in('kind', ['like', 'superlike'])
       .order('created_at', { ascending: false })
       .limit(100);
 

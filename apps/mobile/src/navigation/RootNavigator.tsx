@@ -204,6 +204,7 @@ export default function RootNavigator() {
                 ) : null,
             })}
           >
+            {!shouldShowMainApp && (
             <RootStack.Screen
               name="VerifyIdentity"
               component={VerifyIdentityScreen}
@@ -213,6 +214,8 @@ export default function RootNavigator() {
                 presentation: 'modal',
               }}
             />
+          )}
+
             {shouldShowMainApp && (
               <RootStack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
             )}

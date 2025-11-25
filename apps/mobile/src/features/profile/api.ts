@@ -2,6 +2,7 @@ import { supabase } from '../../api/supabase';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { Profile, Post, Heart } from '@us/types';
 import { loadDevManifest } from '../../lib/devAssets';
+import { createSignedPhotoUrl } from '../../lib/photos';
 import { listUserPosts } from '../../api/posts';
 import type { PhotoRow } from '../../lib/photos';
 
@@ -66,7 +67,43 @@ export async function fetchLikes(userId: string) {
 
     if (error) throw error;
 
-    const hearts = ((data as unknown as Heart[]) ?? []).map((heart) => ({ ...heart }));
+    let hearts = ((data as unknown as Heart[]) ?? []).map((heart) => ({ ...heart }));
+
+    const fromUserIds = Array.from(
+      new Set(hearts.map((h) => h.from_user).filter((id): id is string => Boolean(id))),
+    );
+
+    console.log('FETCH_LIKES fromUserIds', fromUserIds);
+    if (fromUserIds.length) {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, display_name, bio, avatar_url, verification_status')
+        .in('id', fromUserIds);
+
+      if (profilesError) throw profilesError;
+
+      const enrichedProfiles = await Promise.all(
+        (profilesData ?? []).map(async (row) => {
+          const storagePath = (row as any).avatar_url as string | null;
+          const signed = await createSignedPhotoUrl(storagePath ?? null);
+          return {
+            ...(row as any),
+            avatar_url: signed ?? storagePath ?? null,
+          };
+        }),
+      );
+
+      const profileById = new Map<string, any>(
+        enrichedProfiles.map((p) => [String((p as any).id), p]),
+      );
+      console.log('FETCH_LIKES profile keys', Array.from(profileById.keys()));
+
+      hearts = hearts.map((heart) => {
+        const profile = profileById.get(heart.from_user);
+        return profile ? { ...heart, profile } : heart;
+      });
+    }
+
     const manifest = await loadDevManifest();
     let manifestIndex = 0;
     const nextFallback = () => {
@@ -105,6 +142,8 @@ export async function fetchLikes(userId: string) {
     throw err;
   }
 }
+
+
 
 export async function blockUser({ blocker, blocked }: { blocker: string; blocked: string }) {
   const { error } = await supabase.from('blocks').insert({ blocker, blocked });

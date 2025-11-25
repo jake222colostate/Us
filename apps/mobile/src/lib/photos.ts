@@ -50,7 +50,7 @@ export async function createSignedPhotoUrl(
   try {
     const client = getSupabaseClient();
     const { data, error } = await client.storage
-      .from(PROFILE_PHOTO_BUCKET)
+      .from(POST_PHOTO_BUCKET)
       .createSignedUrl(storagePath, expiresInSeconds);
     if (error) return null;
     return data?.signedUrl ?? null;

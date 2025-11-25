@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { getSupabaseClient } from '../api/supabase';
 import { isTableMissingError, logTableMissingWarning } from '../api/postgrestErrors';
-import { mapPhotoRows, type PhotoRow } from '../lib/photos';
+import { mapPhotoRows, type PhotoRow, createSignedPhotoUrl } from '../lib/photos';
 import type { VerificationStatus, UserPhoto } from './authStore';
 
 type MatchRecord = {
@@ -16,6 +16,7 @@ type ProfileRecord = {
   display_name: string | null;
   bio: string | null;
   verification_status: VerificationStatus;
+  avatar_url: string | null;
 };
 
 type MatchProfile = {
@@ -60,7 +61,7 @@ async function fetchMatchesFromSupabase(userId: string): Promise<MatchProfile[]>
 
   const { data: profilesData, error: profilesError } = await client
     .from('profiles')
-    .select('id, display_name, bio, verification_status')
+    .select('id, display_name, bio, verification_status, avatar_url')
     .in('id', otherUserIds);
   if (profilesError) throw profilesError;
   const profileMap = new Map<string, ProfileRecord>(
@@ -107,12 +108,16 @@ async function fetchMatchesFromSupabase(userId: string): Promise<MatchProfile[]>
         lastMessageRow = lastMessages[0] as { body: string; created_at: string };
       }
 
+      const avatarStoragePath = profile?.avatar_url ?? null;
+      const signedAvatar = await createSignedPhotoUrl(avatarStoragePath);
+      const avatarUrl = signedAvatar ?? avatarStoragePath ?? firstPhoto?.url ?? null;
+
       return {
         matchId: row.id,
         userId: partnerId,
         name: profile?.display_name ?? 'New member',
         bio: profile?.bio ?? null,
-        avatar: firstPhoto?.url ?? null,
+        avatar: avatarUrl,
         verificationStatus: profile?.verification_status ?? 'unverified',
         photos: approvedPhotos,
         createdAt: row.created_at,

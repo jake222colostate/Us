@@ -105,6 +105,22 @@ async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
     return fetchProfile(session);
   }
 
+  // Look at all id_verifications rows to compute an overall verification status
+  const { data: verificationRow, error: verificationError } = await client
+    .from('id_verification_user_status')
+    .select('verification_status')
+    .eq('user_id', session.user.id)
+    .maybeSingle();
+
+  if (verificationError) {
+    console.error('Failed to load id verification status', verificationError);
+  }
+
+  const computedVerificationStatus =
+    (verificationRow?.verification_status as VerificationStatus | null) ??
+    (profileRow.verification_status as VerificationStatus | null) ??
+    'unverified';
+
   const { data: photoRows, error: photosError } = await client
     .from('photos')
     .select('*')
@@ -134,7 +150,7 @@ async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
     avatarStoragePath: profileRow.avatar_url ?? firstApproved?.storagePath ?? null,
     bio: profileRow.bio ?? null,
     interests: Array.isArray(profileRow.interests) ? (profileRow.interests as string[]) : [],
-    verificationStatus: profileRow.verification_status ?? 'unverified',
+    verificationStatus: computedVerificationStatus,
     photos,
   };
 }

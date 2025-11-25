@@ -37,9 +37,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           console.error('Failed to fetch initial session', error);
           return setSession(null).catch((err) => console.error('setSession failed', err));
         }
-        if (data.session && verificationMode === 'mock' && __DEV__) {
-          setVerificationStatus('verified');
-        }
         return setSession(data.session ?? null).catch((err) => console.error('setSession failed', err));
       })
       .catch((err) => console.error('Unexpected auth bootstrap error', err));
@@ -47,9 +44,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const { data: listener } = client.auth.onAuthStateChange((event, newSession) => {
       console.log('🔄 Auth state change', { event, user: newSession?.user?.id ?? null });
       setSession(newSession ?? null).catch((err) => console.error('setSession failed', err));
-      if (verificationMode === 'mock' && __DEV__ && newSession) {
-        setVerificationStatus('verified');
-      }
     });
 
     return () => {

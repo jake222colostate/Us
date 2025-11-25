@@ -31,6 +31,49 @@ export function useIdentityVerification() {
   const verificationStatus = useAuthStore(selectVerificationStatus);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [latestVerification, setLatestVerification] = useState<{
+    id: string;
+    status: string;
+    photoUrl: string | null;
+    rejectionReason: string | null;
+  } | null>(null);
+
+  const refreshVerification = useCallback(async () => {
+    if (!session?.user) {
+      setLatestVerification(null);
+      return;
+    }
+    try {
+      const client = getSupabaseClient();
+      const { data, error } = await client
+        .from('id_verifications')
+        .select('id, status, id_photo_url, rejection_reason')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('id_verifications fetch error', error);
+        return;
+      }
+
+      if (!data) {
+        setLatestVerification(null);
+        return;
+      }
+
+      setLatestVerification({
+        id: data.id as string,
+        status: (data.status as string) ?? 'pending',
+        photoUrl: (data.id_photo_url as string | null) ?? null,
+        rejectionReason: (data.rejection_reason as string | null) ?? null,
+      });
+    } catch (err) {
+      console.warn('Failed to fetch latest verification', err);
+    }
+  }, [session?.user?.id]);
+
 
   const beginVerification = useCallback(async () => {
     if (!session?.user) {
@@ -95,8 +138,10 @@ export function useIdentityVerification() {
         .from('id_verifications')
         .insert({
           user_id: session.user.id,
+          photo_storage_path: storagePath,
           id_photo_url: publicUrl,
           status: 'pending',
+          provider: 'aws',
         });
 
       if (insertError) {
@@ -109,6 +154,7 @@ export function useIdentityVerification() {
         ...prev,
         verificationStatus: 'pending',
       }));
+      await refreshVerification();
     } catch (err) {
       console.error('Identity verification failed', err);
       setError('Could not start verification. Try again.');
@@ -122,5 +168,7 @@ export function useIdentityVerification() {
     isLoading,
     error,
     currentStatus: verificationStatus,
+    latestVerification,
+    refreshVerification,
   };
 }

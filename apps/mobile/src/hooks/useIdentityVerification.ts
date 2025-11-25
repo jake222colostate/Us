@@ -4,7 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode as base64Decode } from 'base-64';
 import { getSupabaseClient } from '../api/supabase';
 import { useAuthStore, selectSession, selectVerificationStatus } from '../state/authStore';
-import { POST_PHOTO_BUCKET } from '../lib/photos';
+import { ID_PHOTO_BUCKET } from '../lib/photos';
 
 function toBytes(base64: string): Uint8Array {
   const decode = typeof globalThis.atob === 'function' ? globalThis.atob : base64Decode;
@@ -118,7 +118,7 @@ export function useIdentityVerification() {
       const storagePath = `${session.user.id}/id-${Date.now()}.jpg`;
 
       const { error: uploadError } = await client.storage
-        .from(POST_PHOTO_BUCKET)
+        .from(ID_PHOTO_BUCKET)
         .upload(storagePath, bytes, { contentType, upsert: false });
 
       if (uploadError) {
@@ -127,7 +127,7 @@ export function useIdentityVerification() {
       }
 
       const { data: publicUrlData } = client.storage
-        .from(POST_PHOTO_BUCKET)
+        .from(ID_PHOTO_BUCKET)
         .getPublicUrl(storagePath);
       const publicUrl = publicUrlData?.publicUrl;
       if (!publicUrl) {

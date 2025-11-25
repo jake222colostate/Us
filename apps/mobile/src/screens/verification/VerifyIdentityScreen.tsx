@@ -26,6 +26,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'VerifyIdentity'>;
 
 export default function VerifyIdentityScreen(_props: Props) {
   const authStatus = useAuthStore(selectVerificationStatus);
+  const refreshProfile = useAuthStore((state) => state.refreshProfile);
   const {
     beginVerification,
     isLoading,
@@ -42,12 +43,28 @@ export default function VerifyIdentityScreen(_props: Props) {
     refreshVerification().catch(() => undefined);
   }, [refreshVerification]);
 
+  useEffect(() => {
+    // While verification is pending, periodically poll for the latest status.
+    if (status !== 'pending') return;
+    const id = setInterval(() => {
+      refreshVerification().catch(() => undefined);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [status, refreshVerification]);
+
+  useEffect(() => {
+    // Once the server marks the latest verification as approved,
+    // refresh the profile so verificationStatus comes from the DB/view.
+    if (!latestVerification || latestVerification.status !== 'approved') return;
+    refreshProfile().catch(() => undefined);
+  }, [latestVerification?.status, refreshProfile]);
+
   const effectiveHeadline = statusHeadline[status] ?? statusHeadline.unverified;
   const effectiveDetail = statusDetail[status] ?? statusDetail.unverified;
 
   const latestStatus = latestVerification?.status ?? null;
-  const latestImageUrl = latestVerification?.hostedPath ?? null;
-  const latestReason = latestVerification?.reviewerReason ?? null;
+  const latestImageUrl = latestVerification?.photoUrl ?? null;
+  const latestReason = latestVerification?.rejectionReason ?? null;
 
   let pillLabel = 'Not started';
   if (latestStatus === 'approved') pillLabel = 'Approved';

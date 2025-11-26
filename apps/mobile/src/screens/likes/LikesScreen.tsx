@@ -147,9 +147,30 @@ export default function LikesScreen() {
           const isExpanded = expanded.has(key);
           const name = item.profile?.display_name ?? 'Member';
           const avatarUri = item.profile?.avatar_url ?? null;
-          console.log('LIKES_AVATAR', avatarUri, item.profile);
-          const countText = item.count === 1 ? 'liked your post' : `liked ${item.count} of your posts`;
-          const thumbnails = item.hearts.slice(0, MAX_INLINE_THUMBS);
+
+          const comparePairs = item.hearts
+            .map(h => {
+              const anyHeart = h as any;
+              const src = anyHeart.source as string | undefined;
+              const left = anyHeart.compare_left_url as string | null | undefined;
+              const right = anyHeart.compare_right_url as string | null | undefined;
+              if (src === 'compare' && left && right) {
+                return { id: anyHeart.id as string, left, right };
+              }
+              return null;
+            })
+            .filter(Boolean) as { id: string; left: string; right: string }[];
+
+          const hasCompare = comparePairs.length > 0;
+          const firstCompare = hasCompare ? comparePairs[0] : null;
+
+          const countText = hasCompare
+            ? 'compared photos'
+            : item.count === 1
+            ? 'liked your post'
+            : `liked ${item.count} of your posts`;
+
+          const thumbnails = hasCompare ? [] : item.hearts.slice(0, MAX_INLINE_THUMBS);
 
           return (
             <View style={styles.groupCard}>
@@ -173,16 +194,25 @@ export default function LikesScreen() {
                     {new Date(item.latestAt).toLocaleString()}
                   </Text>
                   <View style={styles.thumbRow}>
-                    {thumbnails.map((heart) =>
-                      heart.post?.photo_url ? (
-                        <Image key={heart.id} source={{ uri: heart.post.photo_url }} style={styles.thumbnail} />
-                      ) : (
-                        <View key={heart.id} style={[styles.thumbnail, styles.thumbnailPlaceholder]} />
-                      ),
+                    {hasCompare && firstCompare ? (
+                      <>
+                        <Image source={{ uri: firstCompare.left }} style={styles.thumbnail} />
+                        <Image source={{ uri: firstCompare.right }} style={styles.thumbnail} />
+                      </>
+                    ) : (
+                      <>
+                        {thumbnails.map((heart) =>
+                          heart.post?.photo_url ? (
+                            <Image key={heart.id} source={{ uri: heart.post.photo_url }} style={styles.thumbnail} />
+                          ) : (
+                            <View key={heart.id} style={[styles.thumbnail, styles.thumbnailPlaceholder]} />
+                          ),
+                        )}
+                        {item.count > MAX_INLINE_THUMBS ? (
+                          <Text style={styles.moreCount}>+{item.count - MAX_INLINE_THUMBS}</Text>
+                        ) : null}
+                      </>
                     )}
-                    {item.count > MAX_INLINE_THUMBS ? (
-                      <Text style={styles.moreCount}>+{item.count - MAX_INLINE_THUMBS}</Text>
-                    ) : null}
                   </View>
                 </View>
                 <MaterialCommunityIcons

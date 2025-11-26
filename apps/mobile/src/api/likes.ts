@@ -3,6 +3,10 @@ import { isTableMissingError, logTableMissingWarning } from './postgrestErrors';
 
 type LikeOptions = {
   kind?: 'like' | 'superlike';
+  source?: 'feed' | 'compare';
+  compareLeftUrl?: string | null;
+  compareRightUrl?: string | null;
+  postId?: string | null;
 };
 
 type LikeResult = {
@@ -27,7 +31,11 @@ export async function likeUser(
     .insert({
       from_user: fromUserId,
       to_user: toUserId,
+      post_id: options?.postId ?? null,
       kind: options?.kind ?? 'like',
+      source: options?.source ?? 'feed',
+      compare_left_url: options?.compareLeftUrl ?? null,
+      compare_right_url: options?.compareRightUrl ?? null,
     });
 
   if (likeError) {

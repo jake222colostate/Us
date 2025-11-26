@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -33,6 +34,9 @@ const layoutOptions: { key: CompareLayout; label: string }[] = [
 type Props = NativeStackScreenProps<RootStackParamList, 'Compare'>;
 
 export default function CompareScreen({ route, navigation }: Props) {
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+  const styles = useMemo(() => createStyles(isDarkMode), [isDarkMode]);
   const { layout, setLayout } = useComparePreferences();
   const params = route.params ?? {};
   const [approvedPhotos, setApprovedPhotos] = useState<string[]>([]);
@@ -351,7 +355,12 @@ export default function CompareScreen({ route, navigation }: Props) {
     }
     setIsSendingLike(true);
     try {
-      const result = await likeUser(session.user.id, params.profile.id);
+      const result = await likeUser(session.user.id, params.profile.id, {
+        kind: 'like',
+        source: 'compare',
+        compareLeftUrl: left,
+        compareRightUrl: rightPhoto,
+      });
       console.log('📸 Sending comparison like', {
         leftPhoto: left,
         rightPhoto,
@@ -422,7 +431,6 @@ export default function CompareScreen({ route, navigation }: Props) {
                   </View>
                 )}
               </View>
-              <Text style={styles.photoMeta}>This is what they shared publicly.</Text>
             </View>
             <View
               style={[
@@ -449,9 +457,6 @@ export default function CompareScreen({ route, navigation }: Props) {
                   </View>
                 )}
               </Pressable>
-              <Text style={styles.photoMeta}>
-                {rightPhotoMeta ?? 'Upload, snap, or pick a post so they can see you too.'}
-              </Text>
             </View>
           </View>
         </View>
@@ -540,14 +545,14 @@ export default function CompareScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (isDarkMode: boolean) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0b1220',
+    backgroundColor: isDarkMode ? '#0b1220' : '#ffffff',
   },
   screen: {
     flex: 1,
-    backgroundColor: '#0b1220',
+    backgroundColor: isDarkMode ? '#0b1220' : '#ffffff',
   },
   scrollContent: {
     paddingBottom: 32,
@@ -579,11 +584,11 @@ const styles = StyleSheet.create({
   },
   toggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#111b2e',
+    backgroundColor: isDarkMode ? '#111b2e' : '#f9fafb',
     borderRadius: 18,
     padding: 4,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
     marginBottom: 20,
     marginHorizontal: 16,
   },
@@ -604,10 +609,10 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   compareArea: {
-    backgroundColor: '#111b2e',
+    backgroundColor: isDarkMode ? '#111b2e' : '#f9fafb',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#1f2937',
+    borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
     padding: 16,
     marginHorizontal: 16,
     marginTop: 16,

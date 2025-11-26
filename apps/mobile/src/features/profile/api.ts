@@ -56,6 +56,9 @@ export async function fetchLikes(userId: string) {
           from_user,
           to_user,
           kind,
+          source,
+          compare_left_url,
+          compare_right_url,
           created_at,
           post:posts(id, user_id, photo_url, caption, created_at)
         `,

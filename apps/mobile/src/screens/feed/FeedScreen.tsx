@@ -223,7 +223,7 @@ export default function FeedScreen() {
   }, [refresh, loadLiveNow]);
 
   const handleLike = useCallback(
-    async (toUserId: string) => {
+    async (toUserId: string, postId: string | null) => {
       if (!session) {
         Alert.alert('Sign in required', 'Create an account to like profiles.');
         return;
@@ -231,7 +231,7 @@ export default function FeedScreen() {
       if (likedUserIds.has(toUserId) || likingUserIds.has(toUserId)) return;
       setLikingUserIds((prev) => new Set([...prev, toUserId]));
       try {
-        await likeUser(session.user.id, toUserId);
+        await likeUser(session.user.id, toUserId, { postId });
         setLikedUserIds((prev) => new Set([...prev, toUserId]));
         show('Like sent!');
       } catch (err) {
@@ -340,7 +340,7 @@ export default function FeedScreen() {
             bio={item.bio}
             avatar={item.avatar ?? item.photo}
             photo={item.photo}
-            onLike={() => handleLike(item.id)}
+            onLike={() => handleLike(item.id, item.postId ?? null)}
             liked={likedUserIds.has(item.id)}
             liking={likingUserIds.has(item.id)}
             onCompare={() =>

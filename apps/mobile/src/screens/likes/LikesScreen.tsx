@@ -21,6 +21,7 @@ import { selectIsAuthenticated, selectSession, useAuthStore } from '../../state/
 import { fetchLikes } from '../../features/profile/api';
 import { groupLikesByUser, type LikeGroup, type LikeGroupsByKind } from '../../features/likes/utils';
 import { useToast } from '../../providers/ToastProvider';
+import { supabase } from '../../api/supabase';
 
 const MAX_INLINE_THUMBS = 3;
 
@@ -143,13 +144,11 @@ export default function LikesScreen() {
           </View>
         )}
         renderItem={({ item }) => {
-          const key = `${item.kind}-${item.fromUser}`;
-          const isExpanded = expanded.has(key);
           const name = item.profile?.display_name ?? 'Member';
           const avatarUri = item.profile?.avatar_url ?? null;
 
           const comparePairs = item.hearts
-            .map(h => {
+            .map((h) => {
               const anyHeart = h as any;
               const src = anyHeart.source as string | undefined;
               const left = anyHeart.compare_left_url as string | null | undefined;
@@ -170,82 +169,55 @@ export default function LikesScreen() {
             ? 'liked your post'
             : `liked ${item.count} of your posts`;
 
-          const thumbnails = hasCompare ? [] : item.hearts.slice(0, MAX_INLINE_THUMBS);
-
           return (
             <View style={styles.groupCard}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Expand likes from ${name}`}
-                onPress={() => toggleGroup(key)}
-                style={({ pressed }) => [styles.groupRow, pressed && styles.groupRowPressed]}
-              >
-                {avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={styles.avatar} />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                    <Text style={styles.avatarFallback}>{name.slice(0, 1).toUpperCase()}</Text>
-                  </View>
-                )}
-                <View style={styles.groupContent}>
-                  <Text style={styles.groupName}>{name}</Text>
-                  <Text style={styles.groupCopy}>{countText}</Text>
-                  <Text style={styles.groupTimestamp}>
-                    {new Date(item.latestAt).toLocaleString()}
-                  </Text>
-                  <View style={styles.thumbRow}>
-                    {hasCompare && firstCompare ? (
-                      <>
-                        <Image source={{ uri: firstCompare.left }} style={styles.thumbnail} />
-                        <Image source={{ uri: firstCompare.right }} style={styles.thumbnail} />
-                      </>
-                    ) : (
-                      <>
-                        {thumbnails.map((heart) =>
-                          heart.post?.photo_url ? (
-                            <Image key={heart.id} source={{ uri: heart.post.photo_url }} style={styles.thumbnail} />
-                          ) : (
-                            <View key={heart.id} style={[styles.thumbnail, styles.thumbnailPlaceholder]} />
-                          ),
-                        )}
-                        {item.count > MAX_INLINE_THUMBS ? (
-                          <Text style={styles.moreCount}>+{item.count - MAX_INLINE_THUMBS}</Text>
-                        ) : null}
-                      </>
-                    )}
-                  </View>
-                </View>
-                <MaterialCommunityIcons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={24}
-                  color={palette.muted}
-                />
-              </Pressable>
-              {isExpanded ? (
-                <View style={styles.detailList}>
-                  {item.hearts.map((heart) => (
-                    <View key={heart.id} style={styles.detailRow}>
-                      {heart.post?.photo_url ? (
-                        <Image source={{ uri: heart.post.photo_url }} style={styles.detailImage} />
-                      ) : (
-                        <View style={[styles.detailImage, styles.thumbnailPlaceholder]} />
-                      )}
-                      <View style={styles.detailInfo}>
-                        <Text style={styles.detailTimestamp}>
-                          {new Date(heart.created_at).toLocaleString()}
-                        </Text>
-                      </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => navigation.navigate('ProfileDetail', { userId: item.fromUser })}
-                        style={({ pressed }) => [styles.detailButton, pressed && styles.detailButtonPressed]}
-                      >
-                        <Text style={styles.detailButtonLabel}>View profile</Text>
-                      </Pressable>
+              <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:12}}>
+                <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
+                  {avatarUri ? (
+                  <Pressable onPress={() => navigation.navigate('ProfileDetail', { userId: item.fromUser })}>
+                    <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                  </Pressable>
+                  ) : (
+                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                      <Text style={styles.avatarFallback}>{name.slice(0,1).toUpperCase()}</Text>
                     </View>
-                  ))}
+                  )}
+                  <View>
+                    <Text style={styles.groupName}>{name}</Text>
+                    <Text style={styles.groupCopy}>{countText}</Text>
+                    <Text style={styles.groupTimestamp}>{new Date(item.latestAt).toLocaleString()}</Text>
+                  </View>
                 </View>
-              ) : null}
+                <View style={{flexDirection:'row',gap:8}}>
+                  
+                  <Pressable
+                    onPress={async()=>{
+                      const {error}=await supabase.from('likes').delete().eq('from_user',item.fromUser).eq('to_user',session.user.id);
+                      if(error) console.error(error);
+                    }}
+                    style={[styles.detailButton,{backgroundColor:'#e44',paddingHorizontal:10,paddingVertical:6,position:'absolute',top:8,right:8,zIndex:10}]}
+                  >
+                    <Text style={styles.detailButtonLabel}>✕</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={{flexDirection:'row',flexWrap:'wrap',justifyContent:'center',gap:8,marginBottom:8}}>
+                {hasCompare && firstCompare ? (
+                  <>
+                    <Image source={{uri:firstCompare.left}} style={{width:80,height:80,borderRadius:10}} />
+                    <Image source={{uri:firstCompare.right}} style={{width:80,height:80,borderRadius:10}} />
+                  </>
+                ) : (
+                  item.hearts.map((heart) =>
+                    heart.post?.photo_url ? (
+                      <Image key={heart.id} source={{uri:heart.post.photo_url}} style={{width:60,height:60,borderRadius:10}} />
+                    ) : (
+                      <View key={heart.id} style={[styles.thumbnailPlaceholder,{width:60,height:60,borderRadius:10}]} />
+                    ),
+                  )
+                )}
+              </View>
             </View>
           );
         }}
@@ -367,8 +339,8 @@ const createStyles = (palette: AppPalette) =>
       marginTop: 4,
     },
     thumbnail: {
-      width: 40,
-      height: 40,
+      width: 60,
+      height: 60,
       borderRadius: 10,
       backgroundColor: palette.surface,
     },
@@ -391,8 +363,8 @@ const createStyles = (palette: AppPalette) =>
       gap: 12,
     },
     detailImage: {
-      width: 54,
-      height: 54,
+      width: 60,
+      height: 60,
       borderRadius: 12,
       backgroundColor: palette.surface,
     },

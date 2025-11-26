@@ -4,6 +4,7 @@ import type { Gender } from '@us/types';
 
 export type FeedProfile = {
   id: string;
+  postId: string | null;
   name: string | null;
   bio: string | null;
   avatar: string | null;
@@ -24,6 +25,7 @@ export function usePagedFeed(enabled: boolean) {
   const mapRows = useCallback((rows: any[]): FeedProfile[] => {
     return rows.map((r: any) => ({
       id: r.user_id,
+      postId: r.id ?? null,
       name: r.owner_display_name ?? null,
       bio: r.owner_bio ?? null,
       avatar: r.owner_avatar_url ?? null,

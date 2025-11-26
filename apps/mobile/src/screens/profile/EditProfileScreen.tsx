@@ -13,6 +13,7 @@ import {
   TextInput,
   TouchableWithoutFeedback,
   View,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -29,6 +30,16 @@ import { usePhotoModeration, fetchPhotoStatusFixed } from '../../hooks/usePhotoM
 import type { ModerationStatus } from '../../lib/photos';
 
 const BIO_LIMIT = 280;
+
+const MAX_INTERESTS = 10;
+
+const INTEREST_CATEGORIES: { title: string; items: string[] }[] = [
+  { title: 'Outdoors', items: ['Hiking', 'Camping', 'Running', 'Skiing', 'Beach walks'] },
+  { title: 'Creative', items: ['Music', 'Singing', 'Art', 'Photography', 'Writing'] },
+  { title: 'Lifestyle', items: ['Coffee', 'Brunch', 'Cooking', 'Travel', 'Reading'] },
+  { title: 'Fitness', items: ['Gym', 'Yoga', 'Pilates', 'Team sports', 'Cycling'] },
+  { title: 'Fun', items: ['Gaming', 'Movies', 'Board games', 'Karaoke', 'Bar nights'] },
+];
 
 const EditProfileScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -95,6 +106,39 @@ const EditProfileScreen: React.FC = () => {
   );
 
   const currentInterestsKey = useMemo(() => normalizedInterests.join('|'), [normalizedInterests]);
+
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(normalizedInterests);
+  const [interestPickerVisible, setInterestPickerVisible] = useState(false);
+
+  useEffect(() => {
+    setSelectedInterests(normalizedInterests);
+  }, [currentInterestsKey]);
+
+  const handleToggleInterest = useCallback(
+    (item: string) => {
+      setSelectedInterests(prev => {
+        if (prev.includes(item)) {
+          const next = prev.filter(x => x !== item);
+          setInterestsText(next.join(', '));
+          return next;
+        }
+        if (prev.length >= MAX_INTERESTS) {
+          show(`You can choose up to ${MAX_INTERESTS} interests.`);
+          return prev;
+        }
+        const next = [...prev, item];
+        setInterestsText(next.join(', '));
+        return next;
+      });
+    },
+    [show],
+  );
+
+  const openInterestsPicker = useCallback(() => {
+    Keyboard.dismiss();
+    setSelectedInterests(normalizedInterests);
+    setInterestPickerVisible(true);
+  }, [normalizedInterests]);
 
   const displayInitials = useMemo(() => {
     const trimmed = displayName.trim();
@@ -433,16 +477,24 @@ const EditProfileScreen: React.FC = () => {
               />
             </View>
 
-            <View style={styles.section}>
+                        <View style={styles.section}>
               <Text style={styles.label}>Interests</Text>
-              <TextInput
-                style={styles.input}
-                value={interestsText}
-                onChangeText={setInterestsText}
-                placeholder="Hiking, Music, Coffee…"
-                placeholderTextColor="#9CA3AF"
-              />
+              <Pressable
+                onPress={openInterestsPicker}
+                style={({ pressed }) => [
+                  styles.input,
+                  pressed && styles.inputPressed,
+                ]}
+              >
+                <Text
+                  style={styles.interestsValue}
+                  numberOfLines={1}
+                >
+                  {interestsText.length ? interestsText : 'Tap to choose your interests'}
+                </Text>
+              </Pressable>
             </View>
+
 
             <View style={styles.section}>
               <Text style={styles.label}>Gender</Text>
@@ -493,6 +545,97 @@ const EditProfileScreen: React.FC = () => {
                 ))}
               </View>
             </View>
+
+
+                        <Modal
+              visible={interestPickerVisible}
+              animationType="slide"
+              onRequestClose={() => setInterestPickerVisible(false)}
+            >
+              <SafeAreaView style={styles.interestsModalSafeArea} edges={['top']}>
+                <View style={styles.interestsModalHeader}>
+                  <View style={styles.interestsHeaderRow}>
+                    <Pressable
+                      onPress={() => setInterestPickerVisible(false)}
+                      style={({ pressed }) => pressed && { opacity: 0.7 }}
+                    >
+                      <Text style={styles.interestsHeaderAction}>✕</Text>
+                    </Pressable>
+                    <Text style={styles.interestsModalTitle}>Interests</Text>
+                    <Pressable
+                      onPress={() => setInterestPickerVisible(false)}
+                      style={({ pressed }) => pressed && { opacity: 0.7 }}
+                    >
+                      <Text style={styles.interestsHeaderAction}>Done</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.interestsModalSubtitle}>
+                    {selectedInterests.length} of {MAX_INTERESTS}
+                  </Text>
+                  {selectedInterests.length ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.interestsSelectedScroller}
+                    >
+                      {selectedInterests.map((interest) => (
+                        <View
+                          key={interest}
+                          style={[
+                            styles.interestChip,
+                            styles.interestChipActive,
+                            styles.interestsSelectedChip,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.interestChipLabel,
+                              styles.interestChipLabelActive,
+                            ]}
+                          >
+                            {interest}
+                          </Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  ) : null}
+                </View>
+                <ScrollView
+                  contentContainerStyle={styles.interestsModalContent}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {INTEREST_CATEGORIES.map((category) => (
+                    <View key={category.title} style={styles.interestsCategory}>
+                      <Text style={styles.interestsCategoryTitle}>{category.title}</Text>
+                      <View style={styles.interestsChipsRow}>
+                        {category.items.map((item) => {
+                          const active = selectedInterests.includes(item);
+                          return (
+                            <Pressable
+                              key={item}
+                              onPress={() => handleToggleInterest(item)}
+                              style={[
+                                styles.interestChip,
+                                active && styles.interestChipActive,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.interestChipLabel,
+                                  active && styles.interestChipLabelActive,
+                                ]}
+                              >
+                                {item}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              </SafeAreaView>
+            </Modal>
 
             <View style={styles.footer}>
               <Pressable
@@ -598,7 +741,7 @@ function createStyles(palette: AppPalette) {
     label: {
       fontSize: 14,
       fontWeight: '600',
-      color: '#E5E7EB',
+      color: palette.textPrimary,
       marginBottom: 6,
     },
     labelRow: {
@@ -657,6 +800,14 @@ function createStyles(palette: AppPalette) {
     pillTextActive: {
       color: '#0B1120',
       fontWeight: '600',
+    },
+
+    inputPressed: {
+      opacity: 0.9,
+    },
+    interestsValue: {
+      fontSize: 15,
+      color: palette.textPrimary,
     },
     footer: {
       marginTop: 12,

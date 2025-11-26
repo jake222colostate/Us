@@ -563,22 +563,22 @@ const createStyles = (isDarkMode: boolean) => StyleSheet.create({
     paddingBottom: 16,
   },
   title: {
-    color: '#f8fafc',
+    color: isDarkMode ? '#f9fafb' : '#0f172a',
     fontSize: 28,
     fontWeight: '700',
     marginBottom: 4,
   },
   subtitle: {
-    color: '#cbd5f5',
+    color: isDarkMode ? '#cbd5f5' : '#111827',
     fontSize: 18,
     fontWeight: '600',
   },
   verificationLabel: {
-    color: '#94a3b8',
+    color: isDarkMode ? '#94a3b8' : '#4b5563',
     marginTop: 4,
   },
   bio: {
-    color: '#cbd5f5',
+    color: isDarkMode ? '#cbd5f5' : '#1f2937',
     marginTop: 12,
     lineHeight: 20,
   },

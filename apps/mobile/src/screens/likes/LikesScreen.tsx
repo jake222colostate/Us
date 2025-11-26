@@ -163,6 +163,11 @@ export default function LikesScreen() {
           const hasCompare = comparePairs.length > 0;
           const firstCompare = hasCompare ? comparePairs[0] : null;
 
+          const likedPhotos = item.hearts
+            .map(h => h.photo_url)
+            .filter(Boolean)
+            .slice(0, MAX_INLINE_THUMBS);
+
           const countText = hasCompare
             ? 'compared photos'
             : item.count === 1
@@ -191,14 +196,40 @@ export default function LikesScreen() {
                 <View style={{flexDirection:'row',gap:8}}>
                   
                   <Pressable
-                    onPress={async()=>{
-                      const {error}=await supabase.from('likes').delete().eq('from_user',item.fromUser).eq('to_user',session.user.id);
-                      if(error) console.error(error);
-                    }}
-                    style={[styles.detailButton,{backgroundColor:'#e44',paddingHorizontal:10,paddingVertical:6,position:'absolute',top:8,right:8,zIndex:10}]}
-                  >
-                    <Text style={styles.detailButtonLabel}>✕</Text>
-                  </Pressable>
+  onPress={async () => {
+    try {
+      const { error } = await supabase
+        .from('likes')
+        .delete()
+        .eq('from_user', item.fromUser)
+        .eq('to_user', session.user.id);
+      if (error) {
+        console.error('Delete failed:', error);
+      } else {
+        setGroups(prev => ({
+          big: prev.big.filter(g => g.fromUser !== item.fromUser),
+          normal: prev.normal.filter(g => g.fromUser !== item.fromUser),
+        }));
+      }
+    } catch (err) {
+      console.error('Unexpected delete error:', err);
+    }
+  }}
+  style={[
+    styles.detailButton,
+    {
+      backgroundColor: '#e44',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      zIndex: 10,
+    },
+  ]}
+>
+  <Text style={styles.detailButtonLabel}>✕</Text>
+</Pressable>
                 </View>
               </View>
 
@@ -210,7 +241,7 @@ export default function LikesScreen() {
                   </>
                 ) : (
                   item.hearts.map((heart) =>
-                    heart.post?.photo_url ? (
+                    heart.photo_url ?? heart.post?.photo_url ? (
                       <Image key={heart.id} source={{uri:heart.post.photo_url}} style={{width:60,height:60,borderRadius:10}} />
                     ) : (
                       <View key={heart.id} style={[styles.thumbnailPlaceholder,{width:60,height:60,borderRadius:10}]} />
@@ -280,10 +311,10 @@ const createStyles = (palette: AppPalette) =>
     title: {
       fontSize: 28,
       fontWeight: '700',
-      color: palette.textPrimary,
+      color: palette.isDark ? '#eee' : '#111',
     },
     subtitle: {
-      color: palette.muted,
+      color: palette.isDark ? '#aaa' : '#333',
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -295,7 +326,7 @@ const createStyles = (palette: AppPalette) =>
     sectionTitle: {
       fontSize: 16,
       fontWeight: '600',
-      color: palette.textPrimary,
+      color: palette.isDark ? '#eee' : '#111',
     },
     sectionBadge: {
       color: palette.accent,
@@ -333,7 +364,7 @@ const createStyles = (palette: AppPalette) =>
       borderColor: palette.border,
     },
     avatarFallback: {
-      color: palette.textPrimary,
+      color: palette.isDark ? '#eee' : '#111',
       fontWeight: '700',
       fontSize: 18,
     },
@@ -342,15 +373,15 @@ const createStyles = (palette: AppPalette) =>
       gap: 4,
     },
     groupName: {
-      color: palette.textPrimary,
+      color: palette.isDark ? '#eee' : '#111',
       fontWeight: '600',
       fontSize: 16,
     },
     groupCopy: {
-      color: palette.textSecondary,
+      color: palette.isDark ? '#ccc' : '#444',
     },
     groupTimestamp: {
-      color: palette.muted,
+      color: palette.isDark ? '#aaa' : '#333',
       fontSize: 12,
     },
     thumbRow: {
@@ -370,7 +401,7 @@ const createStyles = (palette: AppPalette) =>
       opacity: 0.4,
     },
     moreCount: {
-      color: palette.muted,
+      color: palette.isDark ? '#aaa' : '#333',
       fontWeight: '600',
     },
     detailList: {
@@ -393,7 +424,7 @@ const createStyles = (palette: AppPalette) =>
       flex: 1,
     },
     detailTimestamp: {
-      color: palette.muted,
+      color: palette.isDark ? '#aaa' : '#333',
       fontSize: 12,
     },
     detailButton: {
@@ -422,12 +453,12 @@ const createStyles = (palette: AppPalette) =>
       gap: 16,
     },
     emptyTitle: {
-      color: palette.textPrimary,
+      color: palette.isDark ? '#eee' : '#111',
       fontSize: 20,
       fontWeight: '600',
     },
     emptyCopy: {
-      color: palette.muted,
+      color: palette.isDark ? '#aaa' : '#333',
       textAlign: 'left',
       lineHeight: 20,
     },

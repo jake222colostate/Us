@@ -28,6 +28,7 @@ import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
 import { usePhotoModeration, fetchPhotoStatusFixed } from '../../hooks/usePhotoModeration';
 import type { ModerationStatus } from '../../lib/photos';
+import InterestsPickerScreen from './InterestsPickerScreen';
 
 const BIO_LIMIT = 280;
 
@@ -552,88 +553,16 @@ const EditProfileScreen: React.FC = () => {
               animationType="slide"
               onRequestClose={() => setInterestPickerVisible(false)}
             >
-              <SafeAreaView style={styles.interestsModalSafeArea} edges={['top']}>
-                <View style={styles.interestsModalHeader}>
-                  <View style={styles.interestsHeaderRow}>
-                    <Pressable
-                      onPress={() => setInterestPickerVisible(false)}
-                      style={({ pressed }) => pressed && { opacity: 0.7 }}
-                    >
-                      <Text style={styles.interestsHeaderAction}>✕</Text>
-                    </Pressable>
-                    <Text style={styles.interestsModalTitle}>Interests</Text>
-                    <Pressable
-                      onPress={() => setInterestPickerVisible(false)}
-                      style={({ pressed }) => pressed && { opacity: 0.7 }}
-                    >
-                      <Text style={styles.interestsHeaderAction}>Done</Text>
-                    </Pressable>
-                  </View>
-                  <Text style={styles.interestsModalSubtitle}>
-                    {selectedInterests.length} of {MAX_INTERESTS}
-                  </Text>
-                  {selectedInterests.length ? (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.interestsSelectedScroller}
-                    >
-                      {selectedInterests.map((interest) => (
-                        <View
-                          key={interest}
-                          style={[
-                            styles.interestChip,
-                            styles.interestChipActive,
-                            styles.interestsSelectedChip,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.interestChipLabel,
-                              styles.interestChipLabelActive,
-                            ]}
-                          >
-                            {interest}
-                          </Text>
-                        </View>
-                      ))}
-                    </ScrollView>
-                  ) : null}
-                </View>
-                <ScrollView
-                  contentContainerStyle={styles.interestsModalContent}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {INTEREST_CATEGORIES.map((category) => (
-                    <View key={category.title} style={styles.interestsCategory}>
-                      <Text style={styles.interestsCategoryTitle}>{category.title}</Text>
-                      <View style={styles.interestsChipsRow}>
-                        {category.items.map((item) => {
-                          const active = selectedInterests.includes(item);
-                          return (
-                            <Pressable
-                              key={item}
-                              onPress={() => handleToggleInterest(item)}
-                              style={[
-                                styles.interestChip,
-                                active && styles.interestChipActive,
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.interestChipLabel,
-                                  active && styles.interestChipLabelActive,
-                                ]}
-                              >
-                                {item}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  ))}
-                </ScrollView>
+              <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+                <InterestsPickerScreen
+                  selectedInterests={selectedInterests}
+                  maxInterests={MAX_INTERESTS}
+                  onChange={(next) => {
+                    setSelectedInterests(next);
+                    setInterestsText(next.join(', '));
+                  }}
+                  onDone={() => setInterestPickerVisible(false)}
+                />
               </SafeAreaView>
             </Modal>
 

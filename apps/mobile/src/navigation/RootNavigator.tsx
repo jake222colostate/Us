@@ -19,6 +19,7 @@ import QuizScreen from '../screens/quiz/QuizScreen';
 import QuizResultsScreen from '../screens/quiz/QuizResultsScreen';
 import PostScreen from '../screens/post/PostScreen';
 import MyQuizBuilderScreen from '../screens/quiz/MyQuizBuilderScreen';
+import UpgradePlanScreen from '../screens/subscription/UpgradePlanScreen';
 import {
   selectIsAuthenticated,
   selectVerificationStatus,
@@ -104,6 +105,7 @@ export type RootStackParamList = {
         summary?: { score: number | null; maxScore: number | null; title: string };
       }
     | undefined;
+  UpgradePlan: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -273,6 +275,13 @@ export default function RootNavigator() {
             component={QuizResultsScreen}
             options={{
               title: 'Quiz results',
+            }}
+          />
+          <RootStack.Screen
+            name="UpgradePlan"
+            component={UpgradePlanScreen}
+            options={{
+              title: 'Upgrade account',
             }}
           />
           <RootStack.Screen

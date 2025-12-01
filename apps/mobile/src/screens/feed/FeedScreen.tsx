@@ -25,6 +25,7 @@ import { likeUser } from '../../api/likes';
 import { useNavigation } from '@react-navigation/native';
 import type { Gender } from '@us/types';
 import { fetchLiveNow, type LiveNowItem } from '../../api/livePosts';
+import SubscriptionCTA from '../../components/subscription/SubscriptionCTA';
 
 type FeedProfile = {
   id: string;
@@ -53,6 +54,7 @@ const createStyles = (palette: AppPalette) =>
       paddingHorizontal: 20,
       paddingTop: 12,
       paddingBottom: 8,
+      gap: 8,
     },
     title: {
       color: palette.textPrimary,
@@ -62,6 +64,9 @@ const createStyles = (palette: AppPalette) =>
     subtitle: {
       marginTop: 6,
       color: palette.muted,
+    },
+    subscriptionCtaWrapper: {
+      marginTop: 4,
     },
     footerSpacing: { height: 32 },
     errorText: {
@@ -312,6 +317,9 @@ export default function FeedScreen() {
               <Text style={styles.subtitle}>
                 Only approved photos appear here so you can browse safely.
               </Text>
+              <View style={styles.subscriptionCtaWrapper}>
+                <SubscriptionCTA location="feed" />
+              </View>
             </View>
           </View>
         }

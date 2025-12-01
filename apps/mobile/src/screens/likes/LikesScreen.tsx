@@ -225,9 +225,30 @@ export default function LikesScreen() {
           loading ? (
             <ActivityIndicator style={styles.loader} color={palette.accent} />
           ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Keep posting, There's Someone for Everyone</Text>
-              <Text style={styles.emptyCopy}>When someone hearts your photos, you’ll see them here.</Text>
+            <View style={[styles.emptyState, styles.emptyUpsell]}>
+              <Text style={styles.emptyTitle}>No likes yet</Text>
+              <Text style={styles.emptyCopy}>Upgrade to get seen by more people.</Text>
+
+              <View style={styles.planGrid}>
+                <View style={styles.planCard}>
+                  <Text style={styles.planName}>Premium – $8/month</Text>
+                  <Text style={styles.planBullet}>• 3 Live Posts per day</Text>
+                  <Text style={styles.planBullet}>• 10 Feed Posts per day</Text>
+                  <Text style={styles.planBullet}>• More visibility than free</Text>
+                </View>
+
+                <View style={[styles.planCard, styles.planCardHighlight]}>
+                  <View style={styles.planHeaderRow}>
+                    <Text style={styles.planName}>Elite – $20/month</Text>
+                    <Text style={styles.planBadge}>Most popular</Text>
+                  </View>
+                  <Text style={styles.planBullet}>• 10 Live Posts per day</Text>
+                  <Text style={styles.planBullet}>• Up to 50 Feed Posts per day</Text>
+                  <Text style={styles.planBullet}>• Top visibility priority</Text>
+                </View>
+              </View>
+
+              <SubscriptionCTA location="likes" />
             </View>
           )
         }
@@ -397,6 +418,9 @@ const createStyles = (palette: AppPalette) =>
       gap: 8,
       width: '100%',
     },
+    emptyUpsell: {
+      gap: 16,
+    },
     emptyTitle: {
       color: palette.textPrimary,
       fontSize: 20,
@@ -406,5 +430,46 @@ const createStyles = (palette: AppPalette) =>
       color: palette.muted,
       textAlign: 'left',
       lineHeight: 20,
+    },
+    planGrid: {
+      width: '100%',
+      gap: 12,
+    },
+    planCard: {
+      width: '100%',
+      backgroundColor: palette.card,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: palette.border,
+      gap: 4,
+    },
+    planCardHighlight: {
+      borderColor: palette.accent,
+    },
+    planHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    planName: {
+      color: palette.textPrimary,
+      fontWeight: '700',
+      fontSize: 16,
+    },
+    planBullet: {
+      color: palette.textSecondary,
+      fontSize: 14,
+    },
+    planBadge: {
+      backgroundColor: palette.accent,
+      color: palette.onAccent,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+      fontSize: 11,
+      fontWeight: '700',
+      overflow: 'hidden',
     },
   });

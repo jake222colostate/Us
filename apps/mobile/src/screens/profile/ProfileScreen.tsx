@@ -20,6 +20,7 @@ import { selectCurrentUser, useAuthStore } from '../../state/authStore';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { useToast } from '../../providers/ToastProvider';
+import SubscriptionCTA from '../../components/subscription/SubscriptionCTA';
 
 const PLACEHOLDER_BIO = 'Share a short bio so matches know a little about you.';
 
@@ -228,6 +229,8 @@ const ProfileScreen: React.FC = () => {
             <Text style={styles.secondaryButtonLabel}>Edit Quiz</Text>
           </Pressable>
         </View>
+
+        <SubscriptionCTA location="profile" />
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>

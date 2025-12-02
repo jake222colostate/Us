@@ -173,11 +173,12 @@ async function hydrateSession(
     return;
   }
 
+  // Mark as authenticated, but don't show the main app until profile + verification are loaded
   set((state) => ({
     ...state,
     session,
     isAuthenticated: true,
-    isInitialized: true,
+    isInitialized: false,
   }));
 
   try {

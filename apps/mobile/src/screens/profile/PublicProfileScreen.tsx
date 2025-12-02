@@ -10,6 +10,7 @@ import { isTableMissingError, logTableMissingWarning } from '../../api/postgrest
 import { useMatchesStore } from '../../state/matchesStore';
 import { useAuthStore, selectSession, selectIsAuthenticated } from '../../state/authStore';
 import { likeUser } from '../../api/likes';
+import { listUserPosts, type Post } from '../../api/posts';
 
 export type PublicProfileRoute = RouteProp<RootStackParamList, 'ProfileDetail'>;
 
@@ -169,6 +170,7 @@ const PublicProfileScreen: React.FC = () => {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
@@ -198,6 +200,10 @@ const PublicProfileScreen: React.FC = () => {
         const rows = (photosData ?? []) as PhotoRow[];
         const signed = await mapPhotoRows(rows);
         setPhotos(signed.map((photo) => photo.url).filter((url): url is string => Boolean(url)));
+
+        const userPosts = await listUserPosts(userId);
+        setPosts(userPosts);
+
         const { data: quizData, error: quizError } = await client
           .from('quizzes')
           .select('id')
@@ -288,7 +294,7 @@ const PublicProfileScreen: React.FC = () => {
     );
   }
 
-  const heroPhoto = profile.avatar_url ?? photos[0] ?? null;
+  const heroPhoto = profile.avatar_url ?? photos[0] ?? (posts[0]?.photo_url ?? null);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -337,12 +343,24 @@ const PublicProfileScreen: React.FC = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Gallery</Text>
-        {photos.length ? (
+        {posts.length ? (
           <View style={styles.grid}>
-            {photos.map((uri) => (
-              <View key={uri} style={styles.gridItem}>
-                <Image source={{ uri }} style={styles.gridImage} />
-              </View>
+            {posts.map((post) => (
+              <Pressable
+                key={post.id}
+                style={styles.gridItem}
+                accessibilityRole="button"
+                onPress={() =>
+                  navigation.navigate('PostDetail', {
+                    postId: post.id,
+                    photoUrl: post.photo_url,
+                    ownerId: post.user_id,
+                    caption: post.caption ?? null,
+                  })
+                }
+              >
+                <Image source={{ uri: post.photo_url }} style={styles.gridImage} />
+              </Pressable>
             ))}
           </View>
         ) : (

@@ -160,10 +160,10 @@ export default function FeedScreen() {
   const { profiles, loading, refreshing, loadMore, refresh, hasMore } =
     usePagedFeed(isAuthenticated && !!session);
 
-  const [likedUserIds, setLikedUserIds] = useState<Set<string>>(new Set());
-  const [likingUserIds, setLikingUserIds] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
+  const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
+  const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
   const [liveNow, setLiveNow] = useState<LiveNowItem[]>([]);
 
   const genderPreference: 'everyone' | 'women' | 'men' | 'nonbinary' =
@@ -228,30 +228,39 @@ export default function FeedScreen() {
   }, [refresh, loadLiveNow]);
 
   const handleLike = useCallback(
-    async (toUserId: string, postId: string | null) => {
-      if (!session) {
-        Alert.alert('Sign in required', 'Create an account to like profiles.');
-        return;
-      }
-      if (likedUserIds.has(toUserId) || likingUserIds.has(toUserId)) return;
-      setLikingUserIds((prev) => new Set([...prev, toUserId]));
-      try {
-        await likeUser(session.user.id, toUserId, { postId });
-        setLikedUserIds((prev) => new Set([...prev, toUserId]));
-        show('Like sent!');
-      } catch (err) {
-        console.error(err);
-        Alert.alert('Unable to like', 'Please try again in a moment.');
-      } finally {
-        setLikingUserIds((prev) => {
-          const next = new Set(prev);
-          next.delete(toUserId);
-          return next;
-        });
-      }
-    },
-    [session, likedUserIds, likingUserIds, show],
-  );
+  async (postId: string | null, toUserId: string) => {
+    if (!session) {
+      Alert.alert('Sign in required', 'Create an account to like profiles.');
+      return;
+    }
+    if (!postId) {
+      Alert.alert('Missing post', 'This post is no longer available.');
+      return;
+    }
+    if (likedPostIds.has(postId) || likingPostIds.has(postId)) return;
+
+    setLikingPostIds((prev) => new Set([...prev, postId]));
+    try {
+      console.log('❤️ handleLike', { postId, toUserId });
+      console.log('📸 Like pressed');
+      if (!postId || postId === 'undefined') { console.warn('⚠️ Skipping like: invalid postId', postId); return; }
+      await likeUser(session.user.id, toUserId, { postId });
+      setLikedPostIds((prev) => new Set([...prev, postId]));
+      show('Like sent!');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Unable to like', 'Please try again in a moment.');
+    } finally {
+      setLikingPostIds((prev) => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
+    }
+  },
+  [session, likedPostIds, likingPostIds, show],
+);
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -259,7 +268,7 @@ export default function FeedScreen() {
 
       <FlatList
         data={visibleProfiles}
-        keyExtractor={(item, index) => `${item.id}:${index}`}
+        keyExtractor={(item, index) => `${item.postId ?? index}`}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -345,12 +354,12 @@ export default function FeedScreen() {
         renderItem={({ item, index }) => (
           <Card
             name={item.name ?? 'Member'}
-            bio={item.bio}
+            bio={item.caption ?? item.bio}
             avatar={item.avatar ?? item.photo}
             photo={item.photo}
-            onLike={() => handleLike(item.id, item.postId ?? null)}
-            liked={likedUserIds.has(item.id)}
-            liking={likingUserIds.has(item.id)}
+            onLike={() => handleLike(item.postId ?? null, item.id)}
+            liked={likedPostIds.has(item.postId ?? '')}
+            liking={likingPostIds.has(item.postId ?? '')}
             onCompare={() =>
               navigation.navigate('Compare', {
                 profile: {

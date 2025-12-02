@@ -1,3 +1,4 @@
+import SubscriptionCTA from '../../components/subscription/SubscriptionCTA';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,

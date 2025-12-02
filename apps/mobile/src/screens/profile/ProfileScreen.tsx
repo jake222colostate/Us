@@ -169,7 +169,21 @@ const ProfileScreen: React.FC = () => {
           isRemoving && styles.photoItemRemoving,
         ]}
       >
-        <Image source={{ uri: item.photo_url }} style={styles.photo} />
+        <Pressable
+          accessibilityRole="button"
+          style={styles.photoPressable}
+          onPress={() =>
+            navigation.navigate('PostDetail', {
+              postId: item.id,
+              photoUrl: item.photo_url,
+              ownerId: item.user_id,
+              caption: item.caption ?? null,
+            })
+          }
+          disabled={isRemoving}
+        >
+          <Image source={{ uri: item.photo_url }} style={styles.photo} />
+        </Pressable>
         <Pressable
           accessibilityLabel="Delete photo"
           accessibilityRole="button"
@@ -376,6 +390,9 @@ function createStyles(palette: AppPalette) {
     },
     photosLoader: {
       paddingVertical: 12,
+    },
+    photoPressable: {
+      flex: 1,
     },
     photoRow: {
       justifyContent: 'space-between',

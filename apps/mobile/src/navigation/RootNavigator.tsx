@@ -18,6 +18,7 @@ import PublicProfileScreen from '../screens/profile/PublicProfileScreen';
 import QuizScreen from '../screens/quiz/QuizScreen';
 import QuizResultsScreen from '../screens/quiz/QuizResultsScreen';
 import PostScreen from '../screens/post/PostScreen';
+import PostDetailScreen from '../screens/post/PostDetailScreen';
 import MyQuizBuilderScreen from '../screens/quiz/MyQuizBuilderScreen';
 import UpgradePlanScreen from '../screens/subscription/UpgradePlanScreen';
 import {
@@ -81,6 +82,14 @@ export type RootStackParamList = {
     | undefined;
   Settings: undefined;
   Post: { mode?: 'live' | 'take' | 'upload' } | undefined;
+  PostDetail:
+    | {
+        postId: string;
+        photoUrl: string;
+        ownerId: string;
+        caption?: string | null;
+      }
+    | undefined;
   ProfileDetail: { userId: string };
   EditProfile: undefined;
   MyQuizBuilder: undefined;
@@ -105,7 +114,7 @@ export type RootStackParamList = {
         summary?: { score: number | null; maxScore: number | null; title: string };
       }
     | undefined;
-  UpgradePlan: undefined;
+  UpgradePlan: { resetAt?: string } | undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -240,6 +249,13 @@ export default function RootNavigator() {
             component={PostScreen}
             options={{
               title: 'Share a photo',
+            }}
+          />
+          <RootStack.Screen
+            name="PostDetail"
+            component={PostDetailScreen}
+            options={{
+              title: 'Photo',
             }}
           />
           <RootStack.Screen

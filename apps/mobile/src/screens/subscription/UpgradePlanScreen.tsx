@@ -1,8 +1,12 @@
 import React, { useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 import { spacing } from '../../theme/spacing';
+import SubscriptionCTA from '../../components/subscription/SubscriptionCTA';
 import { useSubscriptionStatus, type SubscriptionPlanId } from '../../hooks/useSubscriptionStatus';
 import { startManageSubscription, startUpgradeFlow } from '../../lib/subscriptionActions';
 
@@ -19,14 +23,14 @@ const plans: {
     title: 'Premium',
     price: '$8 / month',
     tagline: 'Boost your visibility',
-    bullets: ['3 Live Posts per day', '10 Feed Posts per day', 'Increased visibility vs free users'],
+    bullets: ['3 Live Posts every 5 hours', '10 Feed Posts per day', 'Increased visibility vs free users'],
   },
   {
     id: 'pro',
     title: 'Elite',
     price: '$20 / month',
     tagline: 'Maximum exposure',
-    bullets: ['10 Live Posts per day', 'Up to 50 Feed Posts per day', 'Top visibility priority'],
+    bullets: ['10 Live Posts every 5 hours', 'Up to 50 Feed Posts per day', 'Top visibility priority'],
     badge: 'Most popular',
   },
 ];
@@ -35,6 +39,20 @@ export default function UpgradePlanScreen() {
   const palette = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const { planId, planLabel, isPaid } = useSubscriptionStatus();
+  const route = useRoute<RouteProp<RootStackParamList, 'UpgradePlan'>>();
+  const resetAt = (route.params as any)?.resetAt as string | undefined;
+
+  const nextPostMsg = useMemo(() => {
+    if (!resetAt) return null;
+    const ts = Date.parse(resetAt);
+    if (!Number.isFinite(ts)) return null;
+    const diffMs = ts - Date.now();
+    if (diffMs <= 0) return null;
+    const h = Math.floor(diffMs / 3600000);
+    const m = Math.floor((diffMs % 3600000) / 60000);
+    const s = Math.floor((diffMs % 60000) / 1000);
+    return `Post Again In: ${h}h ${m}m ${s}s`;
+  }, [resetAt]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -44,6 +62,12 @@ export default function UpgradePlanScreen() {
           <Text style={styles.title}>Upgrade your account</Text>
           <Text style={styles.subtitle}>Get more visibility and more posts per day.</Text>
         </View>
+
+        {nextPostMsg && (
+          <View style={styles.nextPostBanner}>
+            <Text style={styles.nextPostLabel}>{nextPostMsg}</Text>
+          </View>
+        )}
 
         <View style={styles.cardsWrapper}>
           {plans.map((plan) => {
@@ -89,9 +113,7 @@ export default function UpgradePlanScreen() {
 
         {isPaid ? (
           <View style={styles.manageRow}>
-            <Text style={styles.manageLink} onPress={startManageSubscription}>
-              Manage subscription
-            </Text>
+            <SubscriptionCTA location="profile" />
           </View>
         ) : null}
       </ScrollView>
@@ -130,6 +152,19 @@ function createStyles(palette: AppPalette) {
       borderRadius: 999,
       color: palette.accent,
       fontWeight: '700',
+    },
+    nextPostBanner: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: 999,
+      backgroundColor: '#991b1b',
+      alignSelf: 'center',
+      marginBottom: spacing.sm,
+    },
+    nextPostLabel: {
+      color: '#fee2e2',
+      fontWeight: '700',
+      textAlign: 'center',
     },
     cardsWrapper: {
       gap: spacing.lg,
@@ -193,10 +228,8 @@ function createStyles(palette: AppPalette) {
       marginTop: spacing.sm,
     },
     ctaButton: {
-      textAlign: 'center',
       paddingVertical: spacing.md,
       borderRadius: 14,
-      fontWeight: '700',
       overflow: 'hidden',
     },
     ctaButtonActive: {
@@ -216,6 +249,8 @@ function createStyles(palette: AppPalette) {
     ctaLabel: {
       color: palette.onAccent,
       fontWeight: '700',
+      textAlign: 'center',
+      width: '100%',
     },
     ctaLabelDisabled: {
       color: palette.muted,

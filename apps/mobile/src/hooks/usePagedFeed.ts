@@ -7,6 +7,7 @@ export type FeedProfile = {
   postId: string | null;
   name: string | null;
   bio: string | null;
+  caption: string | null;
   avatar: string | null;
   photo: string | null;
   gender: Gender | null;
@@ -28,7 +29,8 @@ export function usePagedFeed(enabled: boolean) {
       postId: r.id ?? null,
       name: r.owner_display_name ?? null,
       bio: r.owner_bio ?? null,
-      avatar: r.owner_avatar_url ?? null,
+      caption: r.caption ?? null,
+      avatar: (r.owner_avatar_url ?? r.avatar_url ?? null),
       photo: r.photo_url ?? null,
       gender: (r.owner_gender as Gender | null) ?? null,
     }));

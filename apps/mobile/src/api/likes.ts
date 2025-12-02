@@ -14,6 +14,24 @@ type LikeResult = {
   matchId?: string;
 };
 
+
+// ⛔ enforce like/compare daily limits before inserting
+async function checkUserLikeLimits(userId: string, source: 'feed' | 'compare'): Promise<boolean> {
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc('get_user_daily_post_limits', { p_user_id: userId });
+  if (error) { console.warn('[limit-check] failed', error); return true; }
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) return true;
+  const remaining = source === 'compare' ? row.compare_posts_remaining : row.likes_remaining;
+  if (remaining <= 0) {
+    const msg = source === 'compare'
+      ? 'You have used all your comparison posts for now. Try again later or upgrade your plan.'
+      : 'You have used all your daily likes. Try again later or upgrade your plan.';
+    throw new Error(msg);
+  }
+  return true;
+}
+
 export async function likeUser(
   fromUserId: string,
   toUserId: string,
@@ -21,17 +39,25 @@ export async function likeUser(
 ): Promise<LikeResult> {
   const client = getSupabaseClient();
 
-  // 🔒 Never send self-likes to the backend (UI can still toggle the heart).
+  const postId = options?.postId ?? null;
+
+  // 🔒 Never send self-likes or invalid IDs to the backend.
+  if (!fromUserId || !toUserId) {
+    console.warn('⚠️ likeUser called with missing IDs', { fromUserId, toUserId, postId });
+    return { matchCreated: false };
+  }
   if (fromUserId === toUserId) {
     return { matchCreated: false };
   }
+
+  console.log('📸 likeUser inserting', { fromUserId, toUserId, postId, source: options?.source });
 
   const { error: likeError } = await client
     .from('likes')
     .insert({
       from_user: fromUserId,
       to_user: toUserId,
-      post_id: options?.postId ?? null,
+      post_id: postId,
       kind: options?.kind ?? 'like',
       source: options?.source ?? 'feed',
       compare_left_url: options?.compareLeftUrl ?? null,
@@ -94,4 +120,16 @@ export async function likeUser(
     matchCreated: true,
     matchId: (matchRow as { id: string } | null)?.id ?? undefined,
   };
+}
+
+export async function getPostLikeStatus(postId: string): Promise<boolean> {
+  if (!postId) return false;
+  const client = getSupabaseClient();
+  const { data, error } = await client.rpc('get_post_like_status', { p_post_id: postId });
+  if (error) {
+    console.warn('[getPostLikeStatus] failed', error);
+    return false;
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  return !!row?.liked;
 }

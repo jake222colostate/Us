@@ -14,6 +14,7 @@ type CreatePostArgs = {
   userId: string;
   photoUrl: string;
   storagePath?: string | null;
+  caption?: string | null;
 };
 
 function mapPostRow(row: Record<string, unknown>): Post {
@@ -27,9 +28,12 @@ function mapPostRow(row: Record<string, unknown>): Post {
   };
 }
 
-export async function createPost({ userId, photoUrl, storagePath }: CreatePostArgs): Promise<void> {
+export async function createPost({ userId, photoUrl, storagePath, caption }: CreatePostArgs): Promise<void> {
   const client = getSupabaseClient();
   const payload: Record<string, unknown> = { user_id: userId, photo_url: photoUrl };
+  if (typeof caption !== 'undefined') {
+    payload.caption = caption;
+  }
   if (storagePath) {
     payload.storage_path = storagePath;
   }

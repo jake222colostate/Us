@@ -1,7 +1,16 @@
-import { getSupabaseClient } from '../../api/supabase';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+  Image,
+} from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import { getSupabaseClient } from '../../api/supabase';
 import { useIdentityVerification } from '../../hooks/useIdentityVerification';
 import { selectVerificationStatus, useAuthStore } from '../../state/authStore';
 import { useThemeStore } from '../../state/themeStore';
@@ -9,7 +18,26 @@ import { useAppTheme, type AppPalette } from '../../theme/palette';
 
 const APP_VERSION = '1.0.0';
 
+const statusCopy: Record<string, string> = {
+  unverified: 'Verify your identity to unlock photo uploads and advanced filters.',
+  pending: 'Your documents are under review. We will notify you once they clear.',
+  verified: 'You are verified! Matches will see your badge.',
+  rejected: 'Your last verification attempt was rejected. Try again with clearer photos.',
+};
+
 export default function SettingsScreen() {
+  const palette = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
+  const isDarkMode = useThemeStore((state) => state.isDarkMode);
+  const setDarkMode = useThemeStore((state) => state.setDarkMode);
+
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [privacyEnabled, setPrivacyEnabled] = useState(false);
+
+  const verificationStatus = useAuthStore(selectVerificationStatus);
+  const { beginVerification, isLoading, error } = useIdentityVerification();
+  const user = useAuthStore((state) => state.user);
 
   const handleLogout = async () => {
     try {
@@ -29,18 +57,6 @@ export default function SettingsScreen() {
     }
   };
 
-
-  const palette = useAppTheme();
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const isDarkMode = useThemeStore((state) => state.isDarkMode);
-  const setDarkMode = useThemeStore((state) => state.setDarkMode);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [privacyEnabled, setPrivacyEnabled] = useState(false);
-  const verificationStatus = useAuthStore(selectVerificationStatus);
-  const { beginVerification, isLoading, error } = useIdentityVerification();
-
-  const user = useAuthStore((state) => state.user);
-
   const handleOpenLink = async (url: string) => {
     try {
       await WebBrowser.openBrowserAsync(url);
@@ -53,28 +69,40 @@ export default function SettingsScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Settings</Text>
 
+      {/* Identity verification */}
       <View style={styles.section}>
-          <View style={styles.rowBetween}>
-            <View>
-              <Text style={styles.sectionHeader}>Identity verification</Text>
-              <Text style={styles.sectionCopy}>
-                {statusCopy[verificationStatus] ?? statusCopy.unverified}
-              </Text>
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            </View>
-            {isLoading ? <ActivityIndicator color={palette.textPrimary} /> : null}
+        <View style={styles.rowBetween}>
+          <View>
+            <Text style={styles.sectionHeader}>Identity verification</Text>
+            <Text style={styles.sectionCopy}>
+              {statusCopy[verificationStatus] ?? statusCopy.unverified}
+            </Text>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={beginVerification}
-          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-        >
-          <Text style={styles.buttonLabel}>
-            {verificationStatus === 'verified' ? 'Verified' : 'Verify my identity'}
-          </Text>
-        </Pressable>
+          {isLoading ? <ActivityIndicator color={palette.textPrimary} /> : null}
+        </View>
+
+        {verificationStatus === 'verified' ? (
+          user?.avatar ? (
+            <View style={styles.identityAvatarBlock}>
+              <Image source={{ uri: user.avatar }} style={styles.identityAvatar} />
+              <Text style={styles.identityCaption}>
+                This is the photo you used to verify your identity.
+              </Text>
+            </View>
+          ) : null
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={beginVerification}
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.buttonLabel}>Verify my identity</Text>
+          </Pressable>
+        )}
       </View>
 
+      {/* Appearance */}
       <View style={[styles.section, styles.sectionSpacing]}>
         <Text style={styles.sectionHeader}>Appearance</Text>
         <View style={styles.row}>
@@ -88,6 +116,7 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Notifications */}
       <View style={[styles.section, styles.sectionSpacing]}>
         <Text style={styles.sectionHeader}>Notifications</Text>
         <View style={styles.row}>
@@ -99,9 +128,12 @@ export default function SettingsScreen() {
             thumbColor={notificationsEnabled ? '#f8fafc' : '#64748b'}
           />
         </View>
-        <Text style={styles.sectionCopy}>Notifications are not hooked up yet but will be soon.</Text>
+        <Text style={styles.sectionCopy}>
+          Notifications are not hooked up yet but will be soon.
+        </Text>
       </View>
 
+      {/* Privacy */}
       <View style={[styles.section, styles.sectionSpacing]}>
         <Text style={styles.sectionHeader}>Privacy</Text>
         <View style={styles.row}>
@@ -115,6 +147,7 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Legal */}
       <View style={[styles.section, styles.sectionSpacing]}>
         <Text style={styles.sectionHeader}>Legal</Text>
         <Pressable
@@ -135,6 +168,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
+      {/* About */}
       <View style={[styles.section, styles.sectionSpacing]}>
         <Text style={styles.sectionHeader}>About</Text>
         <View style={styles.rowBetween}>
@@ -148,34 +182,21 @@ export default function SettingsScreen() {
           </View>
         </View>
       </View>
-    
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleLogout}
-          style={({ pressed }) => [
-            {
-              marginTop: 24,
-              paddingVertical: 14,
-              borderRadius: 999,
-              backgroundColor: '#ef4444',
-              alignItems: 'center',
-            },
-            pressed && { opacity: 0.85 },
-          ]}
-        >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>Log out</Text>
-        </Pressable>
 
-</ScrollView>
+      {/* Logout */}
+      <Pressable
+        accessibilityRole="button"
+        onPress={handleLogout}
+        style={({ pressed }) => [
+          styles.logoutButton,
+          pressed && styles.logoutButtonPressed,
+        ]}
+      >
+        <Text style={styles.logoutLabel}>Log out</Text>
+      </Pressable>
+    </ScrollView>
   );
 }
-
-const statusCopy: Record<string, string> = {
-  unverified: 'Verify your identity to unlock photo uploads and advanced filters.',
-  pending: 'Your documents are under review. We will notify you once they clear.',
-  verified: 'You are verified! Matches will see your badge.',
-  rejected: 'Your last verification attempt was rejected. Try again with clearer photos.',
-};
 
 const createStyles = (palette: AppPalette) =>
   StyleSheet.create({
@@ -251,6 +272,23 @@ const createStyles = (palette: AppPalette) =>
       marginTop: 8,
       fontWeight: '600',
     },
+    identityAvatarBlock: {
+      marginTop: 16,
+      alignItems: 'center',
+    },
+    identityAvatar: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      borderWidth: 2,
+      borderColor: palette.accent,
+    },
+    identityCaption: {
+      marginTop: 8,
+      color: palette.muted,
+      fontSize: 13,
+      textAlign: 'center',
+    },
     linkRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -277,5 +315,19 @@ const createStyles = (palette: AppPalette) =>
       color: palette.textPrimary,
       fontWeight: '600',
       marginTop: 4,
+    },
+    logoutButton: {
+      marginTop: 24,
+      paddingVertical: 14,
+      borderRadius: 999,
+      backgroundColor: '#ef4444',
+      alignItems: 'center',
+    },
+    logoutButtonPressed: {
+      opacity: 0.85,
+    },
+    logoutLabel: {
+      color: '#fff',
+      fontWeight: '700',
     },
   });

@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -46,6 +47,7 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
   const [status, setStatus] = useState<ModerationStatus | null>(null);
   const [postKind, setPostKind] = useState<'live' | 'regular'>('regular');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [caption, setCaption] = useState('');
   const [hasAutoLaunched, setHasAutoLaunched] = useState(false);
   const createdAtRef = useRef<string | null>(null);
 
@@ -55,6 +57,7 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
     setStoragePath(null);
     setStatus(null);
     setPostKind('regular');
+    setCaption('');
     createdAtRef.current = null;
   }, []);
 
@@ -268,6 +271,68 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
       return;
     }
 
+
+    // ⛔ Check posting limits before publishing
+    const client = getSupabaseClient();
+    try {
+      const { data: limits, error: limitsErr } = await client.rpc(
+        'get_user_daily_post_limits',
+        { p_user_id: session.user.id },
+      );
+
+      if (limitsErr) {
+        console.warn('⚠️ Failed to fetch limits', limitsErr);
+      } else if (Array.isArray(limits) && limits.length > 0) {
+        const lim = limits[0];
+
+        const remainingRaw =
+          postKind === 'live'
+            ? lim.live_posts_remaining
+            : lim.feed_posts_remaining;
+        const maxRaw =
+          postKind === 'live'
+            ? lim.max_live_posts_per_day
+            : lim.max_feed_posts_per_day;
+        const resetAt =
+          postKind === 'live'
+            ? lim.next_live_reset_at
+            : lim.next_feed_reset_at;
+
+        const remaining = parseInt(remainingRaw ?? '-1', 10);
+        const max = parseInt(maxRaw ?? '0', 10);
+
+        // Only trigger if we have valid numeric limits and remaining is actually 0 or less
+        const shouldBlock = !isNaN(max) && max > 0 && !isNaN(remaining) && remaining <= 0;
+
+        if (
+          Number.isFinite(max) &&
+          max > 0 &&
+          Number.isFinite(remaining) &&
+          remaining <= 0
+        ) {
+          if (resetAt) {
+            const resetInMs = new Date(resetAt).getTime() - Date.now();
+            const safeMs = resetInMs > 0 ? resetInMs : 0;
+            const hours = Math.floor(safeMs / 3600000);
+            const mins = Math.floor((safeMs % 3600000) / 60000);
+            const secs = Math.floor((safeMs % 60000) / 1000);
+
+            show(
+              `Upgrade Account to post more.\nNext post opens in ${hours}h ${mins}m ${secs}s.`,
+            );
+          } else {
+            show(
+              'Upgrade Account to post more. You have used today’s posting limit.',
+            );
+          }
+          navigation.navigate('UpgradePlan' as never, { resetAt } as never);
+          return;
+        }
+      }
+    } catch (limitErr) {
+      console.warn('Error checking limits', limitErr);
+    }
+
     setIsPublishing(true);
     try {
       if (postKind === 'live') {
@@ -283,6 +348,7 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
           userId: session.user.id,
           photoUrl: hostedUri,
           storagePath,
+          caption: caption?.trim() ? caption.trim() : null,
         });
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['feed'] }),
@@ -371,6 +437,20 @@ const PostScreen: React.FC<Props> = ({ route, navigation }) => {
                     <Text style={styles.uploadingLabel}>Uploading…</Text>
                   </View>
                 )}
+              </View>
+
+              <View style={styles.captionContainer}>
+                <Text style={styles.captionLabel}>Caption</Text>
+                <TextInput
+                  style={styles.captionInput}
+                  placeholder="Add a caption (optional)"
+                  placeholderTextColor="#9ca3af"
+                  value={caption}
+                  onChangeText={setCaption}
+                  maxLength={180}
+                  multiline
+                />
+                <Text style={styles.captionCounter}>{caption.length}/180</Text>
               </View>
 
                         <Pressable
@@ -518,6 +598,30 @@ backgroundColor: palette.background,
       fontWeight: 'bold',
       fontSize: 14,
     },
+    captionContainer: {
+      marginBottom: 8,
+      gap: 6,
+    },
+    captionLabel: {
+      color: '#e5e7eb',
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    captionInput: {
+      minHeight: 60,
+      maxHeight: 120,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: '#020617',
+      color: '#f9fafb',
+      textAlignVertical: 'top',
+    },
+    captionCounter: {
+      alignSelf: 'flex-end',
+      color: '#9ca3af',
+      fontSize: 12,
+    },
     ctaButton: {
       marginTop: 8,
       paddingVertical: 14,
@@ -561,7 +665,31 @@ backgroundColor: palette.background,
       fontWeight: '600',
       fontSize: 14,
     },
-  });
+  
+    captionLabel: {
+      color: palette.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    captionInput: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+      color: palette.textPrimary,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      minHeight: 44,
+      textAlignVertical: 'top',
+    },
+    captionCounter: {
+      marginTop: 4,
+      alignSelf: 'flex-end',
+      color: palette.muted,
+      fontSize: 12,
+    },
+});
 }
 
 export default PostScreen;

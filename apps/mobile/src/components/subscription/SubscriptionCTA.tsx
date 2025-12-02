@@ -18,7 +18,7 @@ export default function SubscriptionCTA({ location: _location }: Props) {
   const { planId, planLabel, isPaid } = useSubscriptionStatus();
 
   const isFree = planId === 'free';
-  const buttonLabel = isFree ? 'Upgrade account' : 'Cancel / Downgrade';
+  const buttonLabel = isFree ? 'Cancel/Change Plan' : 'Cancel Subscription';
   const caption = isPaid ? `You’re on ${planLabel}` : null;
 
   const handlePress = () => {

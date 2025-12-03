@@ -19,7 +19,6 @@ async function applyPlan(planCode: SubscriptionPlanId) {
       planCode === 'pro' ? 'Elite' :
       'Free';
 
-    Alert.alert('Plan updated', `You’re now on the ${label} plan.`);
     try {
       const { queryClient } = await import('../state/queryClient');
       queryClient.invalidateQueries({ queryKey: ['subscriptionStatus'] });
@@ -36,7 +35,7 @@ async function applyPlan(planCode: SubscriptionPlanId) {
 
 export function startUpgradeFlow(planId: Exclude<SubscriptionPlanId, 'free'>) {
   const label = planId === 'plus' ? 'Premium' : 'Elite';
-  console.log('[subscription] start upgrade flow', planId);
+  console.log('[subscription] start upgrade flow (dev)', planId);
 
   Alert.alert(
     'Confirm upgrade',
@@ -55,20 +54,6 @@ export function startUpgradeFlow(planId: Exclude<SubscriptionPlanId, 'free'>) {
 }
 
 export function startManageSubscription() {
-  console.log('[subscription] manage (dev cancel/downgrade to free)');
-
-  Alert.alert(
-    'Cancel subscription',
-    'Return to the free plan? You can always upgrade again later.',
-    [
-      { text: 'Keep current plan', style: 'cancel' },
-      {
-        text: 'Downgrade to Free',
-        style: 'destructive',
-        onPress: () => {
-          void applyPlan('free');
-        },
-      },
-    ],
-  );
+  console.log('[subscription] manage subscription: immediate downgrade to free');
+  void applyPlan('free');
 }

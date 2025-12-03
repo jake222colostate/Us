@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRoute } from '@react-navigation/native';
@@ -9,6 +9,18 @@ import { spacing } from '../../theme/spacing';
 import SubscriptionCTA from '../../components/subscription/SubscriptionCTA';
 import { useSubscriptionStatus, type SubscriptionPlanId } from '../../hooks/useSubscriptionStatus';
 import { startManageSubscription, startUpgradeFlow } from '../../lib/subscriptionActions';
+
+const freePlan = {
+  title: 'Free',
+  price: '$0 / month',
+  tagline: 'Core features to get you started',
+  bullets: [
+    '1 Live Post every 24 hours',
+    '3 Feed Posts per day',
+    'Up to 25 Compare Photos per day',
+    'Up to 25 Likes per day',
+  ],
+};
 
 const plans: {
   id: Exclude<SubscriptionPlanId, 'free'>;
@@ -23,14 +35,26 @@ const plans: {
     title: 'Premium',
     price: '$8 / month',
     tagline: 'Boost your visibility',
-    bullets: ['3 Live Posts every 5 hours', '10 Feed Posts per day', 'Increased visibility vs free users'],
+    bullets: [
+      '3 Live Posts every 5 hours',
+      '10 Feed Posts per day',
+      'Up to 100 Compare Photos per day',
+      'Up to 100 Likes per day',
+      'Increased visibility vs Free',
+    ],
   },
   {
     id: 'pro',
     title: 'Elite',
     price: '$20 / month',
     tagline: 'Maximum exposure',
-    bullets: ['10 Live Posts every 5 hours', 'Up to 50 Feed Posts per day', 'Top visibility priority'],
+    bullets: [
+      '10 Live Posts every 5 hours',
+      'Up to 50 Feed Posts per day',
+      'Up to 300 Compare Photos per day',
+      'Up to 300 Likes per day',
+      'Top visibility priority',
+    ],
     badge: 'Most popular',
   },
 ];
@@ -41,6 +65,14 @@ export default function UpgradePlanScreen() {
   const { planId, planLabel, isPaid } = useSubscriptionStatus();
   const route = useRoute<RouteProp<RootStackParamList, 'UpgradePlan'>>();
   const resetAt = (route.params as any)?.resetAt as string | undefined;
+
+  // Local plan state so the button changes immediately when switching
+  const [localPlanId, setLocalPlanId] = useState<SubscriptionPlanId>(planId);
+
+  // Keep local state in sync if backend plan changes
+  useEffect(() => {
+    setLocalPlanId(planId);
+  }, [planId]);
 
   const nextPostMsg = useMemo(() => {
     if (!resetAt) return null;
@@ -54,8 +86,10 @@ export default function UpgradePlanScreen() {
     return `Post Again In: ${h}h ${m}m ${s}s`;
   }, [resetAt]);
 
+  const isFreeCurrent = localPlanId === 'free';
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           {isPaid ? <Text style={styles.currentBadge}>You’re currently on {planLabel}</Text> : null}
@@ -70,10 +104,62 @@ export default function UpgradePlanScreen() {
         )}
 
         <View style={styles.cardsWrapper}>
+          {/* Free plan card */}
+          <View style={[styles.card, styles.freeCard]}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.planTitle}>{freePlan.title}</Text>
+              <Text style={styles.planPrice}>{freePlan.price}</Text>
+              <Text style={styles.planTagline}>{freePlan.tagline}</Text>
+            </View>
+
+            <View style={styles.bulletList}>
+              {freePlan.bullets.map((bullet) => (
+                <Text key={bullet} style={styles.bulletItem}>
+                  • {bullet}
+                </Text>
+              ))}
+            </View>
+
+            <View style={styles.cardFooter}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isFreeCurrent}
+                onPress={() => {
+                  if (!isFreeCurrent) {
+                    // Optimistic update: button changes immediately, muted purple
+                    setLocalPlanId('free');
+                    startManageSubscription();
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.ctaButton,
+                  isFreeCurrent ? styles.ctaButtonDisabled : styles.ctaButtonActive,
+                  pressed && !isFreeCurrent ? styles.ctaButtonPressed : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.ctaLabel,
+                    isFreeCurrent ? styles.ctaLabelDisabled : null,
+                  ]}
+                >
+                  {isFreeCurrent ? 'Current plan' : 'Switch to Free'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Paid plans */}
           {plans.map((plan) => {
-            const isCurrent = planId === plan.id;
+            const isCurrent = localPlanId === plan.id;
             return (
-              <View key={plan.id} style={[styles.card, plan.id === 'pro' ? styles.eliteCard : null]}>
+              <View
+                key={plan.id}
+                style={[
+                  styles.card,
+                  plan.id === 'pro' ? styles.eliteCard : null,
+                ]}
+              >
                 {plan.badge ? <Text style={styles.badge}>{plan.badge}</Text> : null}
                 <View style={styles.cardHeader}>
                   <Text style={styles.planTitle}>{plan.title}</Text>
@@ -93,15 +179,26 @@ export default function UpgradePlanScreen() {
                   <Pressable
                     accessibilityRole="button"
                     disabled={isCurrent}
-                    onPress={() => startUpgradeFlow(plan.id)}
+                    onPress={() => {
+                      if (!isCurrent) {
+                        // Optimistic update: button changes immediately, muted purple
+                        setLocalPlanId(plan.id);
+                        startUpgradeFlow(plan.id);
+                      }
+                    }}
                     style={({ pressed }) => [
                       styles.ctaButton,
                       isCurrent ? styles.ctaButtonDisabled : styles.ctaButtonActive,
-                      plan.id === 'pro' ? styles.ctaElite : null,
+                      plan.id === 'pro' && isCurrent ? styles.ctaElite : null,
                       pressed && !isCurrent ? styles.ctaButtonPressed : null,
                     ]}
                   >
-                    <Text style={[styles.ctaLabel, isCurrent ? styles.ctaLabelDisabled : null]}>
+                    <Text
+                      style={[
+                        styles.ctaLabel,
+                        isCurrent ? styles.ctaLabelDisabled : null,
+                      ]}
+                    >
                       {isCurrent ? 'Current plan' : `Choose ${plan.title}`}
                     </Text>
                   </Pressable>
@@ -184,6 +281,9 @@ function createStyles(palette: AppPalette) {
       overflow: 'hidden',
       gap: spacing.md,
     },
+    freeCard: {
+      borderColor: palette.border,
+    },
     eliteCard: {
       borderColor: palette.accent,
     },
@@ -232,16 +332,16 @@ function createStyles(palette: AppPalette) {
       borderRadius: 14,
       overflow: 'hidden',
     },
+    // Active = bright accent
     ctaButtonActive: {
       backgroundColor: palette.accent,
-      color: palette.onAccent,
+    },
+    // Current plan = muted purple
+    ctaButtonDisabled: {
+      backgroundColor: palette.accentMuted,
     },
     ctaElite: {
       backgroundColor: palette.accentMuted,
-    },
-    ctaButtonDisabled: {
-      backgroundColor: palette.surface,
-      color: palette.muted,
     },
     ctaButtonPressed: {
       opacity: 0.9,
@@ -253,15 +353,11 @@ function createStyles(palette: AppPalette) {
       width: '100%',
     },
     ctaLabelDisabled: {
-      color: palette.muted,
+      color: palette.onAccent,
+      opacity: 0.8,
     },
     manageRow: {
       alignItems: 'center',
-    },
-    manageLink: {
-      color: palette.accent,
-      fontWeight: '700',
-      textDecorationLine: 'underline',
     },
   });
 }

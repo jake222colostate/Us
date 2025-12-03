@@ -24,6 +24,7 @@ export type AuthenticatedUser = {
   interests: string[];
   verificationStatus: VerificationStatus;
   photos: UserPhoto[];
+  idSelfieUrl?: string | null;
 };
 
 type AuthState = {
@@ -116,10 +117,36 @@ async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
     console.error('Failed to load id verification status', verificationError);
   }
 
-  const computedVerificationStatus =
-    (verificationRow?.verification_status as VerificationStatus | null) ??
-    (profileRow.verification_status as VerificationStatus | null) ??
-    'unverified';
+  const rawVerificationStatus =
+    (verificationRow?.verification_status as string | null) ??
+    (profileRow.verification_status as string | null) ??
+    null;
+
+  let computedVerificationStatus: VerificationStatus;
+  switch (rawVerificationStatus) {
+    case 'verified':
+    case 'approved':
+      computedVerificationStatus = 'verified';
+      break;
+    case 'pending':
+      computedVerificationStatus = 'pending';
+      break;
+    case 'rejected':
+      computedVerificationStatus = 'rejected';
+      break;
+    default:
+      computedVerificationStatus = 'unverified';
+      break;
+  }
+
+  // Try to surface the selfie image used for ID verification, if available
+  let idSelfieUrl: string | null = null;
+  if (verificationRow && typeof verificationRow === 'object' && 'selfie_url' in verificationRow) {
+    const raw = (verificationRow as { selfie_url?: string | null }).selfie_url;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      idSelfieUrl = raw.trim();
+    }
+  }
 
   const { data: photoRows, error: photosError } = await client
     .from('photos')
@@ -152,6 +179,7 @@ async function fetchProfile(session: Session): Promise<AuthenticatedUser> {
     interests: Array.isArray(profileRow.interests) ? (profileRow.interests as string[]) : [],
     verificationStatus: computedVerificationStatus,
     photos,
+    idSelfieUrl,
   };
 }
 

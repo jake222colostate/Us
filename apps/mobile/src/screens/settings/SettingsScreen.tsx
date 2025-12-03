@@ -7,7 +7,6 @@ import {
   Switch,
   Text,
   View,
-  Image,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { getSupabaseClient } from '../../api/supabase';
@@ -17,13 +16,6 @@ import { useThemeStore } from '../../state/themeStore';
 import { useAppTheme, type AppPalette } from '../../theme/palette';
 
 const APP_VERSION = '1.0.0';
-
-const statusCopy: Record<string, string> = {
-  unverified: 'Verify your identity to unlock photo uploads and advanced filters.',
-  pending: 'Your documents are under review. We will notify you once they clear.',
-  verified: 'You are verified! Matches will see your badge.',
-  rejected: 'Your last verification attempt was rejected. Try again with clearer photos.',
-};
 
 export default function SettingsScreen() {
   const palette = useAppTheme();
@@ -82,16 +74,7 @@ export default function SettingsScreen() {
           {isLoading ? <ActivityIndicator color={palette.textPrimary} /> : null}
         </View>
 
-        {verificationStatus === 'verified' ? (
-          user?.avatar ? (
-            <View style={styles.identityAvatarBlock}>
-              <Image source={{ uri: user.avatar }} style={styles.identityAvatar} />
-              <Text style={styles.identityCaption}>
-                This is the photo you used to verify your identity.
-              </Text>
-            </View>
-          ) : null
-        ) : (
+        {verificationStatus !== 'verified' && (
           <Pressable
             accessibilityRole="button"
             onPress={beginVerification}
@@ -188,15 +171,28 @@ export default function SettingsScreen() {
         accessibilityRole="button"
         onPress={handleLogout}
         style={({ pressed }) => [
-          styles.logoutButton,
-          pressed && styles.logoutButtonPressed,
+          {
+            marginTop: 24,
+            paddingVertical: 14,
+            borderRadius: 999,
+            backgroundColor: '#ef4444',
+            alignItems: 'center',
+          },
+          pressed && { opacity: 0.85 },
         ]}
       >
-        <Text style={styles.logoutLabel}>Log out</Text>
+        <Text style={{ color: '#fff', fontWeight: '700' }}>Log out</Text>
       </Pressable>
     </ScrollView>
   );
 }
+
+const statusCopy: Record<string, string> = {
+  unverified: 'Verify your identity to unlock photo uploads and advanced filters.',
+  pending: 'Your documents are under review. We will notify you once they clear.',
+  verified: 'You are verified! Matches will see your badge.',
+  rejected: 'Your last verification attempt was rejected. Try again with clearer photos.',
+};
 
 const createStyles = (palette: AppPalette) =>
   StyleSheet.create({
@@ -272,23 +268,6 @@ const createStyles = (palette: AppPalette) =>
       marginTop: 8,
       fontWeight: '600',
     },
-    identityAvatarBlock: {
-      marginTop: 16,
-      alignItems: 'center',
-    },
-    identityAvatar: {
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      borderWidth: 2,
-      borderColor: palette.accent,
-    },
-    identityCaption: {
-      marginTop: 8,
-      color: palette.muted,
-      fontSize: 13,
-      textAlign: 'center',
-    },
     linkRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -315,19 +294,5 @@ const createStyles = (palette: AppPalette) =>
       color: palette.textPrimary,
       fontWeight: '600',
       marginTop: 4,
-    },
-    logoutButton: {
-      marginTop: 24,
-      paddingVertical: 14,
-      borderRadius: 999,
-      backgroundColor: '#ef4444',
-      alignItems: 'center',
-    },
-    logoutButtonPressed: {
-      opacity: 0.85,
-    },
-    logoutLabel: {
-      color: '#fff',
-      fontWeight: '700',
     },
   });

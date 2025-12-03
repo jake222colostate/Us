@@ -296,49 +296,73 @@ export default function CompareScreen({ route, navigation }: Props) {
   }, [show, viewerPostOptions.length]);
 
   const handleOpenRightPhotoMenu = useCallback(() => {
-    const optionHandlers = [
-      () => handleTakePhoto(),
-      () => handleChooseFromLibrary(),
-      () => handleChooseFromPosts(),
-    ];
-    const optionLabels = ['Take a photo', 'Upload from library', 'Choose from posts'];
+    const hasRightPhoto = Boolean(rightPhoto);
 
-    if (rightPhoto) {
-      optionHandlers.push(() => handleClearRightPhoto());
-      optionLabels.push('Remove photo');
-    }
-
-    const cancelIndex = optionLabels.length;
-
-    const handleSelection = (index: number | undefined) => {
-      if (typeof index !== 'number' || index < 0 || index >= optionHandlers.length) {
+    const openForIOS = () => {
+      if (!hasRightPhoto) {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            title: 'Add your photo',
+            options: ['Take a photo', 'Choose from posts', 'Cancel'],
+            cancelButtonIndex: 2,
+          },
+          (buttonIndex) => {
+            if (buttonIndex === 0) {
+              void handleTakePhoto();
+            } else if (buttonIndex === 1) {
+              void handleChooseFromPosts();
+            }
+          },
+        );
         return;
       }
-      optionHandlers[index]();
+
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: 'Update your photo',
+          options: ['Replace from camera', 'Replace from posts', 'Clear photo', 'Cancel'],
+          cancelButtonIndex: 3,
+          destructiveButtonIndex: 2,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) {
+            void handleTakePhoto();
+          } else if (buttonIndex === 1) {
+            void handleChooseFromPosts();
+          } else if (buttonIndex === 2) {
+            handleClearRightPhoto();
+          }
+        },
+      );
+    };
+
+    const openForAndroid = () => {
+      const buttons: any[] = [];
+
+      if (!hasRightPhoto) {
+        buttons.push(
+          { text: 'Take a photo', onPress: () => void handleTakePhoto() },
+          { text: 'Choose from posts', onPress: () => void handleChooseFromPosts() },
+        );
+      } else {
+        buttons.push(
+          { text: 'Replace from camera', onPress: () => void handleTakePhoto() },
+          { text: 'Replace from posts', onPress: () => void handleChooseFromPosts() },
+          { text: 'Clear photo', style: 'destructive', onPress: () => handleClearRightPhoto() },
+        );
+      }
+
+      buttons.push({ text: 'Cancel', style: 'cancel' });
+
+      Alert.alert('Add your photo', undefined, buttons, { cancelable: true });
     };
 
     if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: 'Add your photo',
-          options: [...optionLabels, 'Cancel'],
-          cancelButtonIndex: cancelIndex,
-        },
-        handleSelection,
-      );
-      return;
+      openForIOS();
+    } else {
+      openForAndroid();
     }
-
-    Alert.alert(
-      'Add your photo',
-      undefined,
-      [
-        ...optionLabels.map((label, index) => ({ text: label, onPress: optionHandlers[index] })),
-        { text: 'Cancel', style: 'cancel' },
-      ],
-      { cancelable: true },
-    );
-  }, [handleChooseFromLibrary, handleChooseFromPosts, handleTakePhoto, handleClearRightPhoto, rightPhoto]);
+  }, [handleTakePhoto, handleChooseFromPosts, handleClearRightPhoto, rightPhoto]);
 
   const handleSendLike = useCallback(async () => {
     if (!session?.user?.id) {
@@ -381,6 +405,32 @@ export default function CompareScreen({ route, navigation }: Props) {
       setIsSendingLike(false);
     }
   }, [session?.user?.id, params.profile?.id, left, rightPhoto, rightPhotoSource, selectedPostId, show, navigation]);
+
+  const handleQuickLike = useCallback(async () => {
+    if (!session?.user?.id) {
+      Alert.alert('Sign in required', 'Create an account to send likes.');
+      return;
+    }
+    if (!params.profile?.id) {
+      Alert.alert('Missing profile', 'This profile is no longer available.');
+      return;
+    }
+    try {
+      setIsSendingLike(true);
+      await likeUser(session.user.id, params.profile.id, {
+        kind: 'like',
+        source: 'compare-quick',
+      });
+      show('Like sent!');
+      await handleNextProfile();
+    } catch (error) {
+      console.error('Failed to send quick like', error);
+      Alert.alert('Unable to send like', 'Please try again in a moment.');
+    } finally {
+      setIsSendingLike(false);
+    }
+  }, [session?.user?.id, params.profile?.id, show, handleNextProfile]);
+
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -464,34 +514,34 @@ export default function CompareScreen({ route, navigation }: Props) {
         <View style={styles.ctaRow}>
           <Pressable
             accessibilityRole="button"
-            disabled={!canSendLike}
+            disabled={!canSendLike || isSendingLike}
             style={({ pressed }) => [
               styles.primaryButton,
-              pressed && canSendLike && styles.primaryButtonPressed,
-              !canSendLike && styles.primaryButtonDisabled,
+              pressed && canSendLike && !isSendingLike && styles.primaryButtonPressed,
+              (!canSendLike || isSendingLike) && styles.primaryButtonDisabled,
             ]}
             onPress={handleSendLike}
           >
-            <Text style={styles.primaryButtonLabel}>{isSendingLike ? 'Sending…' : 'Send Like'}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && styles.secondaryButtonPressed,
-              (isLoadingNext || !params.context?.items?.length) && styles.secondaryButtonDisabled,
-            ]}
-            onPress={handleNextProfile}
-            disabled={isLoadingNext || !params.context?.items?.length}
-          >
-            {isLoadingNext ? (
-              <ActivityIndicator color="#94a3b8" />
-            ) : (
-              <Text style={styles.secondaryButtonLabel}>Next profile</Text>
-            )}
+            <Text style={styles.primaryButtonLabel}>
+              {isSendingLike && canSendLike ? 'Sending…' : 'Send the photo of Us'}
+            </Text>
           </Pressable>
         </View>
-      </ScrollView>
+
+        <View style={styles.sendLikeRow}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSendingLike}
+            onPress={handleQuickLike}
+            style={({ pressed }) => [
+              styles.sendLikeButton,
+              pressed && !isSendingLike && styles.sendLikeButtonPressed,
+            ]}
+          >
+            <Text style={styles.sendLikeLabel}>{isSendingLike ? 'Liking…' : 'Like'}</Text>
+          </Pressable>
+        </View>
+
       <Modal
         animationType="slide"
         transparent
@@ -541,6 +591,7 @@ export default function CompareScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -809,4 +860,48 @@ const createStyles = (isDarkMode: boolean) => StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+
+    nextButton: {
+      flex: 1,
+      borderRadius: 999,
+      paddingVertical: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#6d28d9',
+      shadowColor: '#000',
+      shadowOpacity: 0.18,
+      shadowOffset: { width: 0, height: 6 },
+      shadowRadius: 10,
+      elevation: 4,
+    },
+    nextButtonPressed: {
+      opacity: 0.9,
+    },
+    nextButtonDisabled: {
+      backgroundColor: '#c4b5fd',
+      opacity: 0.7,
+    },
+    nextButtonLabel: {
+      fontWeight: '700',
+      color: '#f9fafb',
+    },
+    sendLikeButton: {
+      marginTop: 16,
+      borderRadius: 999,
+      paddingVertical: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#8b5cf6',
+    },
+    sendLikeButtonPressed: {
+      opacity: 0.9,
+    },
+    sendLikeButtonDisabled: {
+      backgroundColor: '#e5e7eb',
+    },
+    sendLikeButtonLabel: {
+      fontWeight: '800',
+      fontSize: 17,
+      color: '#f9fafb',
+    },
 });

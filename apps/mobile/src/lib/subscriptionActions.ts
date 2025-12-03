@@ -2,6 +2,17 @@ import { Alert } from 'react-native';
 import { supabase } from '../api/supabase';
 import type { SubscriptionPlanId } from '../hooks/useSubscriptionStatus';
 
+function getPlanLabel(planCode: SubscriptionPlanId): string {
+  switch (planCode) {
+    case 'plus':
+      return 'Premium';
+    case 'pro':
+      return 'Elite';
+    default:
+      return 'Free';
+  }
+}
+
 async function applyPlan(planCode: SubscriptionPlanId) {
   try {
     const { error } = await supabase.rpc('set_user_subscription', {
@@ -14,10 +25,8 @@ async function applyPlan(planCode: SubscriptionPlanId) {
       return;
     }
 
-    const label =
-      planCode === 'plus' ? 'Premium' :
-      planCode === 'pro' ? 'Elite' :
-      'Free';
+    const label = getPlanLabel(planCode);
+    console.log('[subscription] plan updated to', label);
 
     try {
       const { queryClient } = await import('../state/queryClient');
@@ -26,7 +35,6 @@ async function applyPlan(planCode: SubscriptionPlanId) {
     } catch (err) {
       console.warn('[subscription] could not refresh cache', err);
     }
-
   } catch (e) {
     console.warn('[subscription] unexpected error', e);
     Alert.alert('Error', 'Unable to update your plan right now.');
@@ -34,26 +42,11 @@ async function applyPlan(planCode: SubscriptionPlanId) {
 }
 
 export function startUpgradeFlow(planId: Exclude<SubscriptionPlanId, 'free'>) {
-  const label = planId === 'plus' ? 'Premium' : 'Elite';
-  console.log('[subscription] start upgrade flow (dev)', planId);
-
-  Alert.alert(
-    'Confirm upgrade',
-    `Switch to the ${label} plan in this dev build?`,
-    [
-      { text: 'Not now', style: 'cancel' },
-      {
-        text: 'Confirm',
-        style: 'default',
-        onPress: () => {
-          void applyPlan(planId);
-        },
-      },
-    ],
-  );
+  console.log('[subscription] start upgrade flow (no popup)', planId);
+  void applyPlan(planId);
 }
 
 export function startManageSubscription() {
-  console.log('[subscription] manage subscription: immediate downgrade to free');
+  console.log('[subscription] change subscription (no popup, downgrade to Free)');
   void applyPlan('free');
 }
